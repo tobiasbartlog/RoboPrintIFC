@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node / Viewer
+node_modules/
+viewer/dist/
+
+# Laufordner (Artefakte, ADR-004) — nie versionieren
+runs/*
+!runs/README.md
+
+# Projekte (Arbeitsstände, ADR-016) — verweisen auf Läufe, nie versionieren
+projects/*
+!projects/README.md
+
+# IDE / OS
+.idea/
+.vscode/
+Thumbs.db
+desktop.ini
+
+# Lokale Werkzeug-/Assistenz-Konfiguration
+.claude/
+.codex/
+
+# Recherche-Volltexte (urheberrechtlich geschuetzt, ~145 MB).
+# Beschaffung und Verifikationsergebnisse: docs/recherche/2026-07-10-adaption-chunking-literatur.md
+docs/recherche/inputPDF/

@@ -1,0 +1,51 @@
+{
+  "slug": "kontrakthaus",
+  "name": "Kontrakthaus",
+  "model_path": "<tmp>\\modell.ifc",
+  "overview_run": "<tmp>\\runs\\20260722-125107_walls-list_modell",
+  "print_jobs": [
+    {
+      "job_id": "default",
+      "wall_global_id": "WALLAAAAAAAAAAAAAAAAAA",
+      "assessment_run": "<tmp>\\runs\\20260722-125107_walls-list_modell",
+      "runs": [],
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 1,
+          "cutplan": 1,
+          "process": 1,
+          "workstation": 1
+        },
+        "outputs": {}
+      },
+      "robot": "doosan_m1013",
+      "tool": "30gut",
+      "workstation": "mobile_hub",
+      "stand_mode": "elevated",
+      "check_building_context": true,
+      "module_limits": {
+        "max_height_mm": 1400.0
+      },
+      "objective": {
+        "aufwiegen": false,
+        "weights": {
+          "umsetzvorgaenge": 8.0,
+          "fugenflaeche": 3.0,
+          "kinematische_marge": 2.0,
+          "volumen_cv": 1.0
+        }
+      },
+      "process_params": {
+        "slice": {
+          "layer_height_mm": 9.0,
+          "n_shells": 3
+        },
+        "orientation": {
+          "kipp_deg": 5.0
+        }
+      }
+    }
+  ]
+}

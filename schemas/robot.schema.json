@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboprintifc/schemas/robot.schema.json",
+  "title": "Robot",
+  "description": "Roboterdefinition: projektunabhaengiges Stammdaten-Artefakt (robots/<name>.json, ADR-002, P5). Traegt den groben E1-Arbeitsraum (workspace) und optional die 6R-Kinematik (DH/OPW-Solver, ADR-006). Roboter sind read-only im #69-Scope; dieses Schema ist rein additive Robustheit (Validierung + sichtbare Defektmeldung), keine Schreibpfade. Einheiten strikt nach ADR-006: mm, Radiant. Unterstrich-praefixierte Felder (z.B. '_note', '_source') sind erlaubte Kommentarfelder.",
+  "type": "object",
+  "required": ["schema_version", "name", "reach_mm", "workspace"],
+  "additionalProperties": false,
+  "patternProperties": { "^_": {} },
+  "properties": {
+    "schema_version": { "const": "0.2" },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Eindeutiger Name des Roboters (Dateiname ohne Endung)"
+    },
+    "vendor": {
+      "type": "string",
+      "description": "Hersteller oder Herkunft (optional)"
+    },
+    "reach_mm": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Reichweite des Arms in mm (grober E1-Stufe-1-Huellwert)"
+    },
+    "payload_kg": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Traglast in kg (statischer Payload-Check gegen Endeffektor-Gewicht, Issue #21). Optional."
+    },
+    "workspace": {
+      "type": "object",
+      "required": ["max_print_height_mm", "max_print_length_mm"],
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "description": "Grober Arbeitsraum fuer E1-Stufe 1 (feste Aufspannung); verfeinert die Kinematik.",
+      "properties": {
+        "max_print_height_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Maximale Druckhoehe in mm"
+        },
+        "max_print_length_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Maximale Drucklaenge in mm"
+        },
+        "provisional": {
+          "type": "boolean",
+          "description": "Provisorische Huellwerte (default true), bis die Kinematik echte Erreichbarkeit rechnet."
+        }
+      }
+    },
+    "kinematics": {
+      "type": "object",
+      "required": ["solver", "a_mm", "d_mm", "alpha_rad", "joint_limits_rad"],
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "description": "Geometrieparameter eines 6R-Arms fuer FK/IK (Spike S3, ADR-002, ADR-006). Optional; fehlt = nur Arbeitsraum-Check.",
+      "properties": {
+        "solver": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name der portierten Solverfamilie (z.B. 'opw' = Ortho-Parallel-Basis + Spherical Wrist)."
+        },
+        "a_mm": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 1,
+          "description": "Standard-DH-Parameter a je Achse in mm (ADR-006)."
+        },
+        "d_mm": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 1,
+          "description": "Standard-DH-Parameter d je Achse in mm (ADR-006)."
+        },
+        "alpha_rad": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 1,
+          "description": "Standard-DH-Parameter alpha je Achse in Radiant (ADR-006)."
+        },
+        "joint_limits_rad": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "minItems": 1,
+          "description": "Gelenkgrenzen je Achse als (min, max)-Paar in Radiant (ADR-006)."
+        },
+        "joint_velocity_limits_rad_s": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 1,
+          "description": "Kinematische Geschwindigkeitsgrenze je Achse in rad/s (Zeitparametrierung, Issue #12). Optional."
+        },
+        "joint_acceleration_limits_rad_s2": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 1,
+          "description": "Kinematische Beschleunigungsgrenze je Achse in rad/s^2 (Zeitparametrierung, Issue #12). Optional."
+        }
+      }
+    },
+    "collision_geometry": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Relativer Pfad (zu robots/) zum Kollisions-Geometrie-Derivat je Glied: Breitphasen-Huelle + VHACD-Urteilsgeometrie (ADR-024 Nachtrag, Issue #125). Optional und additiv (Bestand ohne Feld laedt unveraendert). Erzeugt von core/scripts/convert_robot_collision.py, geladen von fgc.collision.robot_geometry."
+    },
+    "base_mount": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "required": ["hole_count", "hole_diameter_mm", "hole_positions_mm"],
+      "description": "Basis-Bohrbild fuer die Montage auf einer Workstation (Issue #78, ADR-006). Lochmittelpunkte in der Montageebene (base z=0) relativ zur Basisachse (J1). Optional; PROVISORISCH (aus Herstellerhandbuch, gegen das Mesh abgeglichen). Genutzt von fgc.geometry.holes zum Abgleich mit dem erkannten Bohrbild — Befund, kein Gate (ADR-013).",
+      "properties": {
+        "hole_count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Anzahl der Durchgangsbohrungen des Bohrbilds."
+        },
+        "hole_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Durchmesser der Durchgangsbohrungen in mm."
+        },
+        "bolt_circle_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Lochkreisdurchmesser in mm (Diagnose/Anzeige). Optional."
+        },
+        "hole_positions_mm": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "description": "Lochmittelpunkte in der Basis-Montageebene (x,y) relativ zur Basisachse, mm"
+        },
+        "provisional": {
+          "type": "boolean",
+          "default": true,
+          "description": "Provisorische Werte (default true), bis eine Vermessung sie bestaetigt."
+        }
+      }
+    }
+  }
+}

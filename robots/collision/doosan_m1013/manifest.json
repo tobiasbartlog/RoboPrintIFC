@@ -1,0 +1,172 @@
+{
+  "_comment": "Erzeugt von core/scripts/convert_robot_collision.py — nicht editieren.",
+  "frame_convention": "Vertices je Glied im DH-Gliedframe (worldV = frames[i]·v), dieselbe Offset-Formel wie convert_robot_meshes.py (Issue #53, importiert).",
+  "generator": "core/scripts/convert_robot_collision.py",
+  "geometry_roles": {
+    "broadphase": "konvexe Hülle je Glied — untere Distanz-Schranke (Hülle ⊇ Roh-Mesh)",
+    "judgment": "VHACD-Konvexzerlegung je Glied — Urteilsgeometrie, formtreu ±5.5 mm (Spike S0)"
+  },
+  "links": [
+    {
+      "bounds_mm": [
+        [
+          -91.191,
+          -91.191,
+          0.0
+        ],
+        [
+          123.243,
+          349.047,
+          55.8
+        ]
+      ],
+      "broadphase_faces": 844,
+      "file": "base.json",
+      "index": 0,
+      "judgment_faces_total": 1408,
+      "judgment_parts": 64,
+      "urdf_link": "base_link"
+    },
+    {
+      "bounds_mm": [
+        [
+          -81.038,
+          -95.7,
+          -80.32
+        ],
+        [
+          81.039,
+          123.867,
+          101.799
+        ]
+      ],
+      "broadphase_faces": 3400,
+      "file": "link1.json",
+      "index": 1,
+      "judgment_faces_total": 3262,
+      "judgment_parts": 64,
+      "urdf_link": "link_1"
+    },
+    {
+      "bounds_mm": [
+        [
+          -700.348,
+          -81.011,
+          68.277
+        ],
+        [
+          69.153,
+          81.066,
+          287.873
+        ]
+      ],
+      "broadphase_faces": 4516,
+      "file": "link2.json",
+      "index": 2,
+      "judgment_faces_total": 1912,
+      "judgment_parts": 64,
+      "urdf_link": "link_2"
+    },
+    {
+      "bounds_mm": [
+        [
+          -65.482,
+          -54.512,
+          -96.808
+        ],
+        [
+          65.516,
+          81.144,
+          83.972
+        ]
+      ],
+      "broadphase_faces": 3124,
+      "file": "link3.json",
+      "index": 3,
+      "judgment_faces_total": 2962,
+      "judgment_parts": 64,
+      "urdf_link": "link_3"
+    },
+    {
+      "bounds_mm": [
+        [
+          -56.743,
+          -54.703,
+          -49.772
+        ],
+        [
+          57.026,
+          474.553,
+          243.856
+        ]
+      ],
+      "broadphase_faces": 2406,
+      "file": "link4.json",
+      "index": 4,
+      "judgment_faces_total": 2534,
+      "judgment_parts": 64,
+      "urdf_link": "link_4"
+    },
+    {
+      "bounds_mm": [
+        [
+          -53.866,
+          -52.231,
+          -94.887
+        ],
+        [
+          54.097,
+          79.255,
+          60.469
+        ]
+      ],
+      "broadphase_faces": 2458,
+      "file": "link5.json",
+      "index": 5,
+      "judgment_faces_total": 3046,
+      "judgment_parts": 64,
+      "urdf_link": "link_5"
+    },
+    {
+      "bounds_mm": [
+        [
+          -45.611,
+          -45.764,
+          -59.508
+        ],
+        [
+          45.39,
+          45.236,
+          0.007
+        ]
+      ],
+      "broadphase_faces": 1044,
+      "file": "link6.json",
+      "index": 6,
+      "judgment_faces_total": 2424,
+      "judgment_parts": 64,
+      "urdf_link": "link_6"
+    }
+  ],
+  "robot": "doosan_m1013",
+  "round_decimals": 3,
+  "source_meshes": "third_party/doosan_m1013/meshes/m1013_collision (URDF <collision>)",
+  "units": "mm",
+  "upstream": {
+    "commit": "ec9242546ec6202835900dbcd8498e2daabfa6a6",
+    "license": "BSD-3-Clause © Doosan Robotics Inc. — siehe third_party/doosan_m1013/LICENSE",
+    "repo": "https://github.com/doosan-robotics/doosan-robot2"
+  },
+  "vhacd_params": {
+    "asyncACD": false,
+    "fillMode": "flood",
+    "findBestPlane": false,
+    "maxConvexHulls": 64,
+    "maxNumVerticesPerCH": 64,
+    "maxRecursionDepth": 10,
+    "minEdgeLength": 2,
+    "minimumVolumePercentErrorAllowed": 1.0,
+    "resolution": 400000,
+    "shrinkWrap": true
+  }
+}

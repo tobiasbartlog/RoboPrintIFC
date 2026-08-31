@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboprintifc/schemas/trajectory.schema.json",
+  "title": "Trajectory",
+  "description": "Ausfuehrbare Bewegung als Zeitreihe. Genau dieses Format konsumiert der Viewer (ADR-007). io ist hier bereits totzeitkompensiert, sofern Setup.deadtime.compensation == simulation_shift (ADR-012/E3).",
+  "type": "object",
+  "required": ["schema_version", "provenance", "samples", "meta"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "provenance": { "$ref": "setup.schema.json#/$defs/provenance" },
+    "samples": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["t_s", "joints_rad", "io"],
+        "additionalProperties": false,
+        "properties": {
+          "t_s": { "type": "number", "minimum": 0 },
+          "joints_rad": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 6,
+            "maxItems": 6
+          },
+          "io": {
+            "type": "object",
+            "additionalProperties": { "type": "number" }
+          }
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "required": ["duration_s", "io_compensated"],
+      "additionalProperties": false,
+      "properties": {
+        "duration_s": { "type": "number", "minimum": 0 },
+        "io_compensated": {
+          "type": "boolean",
+          "description": "true, wenn die io-Zeitreihe bereits um -t_tot verschoben wurde (E3)"
+        },
+        "pose_source": {
+          "enum": ["planned", "measured"],
+          "description": "Quelle der Lage Wand<->Roboterbasis (Issue #26): 'measured' = aus dem gemessenen Setup (Antast-Verfahren, ADR-006) — Voraussetzung fuer den echten Druck; 'planned' = aus der geplanten Platzierung (Plan, nur fuer die Simulation zulaessig, Design-Log 2026-07-04). Fehlt bei Altlaeufen (dann implizit 'measured')."
+        },
+        "base_frame": {
+          "$ref": "setup.schema.json#/$defs/frame",
+          "description": "Roboterbasis im Wandkoordinatensystem (base_in_wall = invert(wall_to_base)). Fester Anker fuer das Arm-Replay (ADR-007-Klarstellung): der Viewer verankert den Arm damit fix an der geplanten Lage, statt die Basis pro Frame ans Ziel zu schleifen. Fehlt bei Altlaeufen (dann Legacy-Anker im Viewer)."
+        },
+        "section_z0_mm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Echte Hoehenlage des simulierten Abschnitts (Issue #135): z0 (mm) des Abschnittsfusses ueber dem Boden (Boden = Wandfuss). Toolpath/Trajektorie liegen abschnitts-lokal (z ab Abschnittsfuss); der Viewer hebt die Replay-Szene (Bahn, Arm, wachsender Druckstand) um diesen Wert auf die echte Bandlage. Rein ADDITIV: fehlt bei Altlaeufen und bei Zerlegungsart Modul (Workstation ist der Druckort, ADR-022) — dann gilt 0."
+        },
+        "axis_utilization": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0, "maximum": 1 },
+          "minItems": 6,
+          "maxItems": 6
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["t_s", "kind", "message"],
+            "properties": {
+              "t_s": { "type": "number" },
+              "kind": { "enum": ["singularity", "joint_limit", "reach", "ik_config", "other"] },
+              "message": { "type": "string" }
+            }
+          }
+        },
+        "collision": {
+          "type": "object",
+          "description": "Kollisions-Befund der Kollisionskontrolle (ADR-024, Issue #127): entsteht automatisch bei jeder Simulation (Abschnitt wie Modul). Rein ADDITIV und optional — Altlaeufe ohne diesen Block laden byte-gleich, und eine Simulation ohne Kollisionsgeometrie (Roboter ohne robot_geometry-Artefakt) laesst den Block schlicht weg (kein null-Fuellen). Befund, kein Gate: die Simulation liefert immer, auch wenn dieser Block fehlt. Die Abstandskurve/Verursacher liegen als zu 'samples' PARALLELE Arrays hier in 'meta', damit 'samples' byte-gleich bleibt.",
+          "required": ["config", "distances_mm", "intervals", "min_distance_mm", "n_red", "n_yellow", "n_green"],
+          "additionalProperties": false,
+          "properties": {
+            "config": {
+              "type": "object",
+              "description": "Echo der verwendeten Konfiguration (Platzhalterwerte, 'provisional'-Geist wie bei den Prozessfenster-Karten, bis S1/S4 gemessene Werte liefern).",
+              "required": ["safety_distance_mm", "freizone_radius_mm", "provisional"],
+              "additionalProperties": false,
+              "properties": {
+                "safety_distance_mm": { "type": "number", "minimum": 0, "description": "Sicherheitsabstand (mm): Abstand < safety = Warnung (gelb), < 0 = Kollision (rot)." },
+                "freizone_radius_mm": { "type": "number", "minimum": 0, "description": "Freizone-Radius (mm) um den Druckpunkt, in dem der wachsende Druckstand nicht bewertet wird (Duese<->Wulst)." },
+                "provisional": { "type": "boolean", "description": "true, solange Sicherheitsabstand/Freizone Platzhalterwerte sind (noch nicht gemessen)." },
+                "context_enabled": { "type": "boolean", "description": "war der zuschaltbare Gebaeudekontext als Hindernis aktiv?" },
+                "mode": { "enum": ["abschnitt", "modul"], "description": "Zerlegungsart des Druckstands (Abschnitt: Boden/Podest + Kontext; Modul: nur wachsendes Modul + Arbeitsflaeche)." }
+              }
+            },
+            "min_distance_mm": { "type": ["number", "null"], "description": "Kleinster Abstand aller Samples (mm); null, wenn kein Glied je in Breitphasen-Naehe eines Hindernisses war." },
+            "worst_index": { "type": "integer", "description": "Sample-Index des kleinsten Abstands; -1, wenn keiner." },
+            "n_red": { "type": "integer", "minimum": 0, "description": "Zahl der Samples mit Abstand < 0 (Kollision)." },
+            "n_yellow": { "type": "integer", "minimum": 0, "description": "Zahl der Samples mit 0 <= Abstand < Sicherheitsabstand (Warnung)." },
+            "n_green": { "type": "integer", "minimum": 0, "description": "Zahl der sicheren Samples." },
+            "tool_provisional": { "type": "boolean", "description": "true, wenn der Endeffektor als provisorische Konvexhuelle gefuehrt wurde (offener PRD-Punkt 3)." },
+            "distances_mm": {
+              "type": "array",
+              "description": "Abstandskurve: minimaler Abstand je Sample (mm), parallel zu 'samples'. null = Glied ausserhalb der Breitphase (nicht gemessen, sicher grün).",
+              "items": { "type": ["number", "null"] }
+            },
+            "causer_link": {
+              "type": "array",
+              "description": "Verursachendes Glied je Sample (0..6, 7 = Endeffektor) parallel zu 'samples'; null, wenn keins.",
+              "items": { "type": ["integer", "null"] }
+            },
+            "causer_against": {
+              "type": "array",
+              "description": "Verursachendes Hindernis je Sample (z.B. 'current_part', 'ground', 'link4') parallel zu 'samples'; null, wenn keins.",
+              "items": { "type": ["string", "null"] }
+            },
+            "intervals": {
+              "type": "array",
+              "description": "Verdichtete Kollisions-/Warn-Intervalle: zusammenhaengende Samples gleichen Status.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["status", "start_index", "end_index"],
+                "properties": {
+                  "status": { "enum": ["red", "yellow", "green"] },
+                  "start_index": { "type": "integer", "minimum": 0 },
+                  "end_index": { "type": "integer", "minimum": 0 },
+                  "min_distance_mm": { "type": ["number", "null"] },
+                  "worst_index": { "type": "integer" },
+                  "link": { "type": ["integer", "null"] },
+                  "against": { "type": ["string", "null"] }
+                }
+              }
+            },
+            "travel_intervals": {
+              "type": "array",
+              "description": "Index-Bereiche [start,end] der Travel-Abschnitte — hier als 'nicht lueckenlos geprueft' gekennzeichnet: Travel springt bis ~1 m je Sample-Schritt (Spike S0), Zwischenzustaende koennen uebersprungen werden (Tunneling, v1-Grenze). Druckzuege sind dicht (p99 20 mm).",
+              "items": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 0 },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            },
+            "travel_not_continuously_checked": {
+              "type": "boolean",
+              "description": "true, wenn Travel-Abschnitte vorhanden sind, deren dazwischenliegende Zustaende nicht lueckenlos geprueft wurden."
+            }
+          }
+        }
+      }
+    }
+  }
+}

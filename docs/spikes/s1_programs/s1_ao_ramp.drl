@@ -1,0 +1,52 @@
+# S1 — AO-Testprogramm Doosan M1013 (DRL)
+# ENTWURF — vor dem Lauf gegen das DRL-Handbuch der installierten
+# Controller-Version pruefen (API-Namen, Analog-Modus-Konstanten).
+# Zweck: Linearbewegung, waehrenddessen AO-Rampe/-Spruenge auf zwei Kanaelen.
+# Messung 1 (AO-Latenz): Oszilloskop an AO1/AO2, Video vom Teach-Pendant-Log.
+
+# --- Konfiguration -----------------------------------------------------------
+# Spannungsmodus explizit setzen — genau das Problem, das ADR-011 an eine
+# Stelle zwingt: falscher Modus/Wertebereich war der bekannte Injector-Bug.
+set_mode_analog_output(ch=1, mod=DR_ANALOG_VOLTAGE)   # pump_a -> AO1, 0..10 V
+set_mode_analog_output(ch=2, mod=DR_ANALOG_VOLTAGE)   # pump_b -> AO2, 0..10 V
+
+v_test = 100        # mm/s  — Druckgeschwindigkeit, an Zielprozess anpassen
+a_test = 200        # mm/s^2
+seg_mm = 50         # Ziel-Segmentlaenge (provisorische phi-Aufloesung, s. Protokoll)
+
+p_start = posx(400, -300, 300, 0, 180, 0)   # an Zelle anpassen!
+p_end   = posx(400,  300, 300, 0, 180, 0)   # 600 mm Linearweg
+
+# --- Test A: Sprung zwischen zwei movel (diskrete Strategie) ------------------
+movel(p_start, vel=v_test, acc=a_test)
+set_analog_output(ch=1, val=2.0)
+movel(posx(400, -150, 300, 0, 180, 0), vel=v_test, acc=a_test)
+set_analog_output(ch=1, val=8.0)             # Sprung: Latenz am Oszilloskop
+movel(posx(400, 0, 300, 0, 180, 0), vel=v_test, acc=a_test)
+
+# --- Test B: Sprung mit Blending (radius > 0) — wird der AO verschluckt? ------
+set_analog_output(ch=1, val=2.0)
+movel(posx(400, 150, 300, 0, 180, 0), vel=v_test, acc=a_test, radius=20)
+set_analog_output(ch=1, val=8.0)
+movel(p_end, vel=v_test, acc=a_test, radius=20)
+
+# --- Test C: Rampe segmentweise (feiner Gradient entlang der Bahn) ------------
+# 600 mm in seg_mm-Schritten, AO linear 2.0 -> 8.0 V; zweiter Kanal gegenlaeufig.
+movel(p_start, vel=v_test, acc=a_test)
+n = int(600 / seg_mm)
+for i in range(0, n + 1):
+    u = float(i) / n
+    set_analog_output(ch=1, val=2.0 + 6.0 * u)
+    set_analog_output(ch=2, val=8.0 - 6.0 * u)
+    y = -300 + 600 * u
+    movel(posx(400, y, 300, 0, 180, 0), vel=v_test, acc=a_test, radius=5)
+
+# --- Test D (optional): thread_run fuer zeitgesteuerte AO-Updates -------------
+# Falls Test B/C zeigt, dass AO-Befehle im Motion-Kontext blockieren/verzoegern:
+# AO-Rampe in einem parallelen Thread fahren und gegen die Bahnzeit messen.
+# def ao_ramp():
+#     ...
+# thread_run(ao_ramp, loop=False)
+
+set_analog_output(ch=1, val=0.0)
+set_analog_output(ch=2, val=0.0)

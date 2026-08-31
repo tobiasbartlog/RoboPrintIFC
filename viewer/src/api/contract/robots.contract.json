@@ -1,0 +1,13 @@
+{
+  "robots": [
+    {
+      "name": "doosan_m1013",
+      "reach_mm": 1300.0,
+      "max_print_height_mm": 1000.0,
+      "max_print_length_mm": 2000.0,
+      "workspace_provisional": true,
+      "payload_kg": 10.0
+    }
+  ],
+  "errors": []
+}

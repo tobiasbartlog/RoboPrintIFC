@@ -1,0 +1,82 @@
+# cProfile find_collisions — Abschnitt-1 (Denkmal, Modul)
+# n_samples=19535 n_layers=82 total_tt=17.240s
+
+## Top 30 nach tottime (Eigenzeit)
+         7320149 function calls (7317881 primitive calls) in 17.240 seconds
+
+   Ordered by: internal time
+   List reduced from 349 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+  1566305    8.040    0.000    8.040    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\trimesh\collision.py:239(set_transform)
+    43469    2.336    0.000    2.525    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\trimesh\collision.py:612(min_distance_other)
+        1    1.144    1.144   17.340   17.340 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\check.py:260(find_collisions)
+   135079    0.675    0.000    0.675    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\check.py:203(_aabb_gap)
+   315152    0.540    0.000    0.541    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+   156280    0.477    0.000    0.711    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\kinematics\opw.py:104(_quat_to_rot)
+    43469    0.394    0.000    8.448    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\check.py:214(_set_parts)
+   156280    0.385    0.000    1.547    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\check.py:133(_matrix)
+   468840    0.367    0.000    0.367    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\simulation\transform.py:25(quat_mul)
+   156280    0.341    0.000    1.312    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\simulation\transform.py:58(compose)
+   156810    0.329    0.000    0.453    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\numpy\lib\_twodim_base_impl.py:178(eye)
+   468840    0.304    0.000    0.363    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\simulation\transform.py:43(quat_normalize)
+   161678    0.214    0.000    0.214    0.000 {built-in method numpy.array}
+    43469    0.190    0.000    0.477    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\check.py:401(_in_freizone)
+   156280    0.146    0.000    0.346    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\simulation\transform.py:51(quat_rotate)
+    43469    0.113    0.000    0.253    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\numpy\linalg\_linalg.py:2598(norm)
+   157458    0.091    0.000    0.091    0.000 {built-in method numpy.zeros}
+   625120    0.084    0.000    0.084    0.000 {built-in method math.sqrt}
+   156928    0.081    0.000    0.426    0.000 {method 'min' of 'numpy.ndarray' objects}
+    43469    0.081    0.000    0.081    0.000 {method 'dot' of 'numpy.ndarray' objects}
+   157009    0.066    0.000    0.342    0.000 {method 'max' of 'numpy.ndarray' objects}
+    86938    0.052    0.000    0.072    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\trimesh\collision.py:702(_extract_name)
+   108263    0.049    0.000    0.049    0.000 {built-in method numpy.asarray}
+   156928    0.045    0.000    0.345    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\numpy\_core\_methods.py:43(_amin)
+      474    0.045    0.000    0.055    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\trimesh\collision.py:741(mesh_to_convex)
+    43469    0.044    0.000    0.044    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\trimesh\collision.py:93(__init__)
+    86938    0.040    0.000    0.051    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\fcl\collision_data.py:153(__init__)
+   157009    0.039    0.000    0.276    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\numpy\_core\_methods.py:39(_amax)
+   314754    0.034    0.000    0.034    0.000 {built-in method _operator.index}
+   156280    0.028    0.000    0.028    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\simulation\transform.py:37(quat_conj)
+
+
+
+## Top 30 nach cumtime (kumuliert)
+         7320149 function calls (7317881 primitive calls) in 17.240 seconds
+
+   Ordered by: cumulative time
+   List reduced from 349 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    1.144    1.144   17.340   17.340 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\check.py:260(find_collisions)
+    43469    0.394    0.000    8.448    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\check.py:214(_set_parts)
+  1566305    8.040    0.000    8.040    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\trimesh\collision.py:239(set_transform)
+    43469    2.336    0.000    2.525    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\trimesh\collision.py:612(min_distance_other)
+   156280    0.385    0.000    1.547    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\check.py:133(_matrix)
+   156280    0.341    0.000    1.312    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\simulation\transform.py:58(compose)
+   156280    0.477    0.000    0.711    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\kinematics\opw.py:104(_quat_to_rot)
+   135079    0.675    0.000    0.675    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\check.py:203(_aabb_gap)
+   315152    0.540    0.000    0.541    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+    43469    0.190    0.000    0.477    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\check.py:401(_in_freizone)
+   156810    0.329    0.000    0.453    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\numpy\lib\_twodim_base_impl.py:178(eye)
+   156928    0.081    0.000    0.426    0.000 {method 'min' of 'numpy.ndarray' objects}
+   468840    0.367    0.000    0.367    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\simulation\transform.py:25(quat_mul)
+   468840    0.304    0.000    0.363    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\simulation\transform.py:43(quat_normalize)
+   156280    0.146    0.000    0.346    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\simulation\transform.py:51(quat_rotate)
+   156928    0.045    0.000    0.345    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\numpy\_core\_methods.py:43(_amin)
+   157009    0.066    0.000    0.342    0.000 {method 'max' of 'numpy.ndarray' objects}
+    19535    0.011    0.000    0.290    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\check.py:323(groups_for)
+   157009    0.039    0.000    0.276    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\numpy\_core\_methods.py:39(_amax)
+    43469    0.113    0.000    0.253    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\numpy\linalg\_linalg.py:2598(norm)
+      530    0.009    0.000    0.229    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\trimesh\collision.py:178(add_object)
+      530    0.001    0.000    0.216    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\trimesh\collision.py:681(_get_fcl_obj)
+   161678    0.214    0.000    0.214    0.000 {built-in method numpy.array}
+       82    0.002    0.000    0.163    0.002 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\check.py:223(_obstacle_groups)
+ 2887/619    0.006    0.000    0.152    0.000 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\trimesh\caching.py:121(get_cached)
+       81    0.000    0.000    0.138    0.002 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\trimesh\base.py:1778(is_convex)
+       81    0.001    0.000    0.137    0.002 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\.venv\Lib\site-packages\trimesh\convex.py:321(is_convex)
+       82    0.001    0.000    0.108    0.001 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\druckstand.py:243(provide)
+       82    0.001    0.000    0.107    0.001 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\druckstand.py:199(build_obstacle_set)
+       82    0.001    0.000    0.106    0.001 C:\Users\tbartlog\Documents\LokalPython\Bim2Print\core\src\fgc\collision\druckstand.py:126(extrude_prism)
+
+

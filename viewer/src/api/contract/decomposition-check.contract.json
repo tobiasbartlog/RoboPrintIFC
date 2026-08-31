@@ -1,0 +1,15 @@
+{
+  "check_id": "c572d8187de645c988a587eb81b3d38c",
+  "slug": "kontrakthaus",
+  "job_id": "default",
+  "scope": "focus",
+  "section_id": "abschnitt-1",
+  "state": "running",
+  "n_total": 0,
+  "n_done": 0,
+  "n_computed": 0,
+  "n_cached": 0,
+  "error": null,
+  "sections": null,
+  "print_jobs": null
+}

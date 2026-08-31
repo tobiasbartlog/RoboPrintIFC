@@ -1,0 +1,431 @@
+{
+  "slug": "kontrakthaus",
+  "job_id": "default",
+  "run_dir": "<tmp>\\runs\\20260722-125108_decompose_kontrakthaus",
+  "decomposition_kind": "abschnitt",
+  "cuts": [
+    {
+      "orientation": "horizontal",
+      "position_mm": 1300.0
+    }
+  ],
+  "joint_offset_mm": 0.0,
+  "sections": [
+    {
+      "section_id": "abschnitt-1",
+      "order": 1,
+      "x0_mm": -400.0,
+      "x1_mm": 400.0,
+      "z0_mm": 0.0,
+      "z1_mm": 1300.0,
+      "placement": {
+        "option_id": "platz-abschnitt-1",
+        "lateral_mm": 0.0,
+        "standoff_mm": 230.0,
+        "stand_height_mm": 500.0,
+        "yaw_rad": 0.0
+      },
+      "status": {
+        "reachable": true,
+        "reachable_fraction": 1.0,
+        "n_samples": 70,
+        "n_reachable": 70,
+        "kinematic_margin": 0.0818773056964042,
+        "mean_margin": 0.10203838894007967,
+        "warnings": []
+      },
+      "printability": {
+        "verdict": "too_tall",
+        "presumed": true,
+        "representative_id": null,
+        "causer_link": null,
+        "causer_against": null,
+        "penetration_mm": null,
+        "min_distance_mm": null,
+        "excess_mm": 52.439,
+        "excess_deg": 0.484
+      }
+    },
+    {
+      "section_id": "abschnitt-2",
+      "order": 2,
+      "x0_mm": -400.0,
+      "x1_mm": 400.0,
+      "z0_mm": 1300.0,
+      "z1_mm": 2600.0,
+      "placement": {
+        "option_id": "platz-abschnitt-2",
+        "lateral_mm": 0.0,
+        "standoff_mm": 80.0,
+        "stand_height_mm": 600.0,
+        "yaw_rad": 0.0
+      },
+      "status": {
+        "reachable": false,
+        "reachable_fraction": 0.37142857142857144,
+        "n_samples": 70,
+        "n_reachable": 26,
+        "kinematic_margin": 0.017350959792340928,
+        "mean_margin": 0.058301835983892145,
+        "warnings": [
+          {
+            "kind": "unreachable",
+            "target_index": 26,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 27,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 28,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 29,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 30,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 31,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 32,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 33,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 34,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 35,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 36,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 37,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 38,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 39,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 40,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 41,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 42,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 43,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 44,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 45,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 46,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 47,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 48,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 49,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 50,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 51,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 52,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 53,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 54,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 55,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 56,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 57,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 58,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 59,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 60,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 61,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 62,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 63,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 64,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 65,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 66,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 67,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 68,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          },
+          {
+            "kind": "unreachable",
+            "target_index": 69,
+            "detail": "Zielpose außerhalb des Arbeitsraums (keine IK-Lösung)",
+            "value": null
+          }
+        ]
+      },
+      "printability": {
+        "verdict": "too_tall",
+        "presumed": true,
+        "representative_id": null,
+        "causer_link": null,
+        "causer_against": null,
+        "penetration_mm": null,
+        "min_distance_mm": null,
+        "excess_mm": 52.439,
+        "excess_deg": 0.484,
+        "reachable": false,
+        "reachable_fraction": 0.37142857142857144
+      }
+    }
+  ],
+  "print_jobs": [
+    {
+      "job_id": "default",
+      "wall_global_id": "WALLAAAAAAAAAAAAAAAAAA",
+      "assessment_run": "<tmp>\\runs\\20260722-125107_walls-list_modell",
+      "runs": [
+        "<tmp>\\runs\\20260722-125108_decompose_kontrakthaus"
+      ],
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 1,
+          "cutplan": 2,
+          "process": 1,
+          "workstation": 1
+        },
+        "outputs": {
+          "druckplan": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 1,
+            "process": 1,
+            "workstation": 1
+          }
+        }
+      },
+      "robot": "doosan_m1013",
+      "tool": "30gut",
+      "workstation": "mobile_hub",
+      "stand_mode": "elevated",
+      "check_building_context": true,
+      "module_limits": {
+        "max_height_mm": 1400.0
+      },
+      "objective": {
+        "aufwiegen": false,
+        "weights": {
+          "umsetzvorgaenge": 8.0,
+          "fugenflaeche": 3.0,
+          "kinematische_marge": 2.0,
+          "volumen_cv": 1.0
+        }
+      },
+      "process_params": {
+        "slice": {
+          "layer_height_mm": 9.0,
+          "n_shells": 3
+        },
+        "orientation": {
+          "kipp_deg": 5.0
+        }
+      },
+      "decomposition_kind": "abschnitt",
+      "cuts": [
+        {
+          "orientation": "horizontal",
+          "position_mm": 1300.0
+        }
+      ],
+      "joint_offset_mm": 0.0,
+      "section_overrides": [],
+      "decompose_run": "<tmp>\\runs\\20260722-125108_decompose_kontrakthaus"
+    }
+  ],
+  "freigang": {
+    "wall_thickness_mm": 200.0,
+    "free_length_mm": 273.594,
+    "wrist_radius_mm": 60.0,
+    "printable_depth_mm": 333.594,
+    "too_thick": false,
+    "excess_mm": 0.0,
+    "levers": []
+  },
+  "pruef_scope": {
+    "n_representatives": 2,
+    "n_parts": 2,
+    "est_seconds": 20.0
+  }
+}

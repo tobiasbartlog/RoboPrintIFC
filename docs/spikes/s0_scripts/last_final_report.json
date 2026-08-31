@@ -1,0 +1,15 @@
+{
+  "run": "20260708-161603_slice_Denkmal",
+  "n_samples": 25217,
+  "t_geometry_prep_s": 21.9,
+  "t_fk_s": 4.2,
+  "full_run": {
+    "t_total_s": 44.0,
+    "per_sample_ms": 1.743,
+    "near_share": 0.662,
+    "min_dist_mm": -181.67,
+    "n_below_0": 7548,
+    "n_below_50": 14756,
+    "n_red_intervals": 278
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "project": "denkmal",
+  "module_index": 0,
+  "section_id": "abschnitt-1",
+  "module_length_mm": 785.35,
+  "module_height_mm": 822.075,
+  "wall_thickness_mm": 510.0,
+  "layer_height_mm": 10.0,
+  "lateral_mm": 0.0,
+  "base_heights_mm": [
+    0.0,
+    300.0,
+    600.0
+  ],
+  "configs": [
+    "auto",
+    "aaa",
+    "aab",
+    "aba",
+    "abb",
+    "baa",
+    "bab",
+    "bba",
+    "bbb"
+  ],
+  "collision_config": {
+    "safety_distance_mm": 50.0,
+    "freizone_radius_mm": 40.0
+  },
+  "sweep": {
+    "min": 150.0,
+    "max": 1050.0,
+    "step": 150.0
+  },
+  "link_names": {
+    "0": "base_link",
+    "1": "link_1",
+    "2": "link_2",
+    "3": "link_3",
+    "4": "link_4",
+    "5": "link_5",
+    "6": "link_6",
+    "7": "tool"
+  },
+  "git_commit": "20a3a0de419924447e004c627ef7f917593af74b",
+  "generated_by": "experiments/collision_standoff_sweep/sweep_ik.py"
+}

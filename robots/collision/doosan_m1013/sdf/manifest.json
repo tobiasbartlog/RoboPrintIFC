@@ -1,0 +1,247 @@
+{
+  "_comment": "Erzeugt von core/scripts/build_glied_sdf.py — nicht editieren.",
+  "frame_convention": "Knotenwerte je Glied im DH-Gliedframe (worldV = frames[i]·v), dieselbe Konvention wie das Kollisions-Derivat (Issue #125).",
+  "generator": "core/scripts/build_glied_sdf.py",
+  "interpolation_band_mm": 6.938203,
+  "links": [
+    {
+      "file": "base.npy",
+      "index": 0,
+      "object_bounds_mm": [
+        [
+          -89.221,
+          -91.145,
+          0.0
+        ],
+        [
+          122.955,
+          347.438,
+          55.8
+        ]
+      ],
+      "origin_mm": [
+        -169.221,
+        -171.145,
+        -80.0
+      ],
+      "shape": [
+        48,
+        76,
+        28
+      ],
+      "urdf_link": "base_link",
+      "value_range_mm": [
+        -24.0,
+        264.344
+      ]
+    },
+    {
+      "file": "link1.npy",
+      "index": 1,
+      "object_bounds_mm": [
+        [
+          -80.06,
+          -95.7,
+          -79.104
+        ],
+        [
+          80.423,
+          123.017,
+          101.799
+        ]
+      ],
+      "origin_mm": [
+        -160.06,
+        -175.7,
+        -159.104
+      ],
+      "shape": [
+        42,
+        49,
+        44
+      ],
+      "urdf_link": "link_1",
+      "value_range_mm": [
+        -25.161,
+        208.432
+      ]
+    },
+    {
+      "file": "link2.npy",
+      "index": 2,
+      "object_bounds_mm": [
+        [
+          -696.459,
+          -78.317,
+          68.277
+        ],
+        [
+          68.925,
+          78.104,
+          286.018
+        ]
+      ],
+      "origin_mm": [
+        -776.459,
+        -158.317,
+        -11.723
+      ],
+      "shape": [
+        117,
+        41,
+        49
+      ],
+      "urdf_link": "link_2",
+      "value_range_mm": [
+        -43.024,
+        211.72
+      ]
+    },
+    {
+      "file": "link3.npy",
+      "index": 3,
+      "object_bounds_mm": [
+        [
+          -65.229,
+          -53.582,
+          -95.839
+        ],
+        [
+          65.257,
+          81.144,
+          83.971
+        ]
+      ],
+      "origin_mm": [
+        -145.229,
+        -133.582,
+        -175.839
+      ],
+      "shape": [
+        38,
+        38,
+        44
+      ],
+      "urdf_link": "link_3",
+      "value_range_mm": [
+        -21.71,
+        193.151
+      ]
+    },
+    {
+      "file": "link4.npy",
+      "index": 4,
+      "object_bounds_mm": [
+        [
+          -53.969,
+          -51.38,
+          -47.337
+        ],
+        [
+          52.582,
+          474.552,
+          242.456
+        ]
+      ],
+      "origin_mm": [
+        -133.969,
+        -131.38,
+        -127.337
+      ],
+      "shape": [
+        35,
+        87,
+        58
+      ],
+      "urdf_link": "link_4",
+      "value_range_mm": [
+        -33.005,
+        317.375
+      ]
+    },
+    {
+      "file": "link5.npy",
+      "index": 5,
+      "object_bounds_mm": [
+        [
+          -52.991,
+          -51.401,
+          -94.13
+        ],
+        [
+          53.396,
+          79.255,
+          60.469
+        ]
+      ],
+      "origin_mm": [
+        -132.991,
+        -131.401,
+        -174.13
+      ],
+      "shape": [
+        35,
+        38,
+        41
+      ],
+      "urdf_link": "link_5",
+      "value_range_mm": [
+        -17.132,
+        192.242
+      ]
+    },
+    {
+      "file": "link6.npy",
+      "index": 6,
+      "object_bounds_mm": [
+        [
+          -45.196,
+          -45.349,
+          -59.508
+        ],
+        [
+          44.973,
+          44.821,
+          0.006
+        ]
+      ],
+      "origin_mm": [
+        -125.196,
+        -125.349,
+        -139.508
+      ],
+      "shape": [
+        33,
+        33,
+        29
+      ],
+      "urdf_link": "link_6",
+      "value_range_mm": [
+        -14.188,
+        169.697
+      ]
+    }
+  ],
+  "padding_mm": 80.0,
+  "robot": "doosan_m1013",
+  "sdf_format_version": 1,
+  "semantics": "Signierte Distanz (negativ = innen) zur Vereinigung der VHACD-Urteilsstücke — dieselbe Referenzgeometrie wie der FCL-Pfad. Abfragen ziehen das Interpolationsband ab: Distanz wird nie überschätzt.",
+  "source": "robots/collision/doosan_m1013 (Urteilsgeometrie/VHACD, Issue #125)",
+  "source_files_sha256": {
+    "base.json": "cd6f34518d3e286479f2783dbf5f11ef53a8d0cf6c56556697368e1cd5e47087",
+    "link1.json": "1656d65e9ae8934ed47ab5cc62f5dfe13f34015072d81bbaf5ca550c4e0f4ab3",
+    "link2.json": "71493619d343989541ad0ea111209e6078d60ac054b78ad1c129adac84396f49",
+    "link3.json": "3fca4405dbe788a986c5f92867ba1a16ef16122931b156df49ff16bc758b1631",
+    "link4.json": "21aefacc0b61a71214766dee05ba00ee598abf3e99cbf61c0952b23ab30493d5",
+    "link5.json": "7a7940e525507a31585763fdbf054567c2feb6a08eb0231979f3887df5486a3d",
+    "link6.json": "87df8c740e3d885a77aedf4722b7e40fe1df8f248f56fecbc92df1c010a806de",
+    "manifest.json": "95b1c07166272956dbca3372b593d0c557e488f5d1eb8aee1a4efec78f5480f5"
+  },
+  "source_upstream": {
+    "commit": "ec9242546ec6202835900dbcd8498e2daabfa6a6",
+    "license": "BSD-3-Clause © Doosan Robotics Inc. — siehe third_party/doosan_m1013/LICENSE",
+    "repo": "https://github.com/doosan-robotics/doosan-robot2"
+  },
+  "units": "mm",
+  "voxel_mm": 8.0
+}

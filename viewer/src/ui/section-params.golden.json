@@ -1,0 +1,261 @@
+{
+  "_comment": "Golden-Faelle der Abschnitts-Aufloesung (Issue #82) — erzeugt von viewer/scripts/gen_goldens.py; nicht von Hand editieren.",
+  "cases": [
+    {
+      "name": "leer + leer -> leer (Altprojekt, reine Karten-Defaults)",
+      "global": {},
+      "override": {},
+      "expected": {}
+    },
+    {
+      "name": "nur global gesetzt -> Abschnitt erbt alles",
+      "global": {
+        "slice": {
+          "layer_height_mm": 8.0,
+          "n_shells": 3
+        },
+        "orientation": {
+          "kipp_deg": 5.0
+        }
+      },
+      "override": {},
+      "expected": {
+        "slice": {
+          "layer_height_mm": 8.0,
+          "n_shells": 3
+        },
+        "orientation": {
+          "kipp_deg": 5.0
+        }
+      }
+    },
+    {
+      "name": "nur Abschnitt gesetzt -> Abschnitt gewinnt (kein globaler Wert)",
+      "global": {},
+      "override": {
+        "slice": {
+          "layer_height_mm": 6.0
+        },
+        "orientation": {
+          "lead_deg": 12.0
+        }
+      },
+      "expected": {
+        "slice": {
+          "layer_height_mm": 6.0
+        },
+        "orientation": {
+          "lead_deg": 12.0
+        }
+      }
+    },
+    {
+      "name": "Feld-Mischung: layer erbt global, strand kommt vom Abschnitt",
+      "global": {
+        "slice": {
+          "layer_height_mm": 8.0,
+          "strand_width_mm": 30.0
+        }
+      },
+      "override": {
+        "slice": {
+          "strand_width_mm": 22.0
+        }
+      },
+      "expected": {
+        "slice": {
+          "layer_height_mm": 8.0,
+          "strand_width_mm": 22.0
+        }
+      }
+    },
+    {
+      "name": "Orientierung: kipp uebersteuert, lead erbt global",
+      "global": {
+        "orientation": {
+          "lead_deg": 10.0,
+          "kipp_deg": 5.0
+        }
+      },
+      "override": {
+        "orientation": {
+          "kipp_deg": -8.0
+        }
+      },
+      "expected": {
+        "orientation": {
+          "lead_deg": 10.0,
+          "kipp_deg": -8.0
+        }
+      }
+    },
+    {
+      "name": "Fortgeschritten (Geschwindigkeit/io) uebersteuerbar, io_travel=0 gesetzt",
+      "global": {
+        "slice": {
+          "v_print_mm_s": 100.0,
+          "v_travel_mm_s": 250.0,
+          "io_print": 0.5,
+          "io_travel": 0.5
+        }
+      },
+      "override": {
+        "slice": {
+          "v_print_mm_s": 60.0,
+          "io_travel": 0.0
+        }
+      },
+      "expected": {
+        "slice": {
+          "v_print_mm_s": 60.0,
+          "v_travel_mm_s": 250.0,
+          "io_print": 0.5,
+          "io_travel": 0.0
+        }
+      }
+    },
+    {
+      "name": "alle Felder in beiden Gruppen, Abschnitt gewinnt durchweg",
+      "global": {
+        "slice": {
+          "layer_height_mm": 10.0,
+          "strand_width_mm": 30.0,
+          "n_shells": 2
+        },
+        "orientation": {
+          "lead_deg": 0.0,
+          "kipp_deg": 0.0
+        }
+      },
+      "override": {
+        "slice": {
+          "layer_height_mm": 7.5,
+          "strand_width_mm": 20.0,
+          "n_shells": 4
+        },
+        "orientation": {
+          "lead_deg": 15.0,
+          "kipp_deg": 20.0
+        }
+      },
+      "expected": {
+        "slice": {
+          "layer_height_mm": 7.5,
+          "strand_width_mm": 20.0,
+          "n_shells": 4
+        },
+        "orientation": {
+          "lead_deg": 15.0,
+          "kipp_deg": 20.0
+        }
+      }
+    },
+    {
+      "name": "None im Override uebersteuert nicht (erbt global)",
+      "global": {
+        "slice": {
+          "layer_height_mm": 8.0
+        }
+      },
+      "override": {
+        "slice": {
+          "layer_height_mm": null,
+          "n_shells": 3
+        }
+      },
+      "expected": {
+        "slice": {
+          "layer_height_mm": 8.0,
+          "n_shells": 3
+        }
+      }
+    },
+    {
+      "name": "leere Override-Gruppe -> erbt global, keine leere Gruppe im Ergebnis",
+      "global": {
+        "slice": {
+          "n_shells": 2
+        }
+      },
+      "override": {
+        "slice": {},
+        "orientation": {}
+      },
+      "expected": {
+        "slice": {
+          "n_shells": 2
+        }
+      }
+    },
+    {
+      "name": "ik_config: Ellbogen uebersteuert (b), Schulter erbt global (a) — Issue #129",
+      "global": {
+        "ik_config": {
+          "shoulder": "a",
+          "elbow": "a"
+        }
+      },
+      "override": {
+        "ik_config": {
+          "elbow": "b"
+        }
+      },
+      "expected": {
+        "ik_config": {
+          "shoulder": "a",
+          "elbow": "b"
+        }
+      }
+    },
+    {
+      "name": "ik_config: nur Abschnitt gesetzt (Handgelenk b), sonst auto",
+      "global": {},
+      "override": {
+        "ik_config": {
+          "wrist": "b"
+        }
+      },
+      "expected": {
+        "ik_config": {
+          "wrist": "b"
+        }
+      }
+    },
+    {
+      "name": "alle drei Gruppen gemischt (slice/orientation/ik_config)",
+      "global": {
+        "slice": {
+          "layer_height_mm": 8.0
+        },
+        "orientation": {
+          "kipp_deg": 5.0
+        },
+        "ik_config": {
+          "shoulder": "a",
+          "wrist": "a"
+        }
+      },
+      "override": {
+        "slice": {
+          "n_shells": 4
+        },
+        "ik_config": {
+          "wrist": "b"
+        }
+      },
+      "expected": {
+        "slice": {
+          "layer_height_mm": 8.0,
+          "n_shells": 4
+        },
+        "orientation": {
+          "kipp_deg": 5.0
+        },
+        "ik_config": {
+          "shoulder": "a",
+          "wrist": "b"
+        }
+      }
+    }
+  ]
+}

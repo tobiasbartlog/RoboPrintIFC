@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboprintifc/schemas/candidates.schema.json",
+  "title": "Candidates",
+  "description": "Ergebnis der Eignungspruefung E1 (`fgc walls list`): alle Waende eines Modells mit Eignungsflags und Ablehnungsgruenden (ADR-013).",
+  "type": "object",
+  "required": ["schema_version", "provenance", "model", "walls"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "provenance": { "$ref": "setup.schema.json#/$defs/provenance" },
+    "model": { "type": "string", "description": "Pfad/Name der IFC-Quelldatei" },
+    "walls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["global_id", "eligible", "checks"],
+        "additionalProperties": false,
+        "properties": {
+          "global_id": { "type": "string" },
+          "name": { "type": "string" },
+          "eligible": { "type": "boolean" },
+          "dimensions_mm": {
+            "type": "object",
+            "properties": {
+              "length": { "type": "number" },
+              "height": { "type": "number" },
+              "thickness": { "type": "number" }
+            }
+          },
+          "checks": {
+            "type": "array",
+            "description": "Einzelpruefungen; Stufe-2-Checks (thickness, footprint) tragen provisional=true, bis S1 die Strangbreite bzw. eine Grundriss-Quelle liefert",
+            "items": {
+              "type": "object",
+              "required": ["check", "passed"],
+              "additionalProperties": false,
+              "properties": {
+                "check": {
+                  "enum": ["planarity", "load_bearing", "openings", "workspace", "thickness", "footprint"]
+                },
+                "passed": { "type": "boolean" },
+                "provisional": { "type": "boolean", "default": false },
+                "reason": { "type": "string" },
+                "deferred": {
+                  "type": "boolean",
+                  "description": "true bei 'spaeter'-Markierung, z.B. Waende mit Oeffnungen (OD-3)"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

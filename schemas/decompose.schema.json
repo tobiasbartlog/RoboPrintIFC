@@ -1,0 +1,331 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboprintifc/schemas/decompose.schema.json",
+  "title": "Decompose",
+  "description": "Zerlegungslauf (Issue #24): reicht keine einzelne Platzierung fuer 100 % der Wand, schlaegt der Core eine Zerlegung in Abschnitte vor (Zerlegungsart 'abschnitt', in place). Ein provenienz-gestempeltes, reproduzierbares Lauf-Artefakt (ADR-004): achsparallele Schnittebenen, Abschnitte mit je einer Platzierung und einem Ampel-Befund (erreichbar/nicht). Die Platzierung je Abschnitt ist ein Plan, kein Setup (ADR-006). Nach ADR-016 lebt das gerechnete Ergebnis (Ampeln, Abschnittsgeometrie) hier im Lauf; der Druckjob traegt nur die Eingaben (Zerlegungsart + Schnittebenen) und den Lauf-Verweis.",
+  "type": "object",
+  "required": ["schema_version", "provenance", "robot", "tool", "decomposition_kind", "wall", "sections"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "provenance": { "$ref": "setup.schema.json#/$defs/provenance" },
+    "wall_global_id": {
+      "type": "string",
+      "description": "GlobalId der zerlegten Wand (aus candidates.json); optional, da das Modul auch mit synthetischen Waenden rechnet."
+    },
+    "robot": {
+      "type": "string",
+      "description": "Name der Roboterdefinition (robots/<name>.json), fuer die zerlegt wurde"
+    },
+    "tool": {
+      "type": "string",
+      "description": "Name der Endeffektor-Definition (tools/<name>.json), fuer die zerlegt wurde"
+    },
+    "decomposition_kind": {
+      "enum": ["abschnitt", "modul"],
+      "description": "Zerlegungsart (core/CONTEXT.md, ADR-022): 'abschnitt' = in place gedruckt (Roboter wird umgesetzt); 'modul' = stehend in Einbauorientierung an der Workstation vorproduziert (feste Platzierung, Issue #90)."
+    },
+    "joint_offset_mm": {
+      "type": "number",
+      "default": 0.0,
+      "description": "Fugen-Versatz (Issue #25): versetzt die vertikalen Schnitte jeder zweiten Hoehenlage gegen die darunterliegende (gestaffelte Stossfugen). 0.0 = keine Staffelung (Default, rueckwaertskompatibel zu Issue #24)."
+    },
+    "wall": {
+      "type": "object",
+      "description": "Die zerlegte Wandflaeche im Wand-Koordinatensystem (Rechteck: Laenge x Hoehe).",
+      "required": ["length_mm", "height_mm"],
+      "additionalProperties": false,
+      "properties": {
+        "length_mm": { "type": "number", "minimum": 0 },
+        "height_mm": { "type": "number", "minimum": 0 },
+        "thickness_mm": { "type": "number", "minimum": 0 }
+      }
+    },
+    "grid": {
+      "type": "object",
+      "description": "Anzahl der Teilungen je Achse (1 = keine Teilung in dieser Richtung).",
+      "additionalProperties": true,
+      "properties": {
+        "n_length": { "type": "integer", "minimum": 1 },
+        "n_height": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "cuts": {
+      "type": "array",
+      "description": "Die inneren, achsparallelen Schnittebenen (Wandaussenkanten sind keine Schnitte).",
+      "items": { "$ref": "#/$defs/cut" }
+    },
+    "sections": {
+      "type": "array",
+      "description": "Die Abschnitte in Druckreihenfolge (unten → oben, dann links → rechts), je mit Platzierung und Ampel-Befund.",
+      "items": { "$ref": "#/$defs/section" }
+    },
+    "module_limits": {
+      "type": "object",
+      "description": "Echo der angewandten optionalen Obergrenzen der Modulgroesse (Issue #90, ADR-022) — nur bei Zerlegungsart 'modul' geschrieben, additiv (Altlaeufe ohne Feld bleiben byte-gleich gueltig). Sparse: nur gesetzte Grenzen erscheinen.",
+      "additionalProperties": false,
+      "properties": {
+        "max_length_mm": { "type": "number", "exclusiveMinimum": 0 },
+        "max_height_mm": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "freigang": { "$ref": "#/$defs/freigang" },
+    "pruef_dataset": { "$ref": "#/$defs/pruef_dataset" },
+    "refinement": {
+      "type": "object",
+      "description": "Provenienz der kollisionsgetriebenen Verfeinerung (Issue #165), additiv: eine Zelle gilt erst als gut, wenn sie von der besten automatischen Option (IK/Platzierung, Reihenfolge #141) aus kollisionsfrei ist; danach teilt die Verfeinerung entlang der verursachenden Achse aus dem Befund (Bandhoehe senken, dann Breite teilen). Nur beim Auto-Vorschlag mit aktiver Verfeinerung geschrieben; Altlaeufe/Reichweiten-Vorschlaege ohne Feld bleiben byte-gleich gueltig. Aufruf-Kontingent (kein Zeitbudget, #178/#215), Determinismus ueber die Aufruffolge.",
+      "additionalProperties": true,
+      "properties": {
+        "strategy": { "type": "string" },
+        "call_budget": { "type": "integer", "minimum": 0 },
+        "calls_used": { "type": "integer", "minimum": 0 },
+        "budget_exhausted": { "type": "boolean" },
+        "capped": { "type": "boolean" },
+        "rows": { "type": "array" }
+      }
+    }
+  },
+  "$defs": {
+    "cut": {
+      "type": "object",
+      "required": ["orientation", "position_mm"],
+      "additionalProperties": false,
+      "properties": {
+        "orientation": {
+          "enum": ["horizontal", "vertical"],
+          "description": "'horizontal' = Ebene bei z=position_mm (Hoehenstufe); 'vertical' = Ebene bei x=position_mm (Laengenteilung)."
+        },
+        "position_mm": { "type": "number" }
+      }
+    },
+    "placement": {
+      "type": "object",
+      "description": "Die Platzierung des Abschnitts (geplante Basis-Lage) — ein Plan, kein Setup (ADR-006). lateral/standoff bleiben abschnittsrelativ (Abschnittsmitte/Wandfront); stand_height_mm ist ABSOLUT ueber dem Boden (Issue #132).",
+      "required": ["option_id", "lateral_mm", "standoff_mm", "stand_height_mm"],
+      "additionalProperties": false,
+      "properties": {
+        "option_id": { "type": "string" },
+        "lateral_mm": { "type": "number", "description": "Seitliche Position der Basis relativ zur Abschnittsmitte (mm)." },
+        "standoff_mm": { "type": "number", "description": "Freier Abstand der Basis vor der Wand-/Modulflaeche (mm) — ab der naechstliegenden Flaeche gemessen, NICHT ab der Mittelebene (Issue #160)." },
+        "stand_height_mm": { "type": "number", "description": "Aufstellhoehe der Basis (mm) — ABSOLUT ueber dem Boden (Boden = Wandfuss z=0, Issue #132), nicht relativ zum Abschnittsfuss; bei Zerlegungsart 'modul' relativ zur Arbeitsflaeche der Workstation (ADR-022)." },
+        "yaw_rad": { "type": "number", "default": 0.0 }
+      }
+    },
+    "status": {
+      "type": "object",
+      "description": "Ampel-Befund eines Abschnitts — reine Daten, kein Gate. Warnungen sind Daten (kein Abbruch).",
+      "required": ["reachable", "reachable_fraction", "n_samples", "n_reachable"],
+      "additionalProperties": false,
+      "properties": {
+        "reachable": { "type": "boolean" },
+        "reachable_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "n_samples": { "type": "integer", "minimum": 0 },
+        "n_reachable": { "type": "integer", "minimum": 0 },
+        "kinematic_margin": { "type": ["number", "null"] },
+        "mean_margin": { "type": ["number", "null"] },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "target_index", "detail"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": { "enum": ["unreachable", "joint_limits", "singularity"] },
+              "target_index": { "type": "integer", "minimum": 0 },
+              "detail": { "type": "string" },
+              "value": { "type": ["number", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "section": {
+      "type": "object",
+      "required": ["section_id", "order", "x0_mm", "x1_mm", "z0_mm", "z1_mm", "placement", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "section_id": { "type": "string" },
+        "order": { "type": "integer", "minimum": 1, "description": "1-basierte Druckreihenfolge (unten → oben)." },
+        "x0_mm": { "type": "number" },
+        "x1_mm": { "type": "number" },
+        "z0_mm": { "type": "number" },
+        "z1_mm": { "type": "number" },
+        "placement": { "$ref": "#/$defs/placement" },
+        "status": { "$ref": "#/$defs/status" },
+        "module_check": { "$ref": "#/$defs/module_check" },
+        "placement_check": { "$ref": "#/$defs/placement_check" },
+        "module_pose": { "$ref": "#/$defs/module_pose" },
+        "printability": { "$ref": "#/$defs/printability" }
+      }
+    },
+    "frame": {
+      "type": "object",
+      "description": "Pose nach ADR-006: Position in mm + Einheitsquaternion [w, x, y, z].",
+      "required": ["pos_mm", "quat"],
+      "additionalProperties": false,
+      "properties": {
+        "pos_mm": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+        "quat": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 }
+      }
+    },
+    "module_pose": {
+      "type": "object",
+      "description": "Lage des Moduls am Druckort (Issue #96, ADR-021/022) — nur bei Zerlegungsart 'modul' UND Workstation mit Platzierungs-Frames geschrieben, additiv (Altlaeufe ohne Feld bleiben byte-gleich gueltig). Invertierung der Relativpose-Leserichtung: 'workstation' = Modul-Frame in Workstation-(Mesh-)Koordinaten (Roboter sitzt an robot_base_frame), 'on_surface' = dieselbe Pose relativ zur Arbeitsflaeche (work_surface_frame). Anzeige/Befund, kein Gate.",
+      "required": ["workstation", "on_surface"],
+      "additionalProperties": false,
+      "properties": {
+        "workstation": { "$ref": "#/$defs/frame" },
+        "on_surface": { "$ref": "#/$defs/frame" }
+      }
+    },
+    "placement_check": {
+      "type": "object",
+      "description": "Sicherheitsabstands-Befund eines Teils mit freiem Platzierungs-Override (Issue #94): Abstand der Basis vor der Wandfront gegen den Sicherheits-Mindestabstand der Workstation (#77). Nur geschrieben, wenn das Teil freie Platzierungswerte traegt UND der Druckjob eine Workstation hat — additiv (Altlaeufe ohne Feld bleiben byte-gleich gueltig). Befund, kein Gate: ein unterschrittener Mindestabstand blockiert nie.",
+      "required": ["standoff_mm", "safety_min_distance_mm", "below_min_distance"],
+      "additionalProperties": false,
+      "properties": {
+        "standoff_mm": { "type": "number" },
+        "safety_min_distance_mm": { "type": "number", "minimum": 0 },
+        "below_min_distance": { "type": "boolean" }
+      }
+    },
+    "freigang": {
+      "type": "object",
+      "description": "Freigang-Kriterium der Wand (Issue #163, Karte #139/#141 Scheibe 2): druckbare Tiefe von einer Seite (D = freie Laenge unter dem Handgelenk + Handgelenk-/Unterarm-Radius) gegen die Wanddicke. Wand-weit (nicht je Teil), additiv (Altlaeufe ohne Feld bleiben byte-gleich gueltig). Stellt AUSSCHLIESSLICH Unmoeglichkeit fest ('too_thick' nur wenn Dicke strikt > D), nie Freiheit (S6-Lehre). Befund, kein Gate (ADR-013): blockiert nie, benennt Hebel.",
+      "required": ["wall_thickness_mm", "free_length_mm", "wrist_radius_mm", "printable_depth_mm", "too_thick", "excess_mm", "levers"],
+      "additionalProperties": false,
+      "properties": {
+        "wall_thickness_mm": { "type": "number", "minimum": 0 },
+        "free_length_mm": { "type": "number", "minimum": 0, "description": "Freie Laenge L unter dem Handgelenk (schlanker Nozzle-/Werkzeug-Ueberstand, mm)." },
+        "wrist_radius_mm": { "type": "number", "minimum": 0, "description": "Handgelenk-/Unterarm-Radius R (mm) — provisorisch bis gemessen." },
+        "printable_depth_mm": { "type": "number", "minimum": 0, "description": "Druckbare Tiefe D = L + R von einer Seite (mm), grosszuegige Obergrenze." },
+        "too_thick": { "type": "boolean", "description": "Wanddicke strikt > D — sicher zu dick fuer einseitigen Druck." },
+        "excess_mm": { "type": "number", "minimum": 0, "description": "Ueberschuss max(0, Dicke - D) (mm); 0, solange nicht zu dick." },
+        "levers": {
+          "type": "array",
+          "description": "Benannte Hebel im Befund-Fall (leer, wenn nicht zu dick): Tiefenteilung (#142), laengerer Endeffektor, hoehere Aufstellung.",
+          "items": { "type": "string" }
+        },
+        "tcp_provisional": { "type": "boolean", "description": "Issue #177/B9: true = die freie Laenge L wurde aus einem geschaetzten, noch nicht am Geraet vermessenen Werkzeug-TCP (tool.tcp_provisional, #136) gerechnet — der Befund ist dann vorlaeufig, nie eine gepruefte Gewissheit. Nur bei true geschrieben (bestaetigter TCP/Altlauf bleibt byte-gleich, additiv)." }
+      }
+    },
+    "printability": {
+      "type": "object",
+      "description": "Druckbarkeits-Urteil eines Teils (Issue #164/#170, Karte #139/#141 Scheibe 3): verheiratet Freigang (#163) und repraesentative Pruef-Tuer (#162) zu einem sichtbaren Urteil je Teil. Auch 'unknown' ('ungeprüft') wird geschrieben — mit 'reason' (no_geometry/error, Issue #170) — damit ein Lauf mit fehlgeschlagener Pruefung nicht wie 'alles geprüft' aussieht (B12/B35). Altlaeufe ohne Feld bleiben byte-gleich gueltig (additiv). 'printable' (gruen) NUR, was die Pruef-Tuer wirklich frei gesehen hat — ein stummer Freigang-Befund wird nie gruen (S6-Lehre). Befund, kein Gate (ADR-013): blockiert nie.",
+      "required": ["verdict", "presumed"],
+      "additionalProperties": false,
+      "properties": {
+        "verdict": {
+          "enum": ["printable", "collides", "too_thick", "too_tall", "unknown"],
+          "description": "'printable' = Pruef-Tuer sah es frei (gruen); 'collides' = Pruef-Tuer sah eine Kollision; 'too_thick' = Wand schon nach Freigang zu dick (teure Pruefung entfiel); 'too_tall' = Teil schon nach der zweiten Stufe-1-Schranke zu hoch fuer die freie Laenge (Issue #209, Gl. 9 Stamatopoulos; teure Pruefung entfiel; wie 'too_thick' rot, aber presumed); 'unknown' = kein Urteil ('ungeprüft')."
+        },
+        "reason": {
+          "enum": ["no_geometry", "error", "unreachable", "unchecked"],
+          "description": "Nur bei verdict='unknown': 'no_geometry' = Pruef-Tuer unzustaendig (kein Kollisions-Geometrie-Artefakt/Altprojekt, Issue #170), 'error' = Pruefung fehlgeschlagen (Ausnahme, geloggt, #170), 'unreachable' = Reihe ohne gueltigen Repraesentanten (keine erreichbare Nicht-Override-Zelle; kein Erben von einer eingefrorenen Trajektorie, Issue #174/B13), 'unchecked' = die teure Stufe-2-Pruef-Tuer wurde fuer dieses Teil (noch) NICHT angestossen (Issue #175: sie verlaesst den interaktiven Loop und laeuft nur auf expliziten Anstoss/asynchron) — der ehrliche Ruhezustand nach einem Schnittplan-Edit, kein Fehler. Alle bleiben 'ungeprüft', nie 'frei'."
+        },
+        "presumed": {
+          "type": "boolean",
+          "description": "true = 'vermutlich' (nicht an diesem Teil selbst geprueft): entweder ein geerbtes Reihen-Urteil (die unguenstigste Zelle der Hoehenreihe, representative_id, wurde von der Pruef-Tuer geprueft) ODER ein too_thick-Urteil (Issue #177): das Freigang-Kriterium ist hoehenblind, solange die Wandhoehen-Wache #167 fehlt, darum ist 'zu dick' nie eine gepruefte Gewissheit — die falsifizierende Pruef-Tuer entfiel bewusst (Ueberspringen als 'vermutlich, ungeprueft' ausgewiesen)."
+        },
+        "representative_id": { "type": ["string", "null"], "description": "section_id der tatsaechlich geprueften Zelle (== section_id, wenn selbst geprueft; null bei too_thick/too_tall/unknown)." },
+        "causer_link": { "type": ["integer", "null"], "description": "Verursachendes Glied der Kollision (Eindringrichtung) aus der Pruef-Tuer." },
+        "causer_against": { "type": ["string", "null"], "description": "Gegenspieler der Kollision (Druckstand/Boden/...) aus der Pruef-Tuer." },
+        "penetration_mm": { "type": ["number", "null"], "description": "Eindringtiefe (mm) der schlimmsten Kollision aus der Pruef-Tuer." },
+        "min_distance_mm": { "type": ["number", "null"], "description": "Minimaler Abstand (mm) aus der Pruef-Tuer (negativ = Eindringung)." },
+        "excess_mm": { "type": ["number", "null"], "description": "Ueberschuss (mm): Dicken-Ueberschuss aus dem Freigang-Befund (bei too_thick) bzw. Hoehen-Ueberschuss aus der zweiten Stufe-1-Schranke (bei too_tall, Issue #209)." },
+        "excess_deg": { "type": ["number", "null"], "description": "Issue #209: Winkel-Ueberschuss (Grad) der zweiten Stufe-1-Schranke (nur bei too_tall) — um wie viel die vom Teil geforderte Neigung die druckbare phi_max^sample (Gl. 9, Stamatopoulos) uebersteigt. Der Zwilling zu excess_mm (Hoehe). Nur bei too_tall geschrieben (additiv, uebrige Urteile byte-gleich)." },
+        "reachable": { "type": "boolean", "description": "Erreichbarkeits-Kanal (Issue #180, Befund B33): false = Teil nur teilweise erreichbar. Nur geschrieben, wenn false — ein voll erreichbares Teil bleibt byte-gleich (Feld fehlt). Das Urteil KOMBINIERT beide Kanaele: gruen ('printable') nur bei Pruef-Tuer-frei UND voller Erreichbarkeit; ein unerreichbares Teil wird nie 'printable' (verdict kann 'printable' bleiben — der Pruef-Tuer-Kanal ist ehrlich —, ist aber nicht gruen). Befund, kein Gate." },
+        "reachable_fraction": { "type": "number", "minimum": 0, "maximum": 1, "description": "Erreichbarer Wandanteil des Teils (Issue #180) — nur zusammen mit reachable=false geschrieben (sonst aus sections[].status.reachable_fraction lesbar)." },
+        "tcp_provisional": { "type": "boolean", "description": "Issue #177/B9: bei verdict='too_thick' (bzw. 'too_tall', Issue #209) — true = die druckbare Tiefe/Hoehe wurde aus einem geschaetzten (provisorischen) Werkzeug-TCP gerechnet und ist damit doppelt vorlaeufig (platzierungsblind + geschaetzt). Nur bei true geschrieben (additiv, Altlauf/bestaetigter TCP byte-gleich)." },
+        "travel_thinned": { "type": "boolean", "description": "Issue #182 (B15/B37/B38): true = die Pruef-Tuer hat die Bahn NICHT lueckenlos geprueft (nur jedes travel_stride-te Travel-Sample, der S5-Hebel). Nur bei verdict='printable'/'collides', nur bei true geschrieben (additiv)." },
+        "n_checked": { "type": "integer", "minimum": 0, "description": "Issue #182: tatsaechlich geprueft (nach Travel-Ausduennung) von n_samples Samples der Bahn. Nur bei verdict='printable'/'collides' geschrieben (additiv, kein Prüf-Tür-Urteil ⇒ Feld fehlt)." },
+        "n_samples": { "type": "integer", "minimum": 0, "description": "Issue #182: Samples der Bahn vor Ausduennung (Nenner zu n_checked). Nur bei verdict='printable'/'collides' geschrieben (additiv)." },
+        "tool_provisional": { "type": "boolean", "description": "Issue #182 (B15/B37/B38): true = der Endeffektor lief als provisorische Huelle (offener PRD-Punkt 3) durch die Pruef-Tuer. Nur bei verdict='printable'/'collides', nur bei true geschrieben (additiv) — nicht zu verwechseln mit tcp_provisional (Freigang-Kriterium, too_thick)." },
+        "worst_original_index": { "type": "integer", "minimum": 0, "description": "Issue #181 (Befund B24, Vorarbeit fuer #165): Index des schlimmsten Samples in ORIGINAL-Indizierung (vor der Travel-Ausduennung der Pruef-Tuer), aus dem intern ausgeduennten Index zurueckgerechnet. Nur bei verdict='printable'/'collides' UND bekanntem Ort geschrieben (additiv, wie n_checked/n_samples nie null — fehlt sonst ganz)." },
+        "worst_layer": { "type": "integer", "minimum": 0, "description": "Issue #181: Schicht (layer, aus dem Toolpath) des schlimmsten Samples. Nur bei verdict='printable'/'collides' UND bekanntem Ort geschrieben (additiv, nie null — fehlt sonst ganz)." },
+        "causer_position_mm": {
+          "description": "Issue #181: Position (x, y, z, mm) des Verursacher-Glieds am schlimmsten Sample im Teil-/Wandkoordinatensystem — die Vorarbeit fuer #165 (Teilen entlang der Verursacher-Achse statt Heuristik). Nur bei verdict='printable'/'collides' geschrieben (additiv).",
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "red_intervals": {
+          "description": "Issue #181: alle roten (kollidierenden) Intervalle der Pruef-Tuer-Bahn (Original-Indizierung), statt nur des einen schlimmsten Samples — je Intervall eigenes Glied/Gegner/schlimmster Index. Nur bei verdict='printable'/'collides' und nur bei nicht-leerer Liste geschrieben (additiv).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["link", "against", "start_index", "end_index", "worst_index", "min_distance_mm"],
+            "additionalProperties": false,
+            "properties": {
+              "link": { "type": ["integer", "null"], "description": "Verursachendes Glied dieses Intervalls (TOOL_INDEX = Endeffektor) oder null." },
+              "against": { "type": ["string", "null"], "description": "Gegenspieler dieses Intervalls (Druckstand/Boden/...) oder null." },
+              "start_index": { "type": "integer", "minimum": 0, "description": "Erster Sample-Index des Intervalls, Original-Indizierung." },
+              "end_index": { "type": "integer", "minimum": 0, "description": "Letzter Sample-Index des Intervalls, Original-Indizierung." },
+              "worst_index": { "type": "integer", "minimum": 0, "description": "Schlimmster Sample-Index dieses Intervalls, Original-Indizierung." },
+              "min_distance_mm": { "type": ["number", "null"], "description": "Minimaler (negativster) Abstand (mm) dieses Intervalls." }
+            }
+          }
+        }
+      }
+    },
+    "pruef_dataset": {
+      "type": "object",
+      "description": "Datensammel-Pflicht (Issue #211, PRD #183 Stufe 4 / US 23, grill-unabhaengig): je GEPRUEFTEM Kandidat (Hoehenreihen-Repraesentant mit echtem Pruef-Tuer-Urteil) ein Datensatz aus Merkmalen + exaktem Urteil. Nur der Stufe-2-Pruef-Tuer-Lauf (check_decomposition) liefert Kandidaten; der interaktive Stufe-1-Ruhezustand und Altlaeufe tragen den Block NICHT (additiv, byte-gleich). Der Trainingsdatensatz fuer Beam/Surrogat (#217/#219) fuellt sich so von selbst. Befund, kein Gate.",
+      "required": ["feature_version", "label_source", "samples"],
+      "additionalProperties": false,
+      "properties": {
+        "feature_version": {
+          "type": "string",
+          "description": "Version der Merkmalsliste (Vorgriff Surrogat-Provenienz US 26): aendert sich der Feld-Satz oder die Bedeutung eines Merkmals, wird sie hochgezaehlt (nie stillschweigend umdefiniert)."
+        },
+        "label_source": {
+          "type": "string",
+          "description": "Label-Quelle je Datensatz — im Laufbetrieb immer 'cpu-exakt' (die exakte CPU-Pruefung; Grill 2026-07-14). Die Label-Quellen-Frage (Surrogat labelt sich nicht selbst) betrifft nur die Datenkampagne #218."
+        },
+        "samples": {
+          "type": "array",
+          "description": "Ein Eintrag je geprueftem Kandidat.",
+          "items": {
+            "type": "object",
+            "required": ["section_id", "features", "verdict"],
+            "additionalProperties": false,
+            "properties": {
+              "section_id": { "type": "string", "description": "section_id des geprueften Repraesentanten." },
+              "features": {
+                "type": "object",
+                "description": "Merkmale des Kandidaten (Abschnittsmasse, Wandposition, Wandmasse, Hindernislast — aus assess_plan; Platzierung + Podesthoehe stand_height_mm — angereichert beim Bundle-Schnueren). Offen gehalten und ueber feature_version versioniert, damit die Merkmalsliste ohne Schema-Bruch wachsen kann.",
+                "additionalProperties": { "type": ["number", "integer", "boolean", "string", "null"] }
+              },
+              "verdict": { "$ref": "#/$defs/printability" }
+            }
+          }
+        }
+      }
+    },
+    "module_check": {
+      "type": "object",
+      "description": "Modulgrenzen-Befund eines Teils (Issue #90, ADR-022) — nur bei Zerlegungsart 'modul', additiv. Gewicht = Volumen x Dichte (Dichte-Default aus der Prozessfenster-Karte, density_kg_m3); je gesetzter Obergrenze ein Eintrag unter 'limits'. Befund, kein Gate: verletzte Grenzen blockieren nie.",
+      "required": ["weight_kg", "density_kg_m3", "limits"],
+      "additionalProperties": false,
+      "properties": {
+        "weight_kg": { "type": "number", "minimum": 0 },
+        "density_kg_m3": { "type": "number", "exclusiveMinimum": 0 },
+        "limits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["limit", "limit_mm", "actual_mm", "exceeded"],
+            "additionalProperties": false,
+            "properties": {
+              "limit": { "enum": ["max_length", "max_height"] },
+              "limit_mm": { "type": "number", "exclusiveMinimum": 0 },
+              "actual_mm": { "type": "number", "minimum": 0 },
+              "exceeded": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

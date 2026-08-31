@@ -1,0 +1,548 @@
+{
+  "_comment": "Golden-Faelle Ganzjob-/Pruef-Veraltung (Issue #194) — erzeugt von viewer/scripts/gen_goldens.py; nicht von Hand editieren.",
+  "constants": {
+    "INPUT_KEYS": [
+      "wall",
+      "robot",
+      "tool",
+      "cutplan",
+      "process",
+      "workstation"
+    ],
+    "OUTPUT_DEPS": {
+      "druckplan": [
+        "wall",
+        "robot",
+        "tool",
+        "process",
+        "workstation"
+      ],
+      "simulation": [
+        "wall",
+        "robot",
+        "tool",
+        "cutplan",
+        "process",
+        "workstation"
+      ],
+      "export": [
+        "wall",
+        "robot",
+        "tool",
+        "cutplan",
+        "process",
+        "workstation"
+      ]
+    },
+    "SECTION_OUTPUT_JOB_DEPS": {
+      "simulation": [
+        "wall",
+        "robot",
+        "tool",
+        "cutplan",
+        "process",
+        "workstation"
+      ],
+      "export": [
+        "wall",
+        "robot",
+        "tool",
+        "cutplan",
+        "process",
+        "workstation"
+      ]
+    },
+    "SECTION_AGGREGATE_OUTPUTS": [
+      "druckplan"
+    ],
+    "PRUEF_DEPS": [
+      "wall",
+      "robot",
+      "tool",
+      "cutplan",
+      "process",
+      "workstation"
+    ],
+    "PER_REP_SECONDS": 10
+  },
+  "output_cases": [
+    {
+      "name": "Altprojekt ohne revisions -> alles current",
+      "revisions": null,
+      "expected": {
+        "druckplan": "current",
+        "simulation": "current",
+        "export": "current"
+      }
+    },
+    {
+      "name": "kein Output-Schnappschuss -> missing",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {}
+      },
+      "expected": {
+        "druckplan": "missing",
+        "simulation": "missing",
+        "export": "missing"
+      }
+    },
+    {
+      "name": "Roboterwechsel -> Druckplan/Simulation/Export veraltet",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 2,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {
+          "druckplan": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "process": 0,
+            "workstation": 0
+          },
+          "simulation": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          },
+          "export": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          }
+        }
+      },
+      "expected": {
+        "druckplan": "stale",
+        "simulation": "stale",
+        "export": "stale"
+      }
+    },
+    {
+      "name": "Druckplan neu erzeugt -> nur er wieder current (stufenweise)",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 2,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {
+          "druckplan": {
+            "wall": 1,
+            "robot": 2,
+            "tool": 0,
+            "process": 0,
+            "workstation": 0
+          },
+          "simulation": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          },
+          "export": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          }
+        }
+      },
+      "expected": {
+        "druckplan": "current",
+        "simulation": "stale",
+        "export": "stale"
+      }
+    },
+    {
+      "name": "Schnittplan-Aenderung veraltet Simulation/Export, NICHT den Druckplan",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 2,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {
+          "druckplan": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "process": 0,
+            "workstation": 0
+          },
+          "simulation": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          },
+          "export": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          }
+        }
+      },
+      "expected": {
+        "druckplan": "current",
+        "simulation": "stale",
+        "export": "stale"
+      }
+    },
+    {
+      "name": "Prozessparameter-Aenderung veraltet alle drei",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 1,
+          "workstation": 0
+        },
+        "outputs": {
+          "druckplan": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "process": 0,
+            "workstation": 0
+          },
+          "simulation": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          },
+          "export": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          }
+        }
+      },
+      "expected": {
+        "druckplan": "stale",
+        "simulation": "stale",
+        "export": "stale"
+      }
+    },
+    {
+      "name": "Workstation-Wechsel veraltet alle drei (#83)",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 1
+        },
+        "outputs": {
+          "druckplan": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "process": 0,
+            "workstation": 0
+          },
+          "simulation": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          },
+          "export": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          }
+        }
+      },
+      "expected": {
+        "druckplan": "stale",
+        "simulation": "stale",
+        "export": "stale"
+      }
+    },
+    {
+      "name": "section_total-Kante: Abschnitts-Override veraltet NUR den Druckplan (#172)",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {
+          "druckplan": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "process": 0,
+            "workstation": 0,
+            "section_total": 0
+          },
+          "simulation": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          },
+          "export": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          }
+        },
+        "section_inputs": {
+          "abschnitt-1": 1,
+          "abschnitt-2": 1
+        }
+      },
+      "expected": {
+        "druckplan": "stale",
+        "simulation": "current",
+        "export": "current"
+      }
+    },
+    {
+      "name": "section_total-Kante: Druckplan neu erzeugt (Summe im Snapshot) -> current",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {
+          "druckplan": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "process": 0,
+            "workstation": 0,
+            "section_total": 2
+          },
+          "simulation": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          },
+          "export": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          }
+        },
+        "section_inputs": {
+          "abschnitt-1": 1,
+          "abschnitt-2": 1
+        }
+      },
+      "expected": {
+        "druckplan": "current",
+        "simulation": "current",
+        "export": "current"
+      }
+    }
+  ],
+  "pruef_cases": [
+    {
+      "name": "kein last_pruef -> missing (nie geprueft)",
+      "revisions": {
+        "inputs": {
+          "cutplan": 2
+        }
+      },
+      "last_pruef": null,
+      "expected": "missing"
+    },
+    {
+      "name": "last_pruef OHNE input_snapshot -> missing (#194: keine stille Aktualitaet)",
+      "revisions": {
+        "inputs": {
+          "wall": 0,
+          "robot": 0,
+          "tool": 0,
+          "cutplan": 0,
+          "process": 0,
+          "workstation": 0
+        }
+      },
+      "last_pruef": {
+        "scope": "global"
+      },
+      "expected": "missing"
+    },
+    {
+      "name": "last_pruef OHNE input_snapshot trotz gebumpter Eingabe -> missing (#194)",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 0,
+          "tool": 0,
+          "cutplan": 0,
+          "process": 0,
+          "workstation": 0
+        }
+      },
+      "last_pruef": {
+        "scope": "global"
+      },
+      "expected": "missing"
+    },
+    {
+      "name": "last_pruef mit LEEREM input_snapshot -> missing (#194)",
+      "revisions": {
+        "inputs": {
+          "wall": 0,
+          "robot": 0,
+          "tool": 0,
+          "cutplan": 0,
+          "process": 0,
+          "workstation": 0
+        }
+      },
+      "last_pruef": {
+        "scope": "global",
+        "input_snapshot": {}
+      },
+      "expected": "missing"
+    },
+    {
+      "name": "unveraenderte Eingaben -> current",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "cutplan": 3,
+          "process": 2
+        }
+      },
+      "last_pruef": {
+        "scope": "global",
+        "input_snapshot": {
+          "wall": 1,
+          "cutplan": 3,
+          "process": 2,
+          "section_total": 0
+        }
+      },
+      "expected": "current"
+    },
+    {
+      "name": "eine Pruef-Eingabe neuer als der Schnappschuss -> stale",
+      "revisions": {
+        "inputs": {
+          "cutplan": 4,
+          "process": 2
+        }
+      },
+      "last_pruef": {
+        "scope": "global",
+        "input_snapshot": {
+          "cutplan": 3,
+          "process": 2
+        }
+      },
+      "expected": "stale"
+    },
+    {
+      "name": "Workstation-Wechsel seit der Pruefung -> stale",
+      "revisions": {
+        "inputs": {
+          "cutplan": 3,
+          "workstation": 1
+        }
+      },
+      "last_pruef": {
+        "scope": "global",
+        "input_snapshot": {
+          "cutplan": 3,
+          "workstation": 0
+        }
+      },
+      "expected": "stale"
+    },
+    {
+      "name": "Platzierungs-/Abschnitts-Override (section_total steigt) -> stale",
+      "revisions": {
+        "inputs": {
+          "cutplan": 3
+        },
+        "section_inputs": {
+          "abschnitt-1": 1,
+          "abschnitt-2": 1
+        }
+      },
+      "last_pruef": {
+        "scope": "focus",
+        "section_id": "abschnitt-1",
+        "input_snapshot": {
+          "cutplan": 3,
+          "section_total": 1
+        }
+      },
+      "expected": "stale"
+    }
+  ]
+}

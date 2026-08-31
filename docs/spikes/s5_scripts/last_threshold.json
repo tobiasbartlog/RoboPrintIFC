@@ -1,0 +1,15 @@
+{
+  "n_fcl_calls": 43469,
+  "t_min_distance_s": 1.922,
+  "t_in_collision_s": 0.494,
+  "ms_per_min_distance": 0.0442,
+  "ms_per_in_collision": 0.0114,
+  "in_collision_vs_min_distance_ratio": 0.257,
+  "n_in_collision_true": 11370,
+  "call_verdict_from_min_distance": {
+    "red": 11370,
+    "yellow": 23248,
+    "green_over_safety": 8851
+  },
+  "note": "in_collision beantwortet nur rot/nicht-rot (0 mm), nicht das gelbe Sicherheits-Band. set_transform faellt fuer beide Wege an."
+}

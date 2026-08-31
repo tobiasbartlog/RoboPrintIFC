@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboprintifc/schemas/context.schema.json",
+  "title": "Context",
+  "description": "Gebaeudekontext fuer den Viewer: tessellierte Meshes (mm) aller uebrigen Elemente des IFC-Modells, damit die ausgewaehlte Wand im Gesamtgebaeude verortet werden kann. Rein visuell — kein Planungs-Input.",
+  "type": "object",
+  "required": ["schema_version", "provenance", "model", "elements"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "provenance": { "$ref": "setup.schema.json#/$defs/provenance" },
+    "model": { "type": "string", "description": "Pfad/Name des Quell-IFC-Modells" },
+    "wall_global_id": {
+      "type": "string",
+      "description": "GlobalId der ausgewaehlten Wand — sie selbst ist nicht in elements enthalten"
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["global_id", "ifc_type", "geometry"],
+        "additionalProperties": false,
+        "properties": {
+          "global_id": { "type": "string" },
+          "ifc_type": { "type": "string", "description": "IFC-Klasse, z.B. IfcSlab" },
+          "name": { "type": "string" },
+          "geometry": {
+            "type": "object",
+            "required": ["vertices_mm", "faces"],
+            "additionalProperties": false,
+            "properties": {
+              "vertices_mm": {
+                "type": "array",
+                "items": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }
+              },
+              "faces": {
+                "type": "array",
+                "items": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 3, "maxItems": 3 }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

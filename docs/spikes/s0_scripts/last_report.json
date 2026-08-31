@@ -1,0 +1,107 @@
+{
+  "run": "20260708-161603_slice_Denkmal",
+  "n_samples": 25217,
+  "t_load_link_meshes_s": 0.419,
+  "link_mesh_faces": [
+    15422,
+    9338,
+    46648,
+    9424,
+    12346,
+    6708,
+    3042
+  ],
+  "hull_mesh_faces": [
+    844,
+    3400,
+    4516,
+    3124,
+    2406,
+    2458,
+    1044
+  ],
+  "wall_watertight": false,
+  "t_fk_total_s": 2.53,
+  "t_fk_per_sample_ms": 0.1,
+  "tcp_step_mm": {
+    "max": 1052.2,
+    "p99": 20.0,
+    "median": 19.94
+  },
+  "ds_top_mm": {
+    "min": 0.0,
+    "max": 810.0
+  },
+  "subset": {
+    "n": 1009,
+    "stride": 25
+  },
+  "variants": {
+    "A_exakt": {
+      "per_sample_ms": 21.14,
+      "min_dist_mm": -90.16,
+      "n_below_0": 306,
+      "n_below_50": 584
+    },
+    "B_huellen": {
+      "per_sample_ms": 0.056,
+      "min_dist_mm": -253.64,
+      "n_below_0": 355,
+      "n_below_50": 671
+    }
+  },
+  "self_collision": {
+    "per_sample_ms": 16.661,
+    "n_pairs": 15,
+    "min_dist_mm": 33.16
+  },
+  "determinism": {
+    "repeat_equal": true,
+    "rebuild_equal": true
+  },
+  "full_run": {
+    "t_total_s": 601.9,
+    "per_sample_ms": 23.87,
+    "t_druckstand_rebuilds_s": 0.22,
+    "n_obstacle_managers": 82,
+    "min_dist_mm": -99.0,
+    "worst": {
+      "dist_mm": -99.0,
+      "sample": 1659,
+      "t_s": 338.434332,
+      "pair": "druckstand|link4"
+    },
+    "n_below_0": 7538,
+    "n_below_50": 14698,
+    "causer_pairs_below_50": [
+      [
+        "druckstand|link5",
+        7928
+      ],
+      [
+        "druckstand|link2",
+        3136
+      ],
+      [
+        "druckstand|link4",
+        2972
+      ],
+      [
+        "druckstand|link3",
+        536
+      ],
+      [
+        "floor|link5",
+        119
+      ],
+      [
+        "druckstand|link6",
+        6
+      ],
+      [
+        "floor|link4",
+        1
+      ]
+    ]
+  }
+}

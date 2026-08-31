@@ -1,0 +1,183 @@
+{
+  "cells": {
+    "1100_100": {
+      "best": {
+        "base_height_mm": 300.0,
+        "ik_config": "baa",
+        "standoff_mm": 500.0
+      },
+      "h_max_mm": 900.0,
+      "status": "measured",
+      "thickness_mm": 100.0,
+      "width_mm": 1100.0
+    },
+    "1100_250": {
+      "best": {
+        "base_height_mm": 300.0,
+        "ik_config": "baa",
+        "standoff_mm": 500.0
+      },
+      "h_max_mm": 800.0,
+      "status": "measured",
+      "thickness_mm": 250.0,
+      "width_mm": 1100.0
+    },
+    "1100_400": {
+      "best": null,
+      "h_max_mm": null,
+      "status": "angenommen-unmachbar",
+      "thickness_mm": 400.0,
+      "width_mm": 1100.0
+    },
+    "1100_550": {
+      "best": null,
+      "h_max_mm": null,
+      "status": "angenommen-unmachbar",
+      "thickness_mm": 550.0,
+      "width_mm": 1100.0
+    },
+    "500_100": {
+      "best": {
+        "base_height_mm": 0.0,
+        "ik_config": "aaa",
+        "standoff_mm": 500.0
+      },
+      "h_max_mm": 900.0,
+      "status": "measured",
+      "thickness_mm": 100.0,
+      "width_mm": 500.0
+    },
+    "500_250": {
+      "best": {
+        "base_height_mm": 300.0,
+        "ik_config": "aaa",
+        "standoff_mm": 500.0
+      },
+      "h_max_mm": 900.0,
+      "status": "measured",
+      "thickness_mm": 250.0,
+      "width_mm": 500.0
+    },
+    "500_400": {
+      "best": {
+        "base_height_mm": 300.0,
+        "ik_config": "baa",
+        "standoff_mm": 500.0
+      },
+      "h_max_mm": 830.0,
+      "status": "measured",
+      "thickness_mm": 400.0,
+      "width_mm": 500.0
+    },
+    "500_550": {
+      "best": {
+        "base_height_mm": 300.0,
+        "ik_config": "baa",
+        "standoff_mm": 500.0
+      },
+      "h_max_mm": 610.0,
+      "status": "measured",
+      "thickness_mm": 550.0,
+      "width_mm": 500.0
+    },
+    "800_100": {
+      "best": {
+        "base_height_mm": 300.0,
+        "ik_config": "aaa",
+        "standoff_mm": 500.0
+      },
+      "h_max_mm": 900.0,
+      "status": "measured",
+      "thickness_mm": 100.0,
+      "width_mm": 800.0
+    },
+    "800_250": {
+      "best": {
+        "base_height_mm": 300.0,
+        "ik_config": "baa",
+        "standoff_mm": 500.0
+      },
+      "h_max_mm": 900.0,
+      "status": "measured",
+      "thickness_mm": 250.0,
+      "width_mm": 800.0
+    },
+    "800_400": {
+      "best": {
+        "base_height_mm": 300.0,
+        "ik_config": "baa",
+        "standoff_mm": 500.0
+      },
+      "h_max_mm": 730.0,
+      "status": "measured",
+      "thickness_mm": 400.0,
+      "width_mm": 800.0
+    },
+    "800_550": {
+      "best": null,
+      "h_max_mm": null,
+      "status": "angenommen-unmachbar",
+      "thickness_mm": 550.0,
+      "width_mm": 800.0
+    }
+  },
+  "grid": {
+    "base_heights": [
+      0.0,
+      300.0
+    ],
+    "box_height_mm": 900.0,
+    "configs": [
+      "aaa",
+      "aab",
+      "aba",
+      "abb",
+      "baa",
+      "bab",
+      "bba",
+      "bbb"
+    ],
+    "safety_mm": 50.0,
+    "standoffs": [
+      200.0,
+      350.0,
+      500.0,
+      650.0
+    ],
+    "strict_reach": 0.99,
+    "thicks": [
+      100.0,
+      250.0,
+      400.0,
+      550.0
+    ],
+    "widths": [
+      500.0,
+      800.0,
+      1100.0
+    ]
+  },
+  "kind": "placement-prior",
+  "provenance": {
+    "created": "2026-07-22T11:58:32+00:00",
+    "git_commit": "f765591",
+    "grid_generated_by": "scratchpad/merge_grid.py (Rettung nach Orchestrator-Hang)",
+    "grid_git_commit": null,
+    "grid_meta_path": "experiments/collision_standoff_sweep/data_grid/meta_wt.json",
+    "grid_n_done": 9,
+    "grid_partial": true,
+    "grid_project": "denkmal",
+    "source": "python -m fgc.placement.prior_build --grid-meta experiments/collision_standoff_sweep/data_grid/meta_wt.json --robot doosan_m1013 --tool 30gut"
+  },
+  "robot": "doosan_m1013",
+  "schema_version": "1",
+  "tool": {
+    "envelope_mm": null,
+    "name": "30gut",
+    "tcp_pos_mm": [
+      134.0,
+      0.0,
+      73.0
+    ]
+  }
+}

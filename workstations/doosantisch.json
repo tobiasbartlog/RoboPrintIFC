@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1",
+  "name": "doosantisch",
+  "mobility": "stationary",
+  "height_adjustable": false,
+  "safety_min_distance_mm": 50.0,
+  "base_heights_mm": [
+    0.0
+  ],
+  "vendor": "ICoM",
+  "compatible_robots": [
+    "doosan_m1013"
+  ],
+  "mesh": "doosantisch.stl",
+  "robot_base_frame": {
+    "pos_mm": [
+      780.0,
+      1090.0,
+      901.0
+    ],
+    "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "work_surface_frame": {
+    "pos_mm": [
+      780.0,
+      605.0,
+      901.0
+    ],
+    "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  }
+}

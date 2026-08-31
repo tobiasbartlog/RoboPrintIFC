@@ -1,0 +1,102 @@
+{
+  "config": {
+    "spike": "S5/AP-1-Nachher-Messung + Abnahme (Issue #215)",
+    "baseline_ref": "docs/spikes/S5b_ap1_baseline_verduennt.md (Issue #206)",
+    "reproduction": "slice_and_simulate_section('denkmal','abschnitt-1') → find_collisions",
+    "travel_stride": 5,
+    "safety_distance_mm": 50.0,
+    "freizone_radius_mm": 40.0,
+    "decomposition_kind": "modul",
+    "n_samples_thinned": 11968,
+    "n_layers": 55,
+    "tool_hull": true,
+    "robot": "doosan_m1013",
+    "backend_after": "sdf (SdfObstacleProvider, #213)",
+    "n_timing_repeats": 3,
+    "machine": {
+      "platform": "Windows-11-10.0.26200-SP0",
+      "python": "3.14.0",
+      "processor": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel"
+    }
+  },
+  "determinism": {
+    "fcl": true,
+    "sdf": true
+  },
+  "befund_identitaet": {
+    "self_false": true,
+    "self_true": true,
+    "counts_self_false_fcl": {
+      "n_samples": 11968,
+      "n_red": 5106,
+      "n_yellow": 1142,
+      "n_green": 5720,
+      "min_distance_mm": -149.824,
+      "worst_index": 9794
+    },
+    "counts_self_false_sdf": {
+      "n_samples": 11968,
+      "n_red": 5106,
+      "n_yellow": 1142,
+      "n_green": 5720,
+      "min_distance_mm": -149.824,
+      "worst_index": 9794
+    },
+    "counts_self_true_fcl": {
+      "n_samples": 11968,
+      "n_red": 5123,
+      "n_yellow": 6845,
+      "n_green": 0,
+      "min_distance_mm": -214.13,
+      "worst_index": 11542
+    },
+    "counts_self_true_sdf": {
+      "n_samples": 11968,
+      "n_red": 5123,
+      "n_yellow": 6845,
+      "n_green": 0,
+      "min_distance_mm": -214.13,
+      "worst_index": 11542
+    },
+    "note": "#213-Regressionsanker: rot/gelb + worst_index byte-identisch; der Speedup gilt nur mit identischen Befunden."
+  },
+  "callsite_arm_obstacle": {
+    "self_collision": false,
+    "fcl_wall_s": {
+      "runs": [
+        4.226,
+        4.169,
+        4.253
+      ],
+      "min": 4.169,
+      "median": 4.226
+    },
+    "sdf_wall_s": {
+      "runs": [
+        10.96,
+        9.711,
+        9.769
+      ],
+      "min": 9.711,
+      "median": 9.769
+    },
+    "yfold_fcl_over_sdf_median": 0.43,
+    "yfold_fcl_over_sdf_min": 0.43
+  },
+  "callsite_self_collision": {
+    "note": "Reiner Arm↔Arm-Block isoliert: Wall(self=True) − Wall(self=False).",
+    "fcl_wall_self_true_s": 104.747,
+    "sdf_wall_self_true_s": 247.385,
+    "fcl_self_only_s": 100.521,
+    "sdf_self_only_s": 237.615,
+    "yfold_fcl_over_sdf": 0.42
+  },
+  "budget": {
+    "verfahren": "groesste runde Aufruf-Zahl mit n*per_call ≤ target (Grill 2026-07-14)",
+    "per_call_s_sdf_self_false_median": 9.769,
+    "target_s": 300.0,
+    "raw_max_calls": 30,
+    "default_call_budget": 20,
+    "predicted_run_s": 195.4
+  }
+}

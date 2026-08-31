@@ -1,0 +1,408 @@
+{
+  "_comment": "Golden-Faelle der Pro-Abschnitts-Veraltung (Issue #83) — erzeugt von viewer/scripts/gen_goldens.py; nicht von Hand editieren.",
+  "cases": [
+    {
+      "name": "Altprojekt ohne revisions -> alles current",
+      "revisions": null,
+      "section_id": "abschnitt-1",
+      "expected": {
+        "simulation": "current",
+        "export": "current"
+      }
+    },
+    {
+      "name": "Legacy (kein section_outputs) -> Ganzjob: Sim/Export erzeugt = current",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {
+          "simulation": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          },
+          "export": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          }
+        }
+      },
+      "section_id": "abschnitt-1",
+      "expected": {
+        "simulation": "current",
+        "export": "current"
+      }
+    },
+    {
+      "name": "Legacy: Roboterwechsel veraltet Ganzjob-Sim/Export (verhält sich wie bisher)",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 2,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {
+          "simulation": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          },
+          "export": {
+            "wall": 1,
+            "robot": 1,
+            "tool": 0,
+            "cutplan": 1,
+            "process": 0,
+            "workstation": 0
+          }
+        }
+      },
+      "section_id": "abschnitt-1",
+      "expected": {
+        "simulation": "stale",
+        "export": "stale"
+      }
+    },
+    {
+      "name": "Pro-Abschnitt: A simuliert, B nie -> A current, Abfrage B = missing",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {},
+        "section_inputs": {},
+        "section_outputs": {
+          "abschnitt-1": {
+            "simulation": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            }
+          }
+        }
+      },
+      "section_id": "abschnitt-2",
+      "expected": {
+        "simulation": "missing",
+        "export": "missing"
+      }
+    },
+    {
+      "name": "Abschnitts-Override von A: nur A veraltet (Zähler A=1 > Snapshot 0)",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {},
+        "section_inputs": {
+          "abschnitt-1": 1
+        },
+        "section_outputs": {
+          "abschnitt-1": {
+            "simulation": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            },
+            "export": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            }
+          },
+          "abschnitt-2": {
+            "simulation": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            },
+            "export": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            }
+          }
+        }
+      },
+      "section_id": "abschnitt-1",
+      "expected": {
+        "simulation": "stale",
+        "export": "stale"
+      }
+    },
+    {
+      "name": "Derselbe Stand, Nachbar B: bleibt aktuell (Zähler B unverändert)",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {},
+        "section_inputs": {
+          "abschnitt-1": 1
+        },
+        "section_outputs": {
+          "abschnitt-1": {
+            "simulation": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            },
+            "export": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            }
+          },
+          "abschnitt-2": {
+            "simulation": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            },
+            "export": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            }
+          }
+        }
+      },
+      "section_id": "abschnitt-2",
+      "expected": {
+        "simulation": "current",
+        "export": "current"
+      }
+    },
+    {
+      "name": "Globaler process-Bump: beide Abschnitte veralten (strukturell/global)",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 1,
+          "workstation": 0
+        },
+        "outputs": {},
+        "section_inputs": {},
+        "section_outputs": {
+          "abschnitt-2": {
+            "simulation": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            },
+            "export": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            }
+          }
+        }
+      },
+      "section_id": "abschnitt-2",
+      "expected": {
+        "simulation": "stale",
+        "export": "stale"
+      }
+    },
+    {
+      "name": "Workstation-Wechsel: Abschnitt veraltet (workstation ist Job-Dep, #83)",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 1
+        },
+        "outputs": {},
+        "section_inputs": {},
+        "section_outputs": {
+          "abschnitt-1": {
+            "simulation": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            },
+            "export": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            }
+          }
+        }
+      },
+      "section_id": "abschnitt-1",
+      "expected": {
+        "simulation": "stale",
+        "export": "stale"
+      }
+    },
+    {
+      "name": "Schnitt-Änderung (cutplan) veraltet Abschnitts-Sim/Export",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 2,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {},
+        "section_inputs": {},
+        "section_outputs": {
+          "abschnitt-1": {
+            "simulation": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            },
+            "export": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 0
+            }
+          }
+        }
+      },
+      "section_id": "abschnitt-1",
+      "expected": {
+        "simulation": "stale",
+        "export": "stale"
+      }
+    },
+    {
+      "name": "Override von A gebumpt + A neu simuliert: A wieder current (section-Snapshot zieht mit)",
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 0,
+          "cutplan": 1,
+          "process": 0,
+          "workstation": 0
+        },
+        "outputs": {},
+        "section_inputs": {
+          "abschnitt-1": 1
+        },
+        "section_outputs": {
+          "abschnitt-1": {
+            "simulation": {
+              "wall": 1,
+              "robot": 1,
+              "tool": 0,
+              "cutplan": 1,
+              "process": 0,
+              "workstation": 0,
+              "section": 1
+            }
+          }
+        }
+      },
+      "section_id": "abschnitt-1",
+      "expected": {
+        "simulation": "current",
+        "export": "missing"
+      }
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+﻿=== Wand 2mu0jgf9H6dQhlc8067eHh (Subprozess) ===
+[wall 2mu0jgf9H6dQhlc8067eHh] thick=80.1mm  modul0=936.4×765.0mm  (4 Module)
+   d=150mm red=5295 min=-366mm
+   d=250mm red=5621 min=-221mm
+   d=350mm red=6234 min=-230mm
+   d=450mm red=6487 min=-391mm
+   d=550mm red=6594 min=-498mm
+   d=650mm red=0 min=50mm
+   d=750mm red=0 min=50mm
+   d=850mm red=0 min=50mm
+   d=950mm red=208 min=-42mm
+   d=1050mm red=1960 min=-70mm
+=== Wand 2mu0jgf9H6dQhlc8067eeK (Subprozess) ===
+[wall 2mu0jgf9H6dQhlc8067eeK] thick=130.0mm  modul0=620.0×765.0mm  (8 Module)
+   d=150mm red=5313 min=-190mm
+   d=250mm red=5447 min=-234mm
+   d=350mm red=0 min=11mm
+   d=450mm red=0 min=50mm
+   d=550mm red=0 min=50mm
+   d=650mm red=0 min=50mm
+   d=750mm red=0 min=50mm
+   d=850mm red=0 min=50mm
+   d=950mm red=260 min=-42mm
+   d=1050mm red=2470 min=-70mm
+=== Wand 2mu0jgf9H6dQhlc8067eok (Subprozess) ===
+[wall 2mu0jgf9H6dQhlc8067eok] thick=180.0mm  modul0=825.0×765.0mm  (4 Module)
+   d=150mm red=10203 min=-236mm
+   d=250mm red=10551 min=-250mm
+   d=350mm red=11474 min=-281mm
+   d=450mm red=12200 min=-373mm
+   d=550mm red=11901 min=-391mm
+   d=650mm red=0 min=30mm
+   d=750mm red=0 min=46mm
+   d=850mm red=0 min=50mm
+   d=950mm red=364 min=-42mm
+   d=1050mm red=3458 min=-70mm
+=== Wand 2mu0jgf9H6dQhlc8067e39 (Subprozess) ===
+[wall 2mu0jgf9H6dQhlc8067e39] thick=225.0mm  modul0=902.0×765.0mm  (4 Module)
+   d=150mm red=12542 min=-155mm
+   d=250mm red=13215 min=-268mm
+   d=350mm red=14443 min=-276mm
+   d=450mm red=212 min=-77mm
+   d=550mm red=148 min=-40mm
+   d=650mm red=48 min=-5mm
+   d=750mm red=0 min=17mm
+   d=850mm red=0 min=49mm
+   d=950mm red=432 min=-42mm
+   d=1050mm red=4094 min=-70mm
+=== Wand 2d9LuxY1D3owMKr995JnN$ (Subprozess) ===
+[wall 2d9LuxY1D3owMKr995JnN$] thick=300.0mm  modul0=1124.3×765.0mm  (4 Module)
+   d=150mm red=19463 min=-260mm
+   d=250mm red=19245 min=-373mm
+   d=350mm red=19124 min=-423mm
+   d=450mm red=19128 min=-511mm
+   d=550mm red=19250 min=-348mm
+   d=650mm red=19291 min=-169mm
+   d=750mm red=572 min=-22mm
+   d=850mm red=0 min=41mm
+   d=950mm red=532 min=-42mm
+   d=1050mm red=5054 min=-70mm
+=== Wand 2d9LuxY1D3owMKr995JmcO (Subprozess) ===
+[wall 2d9LuxY1D3owMKr995JmcO] thick=488.7mm  modul0=843.8×765.0mm  (4 Module)
+   d=150mm red=11654 min=-322mm
+   d=250mm red=4540 min=-53mm
+   d=350mm red=384 min=-43mm
+   d=450mm red=330 min=-37mm
+   d=550mm red=656 min=-106mm
+   d=650mm red=1748 min=-63mm
+   d=750mm red=790 min=-22mm
+   d=850mm red=0 min=40mm
+   d=950mm red=0 min=50mm
+   d=1050mm red=1919 min=-61mm
+=== Wand 2d9LuxY1D3owMKr995JmXw (Subprozess) ===
+[wall 2d9LuxY1D3owMKr995JmXw] thick=505.0mm  modul0=990.1×765.0mm  (4 Module)
+   d=150mm red=15145 min=-372mm
+[wall 2d9LuxY1D3owMKr995JmXw] Subprozess Exit 3221225477 (nativer Crash?) — übersprungen
+=== Wand 2mu0jgf9H6dQhlc8067e6b (Subprozess) ===
+[wall 2mu0jgf9H6dQhlc8067e6b] thick=620.0mm  modul0=1106.5×765.0mm  (4 Module)
+   d=150mm red=24136 min=-597mm
+   d=250mm red=24070 min=-557mm
+   d=350mm red=23880 min=-579mm
+   d=450mm red=23686 min=-413mm
+   d=550mm red=23705 min=-184mm
+   d=650mm red=23723 min=-141mm
+   d=750mm red=0 min=5mm
+   d=850mm red=0 min=50mm
+   d=950mm red=652 min=-42mm
+   d=1050mm red=6194 min=-70mm
+[done] 5320 grid rows, 7/8 Wände ok → C:\Users\tbartlog\Documents\LokalPython\Bim2Print\experiments\collision_standoff_sweep\data_thickness

@@ -1,0 +1,132 @@
+{
+  "_comment": "Erzeugt von core/scripts/convert_robot_meshes.py — nicht von Hand editieren.",
+  "robot": "doosan_m1013",
+  "units": "mm",
+  "frame_convention": "Vertices in Basiskoordinaten je Glied vor-transformiert; Viewer setzt mesh.matrix = frames[i] (DH-FK). Offset dhFrame_i(_START)^-1*Rz(pi)*urdfFrame_i(0) (korrespondierendes Posenpaar, Issue #53) und Meter->mm-Skalierung sind eingebacken.",
+  "upstream": {
+    "repo": "https://github.com/doosan-robotics/doosan-robot2",
+    "commit": "ec9242546ec6202835900dbcd8498e2daabfa6a6",
+    "license": "BSD-3-Clause © Doosan Robotics Inc. — siehe third_party/doosan_m1013/LICENSE"
+  },
+  "links": [
+    {
+      "index": 0,
+      "urdf_link": "base_link",
+      "file": "base.glb",
+      "bounds_mm": [
+        [
+          -91.191,
+          -91.191,
+          0.0
+        ],
+        [
+          123.243,
+          349.047,
+          55.8
+        ]
+      ]
+    },
+    {
+      "index": 1,
+      "urdf_link": "link_1",
+      "file": "link1.glb",
+      "bounds_mm": [
+        [
+          -81.038,
+          -95.7,
+          -80.32
+        ],
+        [
+          81.039,
+          123.867,
+          101.799
+        ]
+      ]
+    },
+    {
+      "index": 2,
+      "urdf_link": "link_2",
+      "file": "link2.glb",
+      "bounds_mm": [
+        [
+          -700.348,
+          -81.011,
+          68.277
+        ],
+        [
+          69.153,
+          81.066,
+          287.873
+        ]
+      ]
+    },
+    {
+      "index": 3,
+      "urdf_link": "link_3",
+      "file": "link3.glb",
+      "bounds_mm": [
+        [
+          -65.482,
+          -54.512,
+          -96.808
+        ],
+        [
+          65.516,
+          81.144,
+          83.972
+        ]
+      ]
+    },
+    {
+      "index": 4,
+      "urdf_link": "link_4",
+      "file": "link4.glb",
+      "bounds_mm": [
+        [
+          -56.743,
+          -54.703,
+          -49.772
+        ],
+        [
+          57.026,
+          474.553,
+          243.856
+        ]
+      ]
+    },
+    {
+      "index": 5,
+      "urdf_link": "link_5",
+      "file": "link5.glb",
+      "bounds_mm": [
+        [
+          -53.866,
+          -52.231,
+          -94.887
+        ],
+        [
+          54.097,
+          79.255,
+          60.469
+        ]
+      ]
+    },
+    {
+      "index": 6,
+      "urdf_link": "link_6",
+      "file": "link6.glb",
+      "bounds_mm": [
+        [
+          -45.611,
+          -45.764,
+          -59.508
+        ],
+        [
+          45.39,
+          45.236,
+          0.007
+        ]
+      ]
+    }
+  ]
+}

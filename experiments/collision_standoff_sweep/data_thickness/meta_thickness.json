@@ -1,0 +1,115 @@
+{
+  "project": "denkmal",
+  "robot": "doosan_m1013",
+  "sweep": {
+    "min": 150.0,
+    "max": 1100.0,
+    "step": 100.0
+  },
+  "collision_config": {
+    "safety_distance_mm": 50.0,
+    "freizone_radius_mm": 40.0
+  },
+  "scene_mode": "modul",
+  "link_names": {
+    "0": "base_link",
+    "1": "link_1",
+    "2": "link_2",
+    "3": "link_3",
+    "4": "link_4",
+    "5": "link_5",
+    "6": "link_6",
+    "7": "tool"
+  },
+  "walls": [
+    {
+      "gid": "2mu0jgf9H6dQhlc8067eHh",
+      "name": "Basiswand:8:179463",
+      "thickness_mm": 80.1,
+      "wall_length_mm": 936.4,
+      "wall_height_mm": 3060.0,
+      "module_length_mm": 936.4,
+      "module_height_mm": 765.0,
+      "layer_height_mm": 10.0,
+      "n_modules": 4
+    },
+    {
+      "gid": "2mu0jgf9H6dQhlc8067eeK",
+      "name": "Basiswand:13:177016",
+      "thickness_mm": 130.0,
+      "wall_length_mm": 1240.0,
+      "wall_height_mm": 3060.0,
+      "module_length_mm": 620.0,
+      "module_height_mm": 765.0,
+      "layer_height_mm": 10.0,
+      "n_modules": 8
+    },
+    {
+      "gid": "2mu0jgf9H6dQhlc8067eok",
+      "name": "Basiswand:18:177602",
+      "thickness_mm": 180.0,
+      "wall_length_mm": 825.0,
+      "wall_height_mm": 3060.0,
+      "module_length_mm": 825.0,
+      "module_height_mm": 765.0,
+      "layer_height_mm": 10.0,
+      "n_modules": 4
+    },
+    {
+      "gid": "2mu0jgf9H6dQhlc8067e39",
+      "name": "Basiswand:22.5:178597",
+      "thickness_mm": 225.0,
+      "wall_length_mm": 902.0,
+      "wall_height_mm": 3060.0,
+      "module_length_mm": 902.0,
+      "module_height_mm": 765.0,
+      "layer_height_mm": 10.0,
+      "n_modules": 4
+    },
+    {
+      "gid": "2d9LuxY1D3owMKr995JnN$",
+      "name": "Basiswand:30:199912",
+      "thickness_mm": 300.0,
+      "wall_length_mm": 1124.3,
+      "wall_height_mm": 3060.0,
+      "module_length_mm": 1124.3,
+      "module_height_mm": 765.0,
+      "layer_height_mm": 10.0,
+      "n_modules": 4
+    },
+    {
+      "gid": "2d9LuxY1D3owMKr995JmcO",
+      "name": "Basiswand:64:200847",
+      "thickness_mm": 488.7,
+      "wall_length_mm": 843.8,
+      "wall_height_mm": 3060.0,
+      "module_length_mm": 843.8,
+      "module_height_mm": 765.0,
+      "layer_height_mm": 10.0,
+      "n_modules": 4
+    },
+    {
+      "gid": "2mu0jgf9H6dQhlc8067e6b",
+      "name": "Basiswand:62:178377",
+      "thickness_mm": 620.0,
+      "wall_length_mm": 1106.5,
+      "wall_height_mm": 3060.0,
+      "module_length_mm": 1106.5,
+      "module_height_mm": 765.0,
+      "layer_height_mm": 10.0,
+      "n_modules": 4
+    }
+  ],
+  "worker_exit_codes": {
+    "2mu0jgf9H6dQhlc8067eHh": 0,
+    "2mu0jgf9H6dQhlc8067eeK": 0,
+    "2mu0jgf9H6dQhlc8067eok": 0,
+    "2mu0jgf9H6dQhlc8067e39": 0,
+    "2d9LuxY1D3owMKr995JnN$": 0,
+    "2d9LuxY1D3owMKr995JmcO": 0,
+    "2d9LuxY1D3owMKr995JmXw": 3221225477,
+    "2mu0jgf9H6dQhlc8067e6b": 0
+  },
+  "git_commit": "20a3a0de419924447e004c627ef7f917593af74b",
+  "generated_by": "experiments/collision_standoff_sweep/sweep_thickness.py"
+}

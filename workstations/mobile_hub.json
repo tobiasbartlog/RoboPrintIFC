@@ -1,0 +1,9 @@
+{
+  "schema_version": "0.1",
+  "name": "mobile_hub",
+  "vendor": "FGC-Labor",
+  "mobility": "mobile",
+  "height_adjustable": true,
+  "height_range_mm": { "min": 0, "max": 600 },
+  "safety_min_distance_mm": 80
+}

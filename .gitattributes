@@ -1,0 +1,8 @@
+# Numpy-Binärartefakte (Glied-SDF-Gitter, Issue #207) nie CRLF-normalisieren.
+*.npy binary
+
+# Kollisions-Quellgeometrie (#125) geht in die SDF-Provenienz-Hashes ein
+# (glied_sdf.source_fingerprint). Kanonisch LF im Arbeitsbaum — auch auf
+# Windows (core.autocrlf) —, damit der Fingerabdruck plattformunabhängig ist
+# und ein hier gebautes Artefakt in der Linux-CI nicht als „veraltet" fehlschlägt.
+robots/collision/**/*.json text eol=lf

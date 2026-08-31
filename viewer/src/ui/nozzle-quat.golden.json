@@ -1,0 +1,125 @@
+{
+  "_comment": "Golden-Faelle nozzle_quat (Issue #85/#61) — erzeugt von viewer/scripts/gen_goldens.py; nicht von Hand editieren.",
+  "cases": [
+    {
+      "name": "0/0 -> senkrecht von oben (+x)",
+      "tangent": [
+        1.0,
+        0.0
+      ],
+      "lead_rad": 0.0,
+      "kipp_rad": 0.0,
+      "expected": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "0/0 -> senkrecht von oben (+y)",
+      "tangent": [
+        0.0,
+        1.0
+      ],
+      "lead_rad": 0.0,
+      "kipp_rad": 0.0,
+      "expected": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "degenerierte Tangente -> senkrecht",
+      "tangent": [
+        0.0,
+        0.0
+      ],
+      "lead_rad": 0.3490658503988659,
+      "kipp_rad": 0.3490658503988659,
+      "expected": [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "+kipp 30 zur Aussenseite (+x-Fahrt)",
+      "tangent": [
+        1.0,
+        0.0
+      ],
+      "lead_rad": 0.0,
+      "kipp_rad": 0.5235987755982988,
+      "expected": [
+        0.25881904510252074,
+        0.9659258262890683,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "+lead 30 in Fahrtrichtung (+x-Fahrt)",
+      "tangent": [
+        1.0,
+        0.0
+      ],
+      "lead_rad": 0.5235987755982988,
+      "kipp_rad": 0.0,
+      "expected": [
+        0.0,
+        0.9659258262890683,
+        0.0,
+        0.25881904510252074
+      ]
+    },
+    {
+      "name": "+kipp 30 (+y-Fahrt) Aussenseite +x",
+      "tangent": [
+        0.0,
+        1.0
+      ],
+      "lead_rad": 0.0,
+      "kipp_rad": 0.5235987755982988,
+      "expected": [
+        0.0,
+        0.9659258262890683,
+        0.0,
+        0.25881904510252074
+      ]
+    },
+    {
+      "name": "lead+kipp gemischt, schiefe Tangente",
+      "tangent": [
+        2.0,
+        -1.0
+      ],
+      "lead_rad": 0.20943951023931956,
+      "kipp_rad": 0.12217304763960307,
+      "expected": [
+        0.10096370833984172,
+        0.9926669115595446,
+        -0.006381310022313179,
+        0.06616654120854283
+      ]
+    },
+    {
+      "name": "negativer lead (Lag), -x-Fahrt",
+      "tangent": [
+        -1.0,
+        0.0
+      ],
+      "lead_rad": -0.2617993877991494,
+      "kipp_rad": 0.17453292519943295,
+      "expected": [
+        0.08641011328638344,
+        -0.9876721143508956,
+        -0.011376107230962197,
+        -0.13002950065171945
+      ]
+    }
+  ]
+}

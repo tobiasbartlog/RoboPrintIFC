@@ -1,0 +1,26 @@
+{
+  "subset_n": 1009,
+  "hull_ms_per_sample": 0.113,
+  "classes": {
+    "far": {
+      "n": 338,
+      "share": 0.335,
+      "ms_each": 0.0
+    },
+    "near_sep": {
+      "n": 365,
+      "share": 0.362,
+      "ms_each": 32.161
+    },
+    "colliding": {
+      "n": 306,
+      "share": 0.303,
+      "ms_each": 2.686
+    }
+  },
+  "hybrid_ms_per_sample": 12.561,
+  "projected_full_run_s": 316.8,
+  "min_reported_mm": -253.64,
+  "n_below_0": 306,
+  "n_below_50": 584
+}

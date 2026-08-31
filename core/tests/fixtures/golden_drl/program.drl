@@ -1,0 +1,29 @@
+# FGC-Planner — DRL-Programm (doosan_m1013)
+# Quelle: fgc emit-drl test
+# Erstellt: 2026-07-04T12:00:00Z
+# Git: test0000
+# Toolpath: 3 Targets (2 Druck, 1 Travel)
+#
+# ===================== PROVISORISCH (Spike S1) =====================
+# Die Bewegungsgrenzen (vel/acc/Blending) sind PROVISORISCH: sie stammen
+# aus process_params.motion (angenommene Werte), nicht aus am Gerät
+# gemessenen vel/acc-Grenzen. Kein Gate (ADR-006/012/013) — das Programm
+# entsteht, ist aber bis zur S1-Messung als vorläufig zu behandeln.
+#   vel     = je Target (v_mm_s aus Prozessfenster)
+#   acc     = 250.0 mm/s^2
+#   blending= 0.0 mm (Verrundung siehe Issue #63)
+#   ref     = DR_BASE
+# ===================================================================
+
+# --- Kanal-Modus ---
+set_mode_analog_output(ch=1, mod=DR_ANALOG_VOLTAGE)   # pump_a -> AO1, 0.0..10.0
+
+# --- Bewegung + IO ---
+set_analog_output(ch=1, val=0.000)
+movej(posx([0.000, 0.000, 0.000, 0.000, 0.000, 0.000]), vel=120.000, acc=250.000, radius=0.000, ref=DR_BASE)   # travel, layer 0, approach
+set_analog_output(ch=1, val=5.000)
+movel(posx([100.000, 0.000, 0.000, 0.000, 0.000, 0.000]), vel=40.000, acc=250.000, radius=0.000, ref=DR_BASE)   # print, layer 0, ring-0
+movel(posx([100.000, 50.000, 0.000, 0.000, 0.000, 0.000]), vel=40.000, acc=250.000, radius=0.000, ref=DR_BASE)   # print, layer 0, ring-0
+
+# --- Abschalten ---
+set_analog_output(ch=1, val=0.000)

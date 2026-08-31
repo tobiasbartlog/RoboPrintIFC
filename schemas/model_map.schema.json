@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboprintifc/schemas/model_map.schema.json",
+  "title": "ModelMap",
+  "description": "GlobalId-Zuordnung zum binaeren Modell-glTF (model.glb) eines walls-list-Laufs. Bindet jeden Szenenknoten der GLB an die GlobalId seiner IfcWall. Die GLB ist binaer und liegt als mesh_file neben diesem Artefakt im Lauf; zusammen mit candidates.json laedt der Viewer das Gesamtmodell und faerbt die Waende nach Eignung (ADR-007, der Viewer rechnet nichts).",
+  "type": "object",
+  "required": ["schema_version", "provenance", "model", "mesh_file", "walls"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "provenance": { "$ref": "setup.schema.json#/$defs/provenance" },
+    "model": { "type": "string", "description": "Pfad/Name der IFC-Quelldatei" },
+    "mesh_file": {
+      "const": "model.glb",
+      "description": "Dateiname der binaeren glTF (GLB) im selben Lauf, deren Szenenknoten hier auf GlobalIds abgebildet werden"
+    },
+    "walls": {
+      "type": "array",
+      "description": "Ein Eintrag je IfcWall-Instanz des Modells: Szenenknoten der GLB <-> GlobalId",
+      "items": {
+        "type": "object",
+        "required": ["node", "global_id"],
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "type": "string",
+            "description": "Name des Szenenknotens in model.glb (traegt die GlobalId)"
+          },
+          "global_id": {
+            "type": "string",
+            "description": "GlobalId der IfcWall — Verweis auf den candidates.json-Eintrag"
+          }
+        }
+      }
+    }
+  }
+}

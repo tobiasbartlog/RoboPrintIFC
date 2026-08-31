@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1",
+  "name": "zelle_fest",
+  "mobility": "stationary",
+  "height_adjustable": false,
+  "safety_min_distance_mm": 50.0,
+  "base_heights_mm": [
+    0.0,
+    200.0,
+    400.0
+  ],
+  "vendor": "FGC-Labor"
+}

@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboprintifc/schemas/setup.schema.json",
+  "title": "Setup",
+  "description": "Aufspannung: die eine Stelle, an der Bauteilwelt und Roboterwelt verheiratet werden (ADR-006). Enthaelt das IO-Kanal-Mapping (ADR-011/E2) und die Totzeit des Materialsystems (ADR-012/E3).",
+  "type": "object",
+  "required": ["schema_version", "provenance", "robot", "wall_to_base", "tcp", "io_channels", "deadtime"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "robot": {
+      "type": "string",
+      "description": "Referenz auf eine Roboterdefinition in robots/ (Dateiname ohne Endung, z.B. 'doosan_m1013')"
+    },
+    "wall_to_base": {
+      "$ref": "#/$defs/frame",
+      "description": "Lage des Wandnullpunkts relativ zur Roboterbasis (aus Kalibrier-/Antastworkflow)"
+    },
+    "tcp": {
+      "$ref": "#/$defs/frame",
+      "description": "Werkzeugdefinition: Duese relativ zum Flansch"
+    },
+    "io_channels": {
+      "$ref": "#/$defs/io_channels",
+      "description": "Mapping logischer Kanalname (pump_a, pump_b, foam, ...) -> physischer Ausgang. Emitter kennen nur dieses Mapping (E2)."
+    },
+    "deadtime": {
+      "$ref": "#/$defs/deadtime",
+      "description": "Totzeit des Materialsystems Pumpensignal -> Duese (E3); Messwert aus Spike S1/S1b"
+    }
+  },
+  "$defs": {
+    "io_channels": {
+      "type": "object",
+      "description": "Mapping logischer Kanalname (pump_a, pump_b, foam, ...) -> physischer Ausgang. Emitter kennen nur dieses Mapping (E2). Wiederverwendet von workstation.schema.json (Issue #136, S1-Stammdaten).",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["kind", "index", "physical_range"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "enum": ["analog_voltage", "analog_current", "digital"] },
+          "index": { "type": "integer", "minimum": 0, "description": "AO-/DO-Index am Controller" },
+          "physical_range": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Physischer Wertebereich, z.B. [0, 10] Volt — loest das Doosan-Spannungsmodus-Problem an genau einer Stelle"
+          },
+          "logical_range": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2,
+            "default": [0.0, 1.0],
+            "description": "Wertebereich der logischen io-Werte im Toolpath (Default 0..1), linear auf physical_range gemappt"
+          }
+        }
+      }
+    },
+    "deadtime": {
+      "type": "object",
+      "description": "Totzeit des Materialsystems Pumpensignal -> Duese (E3); Messwert aus Spike S1/S1b. Wiederverwendet von workstation.schema.json (Issue #136, S1-Stammdaten).",
+      "required": ["t_tot_s", "compensation"],
+      "additionalProperties": false,
+      "properties": {
+        "t_tot_s": { "type": "number", "minimum": 0 },
+        "transition_length_mm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Verschmierung des Uebergangs an der Duese — minimal erreichbare phi-Aufloesung (aus S1 Messung 3)"
+        },
+        "compensation": {
+          "enum": ["simulation_shift", "native_lookahead", "none"],
+          "description": "simulation_shift: io-Zeitreihe wird in fgc.simulation um -t_tot verschoben; native_lookahead: Controller kompensiert selbst (z.B. KUKA ANOUT-Vorlauf), Emitter erhaelt rohe Werte"
+        },
+        "provisional": { "type": "boolean", "default": true }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source", "created", "git_commit"],
+      "properties": {
+        "source": { "type": "string" },
+        "created": { "type": "string", "format": "date-time" },
+        "git_commit": { "type": "string" },
+        "objective": {
+          "type": "object",
+          "description": "Nur decompose-Laeufe (Issue #212, ADR-004): die KOMPLETTE wirksame Zielfunktions-Config der Zerlegungs-Suche zum Zeitpunkt des Laufs — Lesart ('aufwiegen'), Gewichte je Kriterium und die Quantisierungs-Schrittweiten (Verfahrens-Parameter). Auch der Default wird explizit gestempelt (der Paper-Benchmark pinnt ihn). Additiv: Altlaeufe ohne Feld bleiben gueltig.",
+          "required": ["aufwiegen", "weights", "quant_steps"],
+          "properties": {
+            "aufwiegen": { "type": "boolean" },
+            "weights": { "type": "object", "additionalProperties": { "type": "number" } },
+            "quant_steps": { "type": "object", "additionalProperties": { "type": "number" } }
+          }
+        }
+      }
+    },
+    "frame": {
+      "type": "object",
+      "required": ["pos_mm", "quat"],
+      "additionalProperties": false,
+      "properties": {
+        "pos_mm": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+        "quat": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "Einheitsquaternion [w, x, y, z] (ADR-006)"
+        }
+      }
+    }
+  }
+}

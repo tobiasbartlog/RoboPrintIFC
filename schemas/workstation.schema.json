@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboprintifc/schemas/workstation.schema.json",
+  "title": "Workstation",
+  "description": "Aufstell-Umgebung des Roboters als projektunabhaengiges Artefakt (workstations/<name>.json, Issue #72, PRD #69). EINE Entity fuer beide Auspraegungen: die stationaere Zelle (mobility='stationary') und die mobile Workstation (mobility='mobile', faehrt zur Wand und druckt vor Ort). Das Hoehenmodell haengt an 'height_adjustable': nicht-verstellbar traegt einen geordneten Satz Podesthoehen 'base_heights_mm' (inkl. 0), verstellbar einen stufenlosen 'height_range_mm' {min,max}. Die Branch-Regel (welches Hoehenfeld noetig ist) prueft die Domaene beim Laden/Bauen — das Schema erlaubt beide Felder, erzwingt aber die Konsistenz nicht.",
+  "type": "object",
+  "required": ["schema_version", "name", "mobility", "height_adjustable"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Eindeutiger Name der Workstation (Dateiname ohne Endung)"
+    },
+    "vendor": {
+      "type": "string",
+      "description": "Hersteller oder Herkunft (optional)"
+    },
+    "mobility": {
+      "enum": ["stationary", "mobile"],
+      "description": "Beweglichkeit: 'stationary' = stationaere Zelle (fester Aufstellort), 'mobile' = fahrbare Workstation (faehrt zur Wand, druckt vor Ort)"
+    },
+    "height_adjustable": {
+      "type": "boolean",
+      "description": "Ob die Aufstellhoehe stufenlos verstellbar ist. false → Podesthoehen in 'base_heights_mm'; true → stufenloser 'height_range_mm'"
+    },
+    "base_heights_mm": {
+      "type": "array",
+      "items": { "type": "number", "minimum": 0 },
+      "description": "Geordneter Satz waehlbarer Podesthoehen in mm fuer nicht-verstellbare Workstations (aufsteigend, enthaelt 0 = Bodenhoehe). Die Branch-Regel erzwingt die Domaene."
+    },
+    "height_range_mm": {
+      "type": "object",
+      "required": ["min", "max"],
+      "additionalProperties": false,
+      "properties": {
+        "min": { "type": "number", "minimum": 0 },
+        "max": { "type": "number", "minimum": 0 }
+      },
+      "description": "Stufenlos verstellbarer Hoehenbereich in mm fuer verstellbare Workstations (min < max, per Domaene erzwungen)."
+    },
+    "safety_min_distance_mm": {
+      "type": "number",
+      "minimum": 0,
+      "default": 50,
+      "description": "Mindest-Sicherheitsabstand der Workstation zur Wand/Umgebung in mm (Default 50)."
+    },
+    "compatible_robots": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Namen der Roboterdefinitionen, zu denen diese Workstation passt (Kompatibilitaets-Tags, Issue #71/#72). Optional; fehlt oder leer = 'unbekannt' (nicht 'inkompatibel', Migrationsschutz). Noch keine Filterwirkung."
+    },
+    "mesh": {
+      "type": "string",
+      "description": "Dateiname der Mesh-Datei im selben workstations/-Verzeichnis (z.B. 'zelle_halle_a.glb'). Optional (Issue #78): die stationaere Aufstell-Umgebung als Dreiecksnetz (STL/OBJ/GLB, intern mm angenommen, ADR-006). Fehlt = kein Mesh (reine Zahlenfelder wie bisher, ADR-021)."
+    },
+    "robot_base_frame": {
+      "$ref": "setup.schema.json#/$defs/frame",
+      "description": "Lage der Roboterbasis relativ zum Mesh-/Workstation-Ursprung (ADR-006: pos_mm + quat w-first). Im Bibliothek-Editor per Flaechen-Mittelpunkt-Klick + Drehung gesetzt oder aus dem erkannten Bohrbild geschnappt (Issue #78). Optional; fehlt = Roboter nicht auf der Workstation platziert."
+    },
+    "work_surface_frame": {
+      "$ref": "setup.schema.json#/$defs/frame",
+      "description": "Arbeitsflaeche der Workstation als Frame (Ursprung im Flaechen-Mittelpunkt, +z = Flaechennormale; ADR-006). Im Bibliothek-Editor per Flaechen-Klick gewaehlt (Issue #78). Optional; erst vom Druckplan-Automatismus (#70) konsumiert."
+    },
+    "io_channels": {
+      "$ref": "setup.schema.json#/$defs/io_channels",
+      "description": "Mapping logischer Kanalname (pump_a, pump_b, foam, ...) -> physischer Ausgang (ADR-011). Optional (Issue #136, Muster ADR-021): S1-Stammdaten des Aufbaus (Verkabelung ist Eigenschaft der Workstation, nicht des Werkzeugs). Der Modul-Export generiert daraus das Setup (ADR-022). Fehlt = 'unbestaetigt' (Altbestand, kein Kanal-Mapping) — der Export bleibt dann gekennzeichnet unvollstaendig, kein Gate."
+    },
+    "deadtime": {
+      "$ref": "setup.schema.json#/$defs/deadtime",
+      "description": "Totzeit des Materialsystems Pumpensignal -> Duese (ADR-012). Optional (Issue #136): gemessene S1-Groesse des Aufbaus; bis zur Messung mit 'provisional': true. Fehlt oder provisorisch = 'unbestaetigt' — der Modul-Export bleibt dann gekennzeichnet unvollstaendig (kein Gate)."
+    }
+  }
+}

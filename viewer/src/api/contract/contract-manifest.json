@@ -1,0 +1,258 @@
+{
+  "_comment": "Kontrakt-Manifest der API-Golden-Familie (Issue #202) — erzeugt von core/tests/test_api_contract.py; nicht von Hand editieren.",
+  "routes": [
+    {
+      "route": "DELETE /tools/{name}",
+      "model": "dict",
+      "status": "todo",
+      "reason": "response_model=dict ({deleted}); kein strukturierter Spiegel."
+    },
+    {
+      "route": "DELETE /workstations/{name}",
+      "model": "dict",
+      "status": "todo",
+      "reason": "response_model=dict ({deleted}); kein strukturierter Spiegel."
+    },
+    {
+      "route": "GET /projects",
+      "model": "ProjectListResponse",
+      "status": "covered",
+      "golden": "projects",
+      "ts_type": "ProjectSummary[]",
+      "unwrap": "projects"
+    },
+    {
+      "route": "GET /projects/{slug}",
+      "model": "ProjectResponse",
+      "status": "covered",
+      "golden": "project-get",
+      "ts_type": "Project"
+    },
+    {
+      "route": "GET /projects/{slug}/decomposition-beam/{beam_id}",
+      "model": "BeamProposeStatusResponse",
+      "status": "todo",
+      "reason": "Gleiches Modell (BeamProposeStatus) wie POST …/decomposition-beam (dort abgedeckt); done-Variante mit Sieger/refinement als Folgeticket."
+    },
+    {
+      "route": "GET /projects/{slug}/decomposition-check/{check_id}",
+      "model": "DecompositionCheckStatusResponse",
+      "status": "todo",
+      "reason": "Gleiches Modell (DecompositionCheckStatus) wie POST …/decomposition-check (dort abgedeckt); done/cancelled-Varianten als Folgeticket."
+    },
+    {
+      "route": "GET /robots",
+      "model": "RobotListResponse",
+      "status": "covered",
+      "golden": "robots",
+      "ts_type": "RobotDef[]",
+      "unwrap": "robots"
+    },
+    {
+      "route": "GET /tools",
+      "model": "ToolListResponse",
+      "status": "covered",
+      "golden": "tools",
+      "ts_type": "ToolDef[]",
+      "unwrap": "tools"
+    },
+    {
+      "route": "GET /workstations",
+      "model": "WorkstationListResponse",
+      "status": "covered",
+      "golden": "workstations",
+      "ts_type": "WorkstationDef[]",
+      "unwrap": "workstations"
+    },
+    {
+      "route": "POST /projects",
+      "model": "ProjectResponse",
+      "status": "covered",
+      "golden": "project-create",
+      "ts_type": "Project"
+    },
+    {
+      "route": "POST /projects/{slug}/collision-advice",
+      "model": "CollisionAdviceResponse",
+      "status": "todo",
+      "reason": "CollisionAdvice/-Option/-Baseline/-Write-Spiegel: teure Neu-Simulation (Minuten); Golden als Folgeticket."
+    },
+    {
+      "route": "POST /projects/{slug}/decomposition",
+      "model": "DecompositionResponse",
+      "status": "covered",
+      "golden": "decomposition",
+      "ts_type": "DecompositionResult"
+    },
+    {
+      "route": "POST /projects/{slug}/decomposition-beam",
+      "model": "BeamProposeStatusResponse",
+      "status": "covered",
+      "golden": "decomposition-beam",
+      "ts_type": "BeamProposeStatus"
+    },
+    {
+      "route": "POST /projects/{slug}/decomposition-beam/{beam_id}/cancel",
+      "model": "BeamProposeStatusResponse",
+      "status": "todo",
+      "reason": "Gleiches Modell (BeamProposeStatus) wie POST …/decomposition-beam (abgedeckt)."
+    },
+    {
+      "route": "POST /projects/{slug}/decomposition-check",
+      "model": "DecompositionCheckStatusResponse",
+      "status": "covered",
+      "golden": "decomposition-check",
+      "ts_type": "DecompositionCheckStatus"
+    },
+    {
+      "route": "POST /projects/{slug}/decomposition-check/{check_id}/cancel",
+      "model": "DecompositionCheckStatusResponse",
+      "status": "todo",
+      "reason": "Gleiches Modell (DecompositionCheckStatus) wie POST …/decomposition-check (abgedeckt)."
+    },
+    {
+      "route": "POST /projects/{slug}/placement-suggestion",
+      "model": "EvaluatePlacementsResponse",
+      "status": "todo",
+      "reason": "Seit #231 wieder ein lesender Spiegel (PlacementSuggestionResult, Ampel-Anzeige) — noch keine Golden-Kontraktprüfung; Feld-Drift bleibt vorerst ungeprüft (Folgeticket)."
+    },
+    {
+      "route": "POST /projects/{slug}/placements",
+      "model": "EvaluatePlacementsResponse",
+      "status": "todo",
+      "reason": "Kein projects.ts-Spiegel mehr (Wrapper mit #134 entfallen)."
+    },
+    {
+      "route": "POST /projects/{slug}/sections/{section_id}/export",
+      "model": "ExportSectionResponse",
+      "status": "covered",
+      "golden": "export-section",
+      "ts_type": "ExportDrlResult"
+    },
+    {
+      "route": "POST /projects/{slug}/sections/{section_id}/simulate",
+      "model": "SimulateSectionResponse",
+      "status": "covered",
+      "golden": "simulate-section",
+      "ts_type": "SimulateSectionResult"
+    },
+    {
+      "route": "POST /projects/{slug}/singularity-advice",
+      "model": "SingularityAdviceResponse",
+      "status": "todo",
+      "reason": "SingularityAdvice/-Suggestion-Spiegel: Advisor kann leer antworten (advice=null); repräsentative Golden als Folgeticket."
+    },
+    {
+      "route": "POST /slice",
+      "model": "SliceResponse",
+      "status": "todo",
+      "reason": "SliceResponse liegt in client.ts (außerhalb projects.ts); via http.test.ts abgedeckt."
+    },
+    {
+      "route": "POST /tools",
+      "model": "ToolInfoModel",
+      "status": "todo",
+      "reason": "Mesh-Upload-Fixture nötig (base64-STL); ToolDef-Spiegel via GET /tools abgedeckt."
+    },
+    {
+      "route": "POST /workstations",
+      "model": "WorkstationInfoModel",
+      "status": "todo",
+      "reason": "WorkstationDef-Spiegel via GET /workstations abgedeckt."
+    },
+    {
+      "route": "POST /workstations/{name}/detect-base-holes",
+      "model": "DetectBaseHolesResponse",
+      "status": "todo",
+      "reason": "DetectHolesResult-Spiegel: braucht ein Workstation-Mesh mit passendem Roboter-Bohrbild (Folgeticket)."
+    },
+    {
+      "route": "PUT /projects/{slug}/context-check",
+      "model": "SetContextCheckResponse",
+      "status": "covered",
+      "golden": "set-context-check",
+      "ts_type": "SetContextCheckResult"
+    },
+    {
+      "route": "PUT /projects/{slug}/module-limits",
+      "model": "SetModuleLimitsResponse",
+      "status": "covered",
+      "golden": "set-module-limits",
+      "ts_type": "SetModuleLimitsResult"
+    },
+    {
+      "route": "PUT /projects/{slug}/objective",
+      "model": "SetObjectiveResponse",
+      "status": "covered",
+      "golden": "set-objective",
+      "ts_type": "SetObjectiveResult"
+    },
+    {
+      "route": "PUT /projects/{slug}/placement-override",
+      "model": "SetPlacementOverrideResponse",
+      "status": "covered",
+      "golden": "set-placement-override",
+      "ts_type": "SetPlacementOverrideResult"
+    },
+    {
+      "route": "PUT /projects/{slug}/placement-selection",
+      "model": "SelectPlacementResponse",
+      "status": "todo",
+      "reason": "Kein projects.ts-Spiegel mehr (Wrapper mit #134 entfallen)."
+    },
+    {
+      "route": "PUT /projects/{slug}/print-job",
+      "model": "ProjectResponse",
+      "status": "covered",
+      "golden": "project-print-job",
+      "ts_type": "Project"
+    },
+    {
+      "route": "PUT /projects/{slug}/process-params",
+      "model": "ProjectResponse",
+      "status": "covered",
+      "golden": "project-process-params",
+      "ts_type": "Project"
+    },
+    {
+      "route": "PUT /projects/{slug}/robot",
+      "model": "ProjectResponse",
+      "status": "covered",
+      "golden": "project-robot",
+      "ts_type": "Project"
+    },
+    {
+      "route": "PUT /projects/{slug}/stand-mode",
+      "model": "SetStandModeResponse",
+      "status": "covered",
+      "golden": "set-stand-mode",
+      "ts_type": "SetStandModeResult"
+    },
+    {
+      "route": "PUT /projects/{slug}/tool",
+      "model": "SetToolResponse",
+      "status": "covered",
+      "golden": "set-tool",
+      "ts_type": "SetToolResult"
+    },
+    {
+      "route": "PUT /projects/{slug}/workstation",
+      "model": "SetWorkstationResponse",
+      "status": "covered",
+      "golden": "set-workstation",
+      "ts_type": "SetWorkstationResult"
+    },
+    {
+      "route": "PUT /tools/{name}",
+      "model": "ToolInfoModel",
+      "status": "todo",
+      "reason": "Mesh-Upload-Fixture nötig; ToolDef-Spiegel via GET /tools abgedeckt."
+    },
+    {
+      "route": "PUT /workstations/{name}",
+      "model": "WorkstationInfoModel",
+      "status": "todo",
+      "reason": "WorkstationDef-Spiegel via GET /workstations abgedeckt."
+    }
+  ]
+}

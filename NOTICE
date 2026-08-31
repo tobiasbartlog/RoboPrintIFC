@@ -1,0 +1,65 @@
+RoboPrintIFC (FGC-Planner)
+==========================
+
+Copyright (c) 2026 Tobias Bartlog — MIT-Lizenz, siehe LICENSE.
+
+Dieses Projekt enthält Code und Daten aus Drittprojekten. Attribution nach
+ADR-010 (docs/adr/ADR-010-lizenz-provenienz.md).
+
+
+Portierte Kinematik-Solver (Spike S3, ADR-002)
+----------------------------------------------
+
+`core/src/fgc/kinematics/opw.py` portiert den analytischen OPW-Solver
+(Ortho-Parallel-Basis + Spherical Wrist) für den Doosan M1013 aus:
+
+    visose/Robots — https://github.com/visose/Robots
+    Datei: src/Robots/Kinematics/SphericalWristKinematics.cs
+    Lizenz: MIT, Copyright (c) visose
+
+Verifikation der Solverwahl (ADR-002): Der Robots-Quellcode weist dem Doosan
+M1013 über `RobotArm` → `RobotDoosan.CreateSolver()` ausdrücklich den
+`SphericalWristKinematics` (OPW) zu, nicht den `OffsetWristKinematics`. Der
+Offset-Wrist-Solver kommt in Robots ausschließlich bei Universal Robots
+(`RobotUR`) zum Einsatz. Details im Spike-Protokoll docs/spikes/S3_ik_roundtrip.md.
+
+Robots' `SphericalWristKinematics` ist seinerseits adaptiert von:
+
+    Jmeyer1292/opw_kinematics — https://github.com/Jmeyer1292/opw_kinematics
+    Lizenz: Apache-2.0
+    (analytische OPW-Lösung nach Brandstötter, Angerer, Hofbaur, 2014)
+
+Die M1013-Geometrieparameter (DH: a, d, alpha; Achsgrenzen) stammen aus der
+Robots-Bibliothek (Branch `libraries`, RWTH.xml, `RobotArm model="M1013"`) und
+liegen in `robots/doosan_m1013.json` (mm/Radiant nach ADR-006).
+
+
+Robotermodell Doosan M1013
+--------------------------
+
+`third_party/doosan_m1013/` enthält URDF und Gelenkmeshes des Doosan M1013 aus
+dem Upstream-Projekt; Lizenz und Herkunft sind dort in `LICENSE` und
+`UPSTREAM.md` dokumentiert. Die daraus abgeleiteten Kollisionsartefakte
+(`robots/collision/doosan_m1013/`) werden reproduzierbar über
+`core/scripts/build_glied_sdf.py` erzeugt und tragen einen Provenienz-Hash der
+Quellgeometrie.
+
+
+Nicht enthaltene Fremddokumente
+-------------------------------
+
+Das Doosan-Programmierhandbuch (DRL, V2.10.1), auf das sich
+`docs/drl-nutzungsplan.md` mit Zeilenangaben bezieht, ist urheberrechtlich
+geschützt und deshalb **nicht** Teil dieses Repositorys. Gleiches gilt für die
+Literatur-Volltexte, die den Rechercheberichten unter `docs/recherche/`
+zugrunde liegen.
+
+
+KI-Assistenz
+------------
+
+Die Entwicklung wurde KI-gestützt durchgeführt (Assistenz beim Implementieren,
+Testen und Dokumentieren). Fachliche Konzeption, alle Architektur- und
+Domänenentscheidungen sowie Prüfung und Abnahme des Codes liegen beim Autor;
+die Entscheidungswege sind in `docs/adr/` und `docs/design-log.md`
+nachvollziehbar dokumentiert.

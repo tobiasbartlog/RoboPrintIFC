@@ -1,0 +1,326 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboprintifc/schemas/project.schema.json",
+  "title": "Project",
+  "description": "Das Projekt als langlebige, editierbare Persistenz-Einheit der GUI (ADR-016): ein IFC-Modell plus 1..n Druckjobs. Liegt als project.json unter projects/<slug>/ und *verweist* auf Laeufe (Uebersichts-Lauf, spaeter Slice/Simulation) — es enthaelt nie eingebettete Rechenergebnisse. Laeufe bleiben die unveraenderlichen Rechen-Artefakte (ADR-004); das Projekt ist die veraenderliche Klammer darueber.",
+  "type": "object",
+  "required": ["schema_version", "provenance", "name", "model_path", "overview_run", "print_jobs"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "provenance": { "$ref": "setup.schema.json#/$defs/provenance" },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Anzeigename des Projekts (frei waehlbar; der Ordner-Slug wird daraus abgeleitet)"
+    },
+    "model_path": {
+      "type": "string",
+      "description": "Absoluter Pfad zur IFC-Quelldatei des Projekts"
+    },
+    "overview_run": {
+      "type": "string",
+      "description": "Verweis (Laufordner-Pfad) auf den Uebersichts-Lauf (walls-list: candidates.json + model.glb + model_map.json) mit den Eignungsbefunden. Verweis, nie eingebettet (ADR-016)."
+    },
+    "print_jobs": {
+      "type": "array",
+      "description": "1..n Druckjobs des Projekts. In diesem Slice als leere Struktur angelegt; das Datenmodell erlaubt von Anfang an mehrere Druckjobs je Projekt (ADR-016).",
+      "items": { "$ref": "#/$defs/print_job" }
+    }
+  },
+  "$defs": {
+    "print_job": {
+      "type": "object",
+      "description": "Ein Druckvorhaben innerhalb eines Projekts: genau eine Wand (GlobalId) plus (spaeter) Roboterwahl, Zerlegungsart, Abschnitte und Verweise auf die erzeugten Laeufe. In diesem Slice nur die Minimalstruktur (Wand + Lauf-Verweise).",
+      "required": ["job_id", "wall_global_id"],
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "description": "Stabile Kennung des Druckjobs innerhalb des Projekts"
+        },
+        "wall_global_id": {
+          "type": "string",
+          "description": "GlobalId der zu druckenden Wand (aus candidates.json des Uebersichts-Laufs)"
+        },
+        "wall_name": {
+          "type": "string",
+          "description": "Anzeigename der Wand (aus candidates.json) — nur fuer die UI-Anzeige, nie normative Daten."
+        },
+        "assessment_run": {
+          "type": "string",
+          "description": "Verweis (Laufordner-Pfad) auf den Uebersichts-Lauf (walls-list), der die Eignungsbefunde (candidates.json) enthaelt. Referenz, nie eingebettete Daten (ADR-016)."
+        },
+        "robot": {
+          "type": "string",
+          "description": "Name der verwendeten Roboterdefinition (z. B. 'doosan_m1013') — Laufparameter, kein Setup (ADR-006). Wird beim Neubewerten (Issue #20) gesetzt."
+        },
+        "tool": {
+          "type": "string",
+          "description": "Name der verwendeten Endeffektor-Definition (z. B. 'two_component_nozzle') — Laufparameter, kein Setup (Issue #21). Grundlage fuer Payload-Check und spaetere Kanal-Pruefung gegen Toolpath."
+        },
+        "workstation": {
+          "type": "string",
+          "description": "Name der gewaehlten Workstation-Definition (z. B. 'mobile_hub') — die Aufstell-Umgebung des Roboters (Issue #77, PRD #69). Additiv/optional: fehlt das Feld (Altprojekte), gilt keine Workstation gewaehlt (rueckwaertskompatibel). BEWUSST NICHT in 'revisions'/INPUT_KEYS: ein Workstation-Wechsel veraltet KEINE Outputs — die Workstation-Werte (Podesthoehen/Mobilitaet) konsumiert erst der Druckplan-Automatismus (#70). Das ist der Seam zu PRD B (#70)."
+        },
+        "stand_mode": {
+          "enum": ["floor", "elevated"],
+          "description": "Aufstell-Toggle des Druckplans (Issue #81, PRD B/#70): 'floor' = Roboter steht auf dem Boden (Podesthoehe fest 0), 'elevated' = darf auch erhoeht stehen (der Druckplan-Automatismus waehlt aus den realen Podesthoehen der Workstation). Der Zustand begrenzt den Podesthoehen-Satz, den die Abschnittssuche (fgc.decompose.propose) nutzen darf → 'floor' erzwingt mehr/kleinere Hoehenbaender (begrenzte vertikale Reichweite). Additiv/optional: fehlt das Feld (Altprojekte), gilt 'floor' (rueckwaertskompatibel, byte-gleich)."
+        },
+        "check_building_context": {
+          "type": "boolean",
+          "description": "Gebaeudekontext-Schalter der Kollisionskontrolle (Issue #131, PRD #124, ADR-024, US 6): steht 'true', prueft die Simulation den Arm zusaetzlich gegen den Gebaeudekontext (context.json des Uebersichts-Laufs, Issue #17); Default (Feld fehlt/false) prueft ihn nicht. Bei Zerlegungsart 'modul' ohne Wirkung (die Workstation ist der Druckort, ADR-022). Additiv/optional und sparse: fehlt das Feld (Altprojekte) bzw. bei 'aus', gilt false (rueckwaertskompatibel, byte-gleich). Wie 'stand_mode' bumpt der Schalter KEINE Eingabe-Revision — er wirkt erst bei der naechsten Simulation."
+        },
+        "placements": {
+          "type": "array",
+          "description": "Geplante Aufstellmoeglichkeiten (Platzierung, Bewertungsmodus — Issue #22). Nur die vom Nutzer eingegebenen Plan-Eingaben (Basis-Lage relativ zur Wand), keine Rechenergebnisse: die Scores stehen im Bewertungslauf (placement_run), auf den verwiesen wird (ADR-016).",
+          "items": {
+            "type": "object",
+            "required": ["option_id", "lateral_mm", "standoff_mm", "stand_height_mm"],
+            "additionalProperties": false,
+            "properties": {
+              "option_id": { "type": "string" },
+              "lateral_mm": { "type": "number", "description": "Seitliche Position der Basis entlang der Wandlaenge (mm)" },
+              "standoff_mm": { "type": "number", "description": "Freier Abstand der Basis vor der Wand-/Modulflaeche (mm) — ab der naechstliegenden Flaeche gemessen, NICHT ab der Mittelebene (Issue #160; y-Koordinate im Wandsystem = Dicke/2 + standoff)." },
+              "stand_height_mm": { "type": "number", "description": "Aufstellhoehe der Basis (mm, z. B. Podest) — ABSOLUT ueber dem Boden (Boden = Wandfuss z=0, Issue #132)" },
+              "yaw_rad": { "type": "number", "default": 0.0, "description": "Optionale Drehung der Basis um die Hochachse (rad)" },
+              "ik_config": { "$ref": "#/$defs/ik_config_overrides", "description": "Prior-gefuehrt gewaehlter IK-Konfig-Zweig dieses Vorschlags (Issue #233, ADR-026 Punkt 5) — a/b-Block. Beim Uebernehmen (select_placement) faehrt die Simulation genau diesen Zweig (dieselbe IkConfigFilter.from_block-Tuer wie die Bewertung). Fehlt/leer = auto. Nur der Optimalvorschlag setzt ihn; manuelle Aufstellmoeglichkeiten tragen ihn nicht." }
+            }
+          },
+          "default": []
+        },
+        "selected_placement": {
+          "type": ["string", "null"],
+          "description": "option_id der als gewaehlt markierten Aufstellmoeglichkeit — ein Plan, kein Setup (ADR-006): verbindlich wird die Lage erst durchs Antasten."
+        },
+        "placement_run": {
+          "type": "string",
+          "description": "Verweis (Laufordner-Pfad) auf den Bewertungslauf (placement.json) mit den Scores — Referenz, nie eingebettete Rechenergebnisse (ADR-016)."
+        },
+        "decomposition_kind": {
+          "enum": ["abschnitt", "modul"],
+          "description": "Zerlegungsart (Issue #24/#90, core/CONTEXT.md, ADR-022): 'abschnitt' = in place gedruckt (Roboter wird umgesetzt); 'modul' = stehend in Einbauorientierung an der Workstation vorproduziert (feste Platzierung; die Workstation ist der Druckort). Von der GUI abgefragt."
+        },
+        "module_limits": {
+          "type": "object",
+          "description": "Optionale globale Obergrenzen der Modulgroesse (Issue #90, ADR-022: Transport/Montage) — Plan-Eingaben fuer Zerlegungsart 'modul': eine Zelle groesser als eine gesetzte Grenze wird weiter geteilt (die Verfeinerung prueft zusaetzlich gegen den Arbeitsraum, der hart bleibt). Sparse und additiv: fehlt das Feld oder eine Grenze (Altprojekte), begrenzt nur der Arbeitsraum (rueckwaertskompatibel, byte-gleich). Das Modulgewicht ist KEINE Grenze — es wird als Befund je Teil im Zerlegungslauf gerechnet (Volumen x Dichte, Dichte-Default aus der Prozessfenster-Karte).",
+          "additionalProperties": false,
+          "properties": {
+            "max_length_mm": { "type": "number", "exclusiveMinimum": 0, "description": "Max. Modullaenge (mm)." },
+            "max_height_mm": { "type": "number", "exclusiveMinimum": 0, "description": "Max. Modulhoehe (mm)." }
+          }
+        },
+        "objective": {
+          "type": "object",
+          "description": "Zielfunktion der Zerlegungs-Suche (Issue #212, PRD #183 Stufe 3, Grill 2026-07-14): ein Gewichts-Satz, zwei Lesarten. 'aufwiegen' false (Default) = die Gewichts-Reihenfolge ist die lexikographische Rangfolge (kein Aufwiegen — kein c_v kompensiert ein Einmessen; Gleichstand zweier Gewichte ist in dieser Lesart unzulaessig, UI-seitig verhindert + Core-validiert); true = gewichtete Summe derselben Zahlen. Erreichbarkeit ist KEIN Kriterium, sondern das harte K.-o. davor. Sparse und additiv: fehlt das Feld (Altprojekte/Default), gilt die gepinnte Default-Config (Umsetzvorgaenge > Fugenflaeche > kinematische Marge > c_v) — byte-gleich. Die Quantisierungs-Schrittweiten sind Verfahrens-Parameter (Code-Konstanten, Eichung nach AP 2) und stehen nur in der Lauf-Provenienz des Zerlegungslaufs (ADR-004), nie hier.",
+          "additionalProperties": false,
+          "required": ["aufwiegen", "weights"],
+          "properties": {
+            "aufwiegen": { "type": "boolean", "description": "false = lexikographisch (Gewichts-Reihenfolge = Rangfolge, Default); true = gewichtete Summe." },
+            "weights": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["umsetzvorgaenge", "fugenflaeche", "kinematische_marge", "volumen_cv"],
+              "properties": {
+                "umsetzvorgaenge": { "type": "number", "exclusiveMinimum": 0, "description": "Gewicht Anzahl Standplaetze/Umsetzvorgaenge (weniger = besser; Einmessen ist der teuerste manuelle Schritt)." },
+                "fugenflaeche": { "type": "number", "exclusiveMinimum": 0, "description": "Gewicht Fugenflaeche (kleiner = besser)." },
+                "kinematische_marge": { "type": "number", "exclusiveMinimum": 0, "description": "Gewicht kinematische Marge (groesser = besser; der Komparator dreht die Richtung intern)." },
+                "volumen_cv": { "type": "number", "exclusiveMinimum": 0, "description": "Gewicht Volumen-Gleichmaessigkeit c_v (kleiner = besser; Komfort-Kriterium, Default-Schlusslicht)." }
+              }
+            }
+          }
+        },
+        "cuts": {
+          "type": "array",
+          "description": "Schnittebenen des Zerlegungsvorschlags (Issue #24) — Plan-Eingaben (Ebenenlage), keine Rechenergebnisse: die Ampeln + Abschnittsgeometrie stehen im decompose_run (ADR-016).",
+          "items": {
+            "type": "object",
+            "required": ["orientation", "position_mm"],
+            "additionalProperties": false,
+            "properties": {
+              "orientation": { "enum": ["horizontal", "vertical"] },
+              "position_mm": { "type": "number" }
+            }
+          },
+          "default": []
+        },
+        "joint_offset_mm": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Fugen-Versatz des Schnittplan-Editings (Issue #25): versetzt die vertikalen Schnitte jeder zweiten Hoehenlage gegen die darunterliegende (gestaffelte Stossfugen). Plan-Eingabe, keine Rechnung."
+        },
+        "section_overrides": {
+          "type": "array",
+          "description": "Je Teil eine uebersteuerte Platzierung. Zwei additive Formen (Issue #25/#94): (a) Referenz auf eine bereits erfasste Aufstellmoeglichkeit (option_id, siehe 'placements') und/oder (b) freie Platzierungswerte (lateral_mm/standoff_mm/stand_height_mm, sparse — nur gesetzte Felder uebersteuern, ungesetzte erben die automatisch gesuchte bzw. referenzierte Platzierung). Plan-Eingabe; stale Verweise (Teil nach Schnittplan-Aenderung nicht mehr vorhanden) werden beim naechsten Zerlegungslauf stillschweigend ignoriert. Altprojekte (nur option_id) bleiben unveraendert gueltig.",
+          "items": {
+            "type": "object",
+            "required": ["section_id"],
+            "additionalProperties": false,
+            "properties": {
+              "section_id": { "type": "string" },
+              "option_id": { "type": "string", "description": "Verweist auf eine option_id aus 'placements'. Optional seit Issue #94 — ohne Referenz traegt der Eintrag freie Platzierungswerte." },
+              "lateral_mm": { "type": "number", "description": "Freier Override (Issue #94): seitliche Position der Basis entlang der Wandlaenge (mm)." },
+              "standoff_mm": { "type": "number", "description": "Freier Override (Issue #94): freier Abstand der Basis vor der Wand-/Modulflaeche (mm, ab der naechstliegenden Flaeche — Issue #160). Der Sicherheits-Mindestabstand der Workstation wird als Befund gemeldet, nicht erzwungen (kein Gate)." },
+              "stand_height_mm": { "type": "number", "description": "Freier Override (Issue #94): Aufstellhoehe der Basis (mm, z. B. Podest) — ABSOLUT ueber dem Boden (Boden = Wandfuss z=0, Issue #132), nicht relativ zum Abschnittsfuss." }
+            }
+          },
+          "default": []
+        },
+        "decompose_run": {
+          "type": "string",
+          "description": "Verweis (Laufordner-Pfad) auf den Zerlegungslauf (decompose.json) mit Abschnitten, Platzierungen und Ampeln — Referenz, nie eingebettete Rechenergebnisse (ADR-016)."
+        },
+        "last_pruef": {
+          "type": "object",
+          "description": "Letzter Stand der Stufe-2-Pruef-Tuer (Issue #175): WAS zuletzt geprueft wurde ('scope' global vs. Fokus, 'section_id' bei Fokus) und der Eingabe-Schnappschuss zum Zeitpunkt der Pruefung ('input_snapshot'). Die Pruef-Tuer verlaesst den interaktiven Schnittplan-Loop und laeuft nur auf expliziten Anstoss/asynchron — dieser Marker macht den 'letzten Pruefstand' sichtbar und (ueber den Schnappschuss-Vergleich gegen die aktuellen 'revisions.inputs') ableitbar veraltet. Additiv/optional: fehlt das Feld (Altprojekte / noch nie geprueft), gilt 'ungeprueft' (rueckwaertskompatibel, byte-gleich). Befund, kein Gate (ADR-013).",
+          "additionalProperties": false,
+          "required": ["scope", "input_snapshot"],
+          "properties": {
+            "scope": { "enum": ["global", "focus"], "description": "'global' = die ganze Wand (alle Hoehenreihen-Repraesentanten) wurde geprueft; 'focus' = nur die Hoehenreihe des Fokus-Teils (Default-Wahl, Karten-Zielmarke #139: Fokus-Teil schnell)." },
+            "section_id": { "type": ["string", "null"], "description": "Bei scope='focus' die section_id des gepruef­ten Fokus-Teils; bei 'global' null/fehlend." },
+            "input_snapshot": { "$ref": "#/$defs/revision_snapshot" }
+          }
+        },
+        "section_runs": {
+          "type": "array",
+          "description": "Je Abschnitt ein Verweis (Laufordner-Pfad) auf den Slice+Simulations-Lauf (toolpath.json + trajectory.json), der aus dem Abschnitts-Teil-Mesh und der geplanten Platzierung entstanden ist (Issue #26). Referenz, nie eingebettete Ergebnisse (ADR-016). Ein neuer Lauf je Abschnitt ersetzt den vorherigen Eintrag desselben section_id.",
+          "items": {
+            "type": "object",
+            "required": ["section_id", "run"],
+            "additionalProperties": false,
+            "properties": {
+              "section_id": { "type": "string" },
+              "run": { "type": "string", "description": "Laufordner-Pfad des Abschnitts-Laufs (absolut)." }
+            }
+          },
+          "default": []
+        },
+        "runs": {
+          "type": "array",
+          "description": "Verweise (Laufordner-Pfade) auf die erzeugten Laeufe (Slice, Simulation) — nie eingebettete Ergebnisse (ADR-016).",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "process_params": {
+          "type": "object",
+          "description": "Prozessparameter des Druckjobs — die Wahrheitsquelle fuer die Prozessgruppen (Scheibe 2, Issue #59). Optional und additiv: fehlt der Block (Altprojekte), gelten die Karten-/Code-Defaults (rueckwaertskompatibel). Als Rail angelegt, auf die spaetere Scheiben weitere Gruppen aufsetzen (Orientierung #61, Bewegung), darum ein Objekt mit je einer Untergruppe statt eines flachen Blocks.",
+          "additionalProperties": false,
+          "properties": {
+            "slice": { "$ref": "#/$defs/slice_overrides" },
+            "orientation": { "$ref": "#/$defs/orientation_overrides" },
+            "ik_config": { "$ref": "#/$defs/ik_config_overrides" },
+            "sections": {
+              "type": "object",
+              "description": "Gradierungs-Ebene (Druckplan S3, Issue #82; ik_config Issue #129): je Abschnitt (Schluessel = section_id, z. B. 'abschnitt-1') ein sparse Override der GLEICHEN Gruppen wie global (slice + orientation + ik_config). Nur gesetzte Felder uebersteuern; ungesetzte erben global (resolve_section_params); ein Feld weder global noch je Abschnitt gesetzt faellt auf Karte/Code-Default. Optional und additiv: fehlt der Block (Altprojekte/kein Abschnitts-Override), erbt jeder Abschnitt komplett global. Kein motion-Override (motion bleibt global).",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "slice": { "$ref": "#/$defs/slice_overrides" },
+                  "orientation": { "$ref": "#/$defs/orientation_overrides" },
+                  "ik_config": { "$ref": "#/$defs/ik_config_overrides" }
+                }
+              }
+            },
+            "motion": {
+              "type": "object",
+              "description": "Bewegungsmodell des Druckjobs (Scheibe 4, Issue #62): Bewegungstyp + Dynamik, die das Trapezprofil und die movel/movej-Interpolation der Simulation (build_trajectory) steuern. Jedes Feld ist optional; fehlt der Block (Altprojekte), gelten die PROVISORISCHEN Defaults (Spike S1) — rueckwaertskompatibel. Die kartesischen vel/acc-Werte sind provisorisch, bis am Geraet gemessene Grenzen vorliegen.",
+              "additionalProperties": false,
+              "properties": {
+                "print_move": { "enum": ["movel", "movej"], "description": "Bewegungstyp fuer Druck-Ziele (Standard movel = kartesisch-lineare TCP-Interpolation)." },
+                "travel_move": { "enum": ["movel", "movej"], "description": "Bewegungstyp fuer Travel-Ziele (Standard movej = Gelenkinterpolation)." },
+                "tcp_acc_mm_s2": { "type": "number", "exclusiveMinimum": 0, "description": "PROVISORISCH (S1): kartesische Beschleunigung des Trapezprofils (mm/s^2)." },
+                "tcp_vel_mm_s": { "type": "number", "exclusiveMinimum": 0, "description": "Optionaler Deckel fuer die Reisegeschwindigkeit (mm/s); ungesetzt = das je Ziel kommandierte v_mm_s gilt." },
+                "sample_step_mm": { "type": "number", "exclusiveMinimum": 0, "description": "PROVISORISCH (S1): Abtastschritt entlang der movel-Geraden (mm)." },
+                "travel_step_rad": { "type": "number", "exclusiveMinimum": 0, "description": "PROVISORISCH (S1): Abtastschritt der movej-Gelenkinterpolation (rad)." },
+                "travel_speed_frac": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "description": "Anteil der Achs-vel/acc-Grenzen, den movej ausnutzt (0..1]." }
+              }
+            }
+          }
+        },
+        "revisions": {
+          "type": "object",
+          "description": "Revisionsstaende der Prozessstufen fuer die veraltet-Markierung (Issue #29, Querschnitts-Konsistenz). 'inputs': Zaehler je Eingabe-Stufe (Wand/Roboter/Endeffektor/Schnittplan/Prozessparameter), erhoeht bei Aenderung. 'outputs': je nachgelagerter Stufe (Druckplan/Simulation/Export) der Schnappschuss der Eingabe-Zaehler zum Zeitpunkt der letzten Erzeugung. Ein Output ist *veraltet*, wenn eine vorgelagerte Eingabe-Revision neuer ist als der gespeicherte Schnappschuss — reine Ableitung im Viewer (ADR-007). Fehlt das Feld (Altprojekte), gilt nichts als veraltet (rueckwaertskompatibel).",
+          "additionalProperties": false,
+          "properties": {
+            "inputs": { "$ref": "#/$defs/revision_snapshot" },
+            "outputs": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "druckplan": { "$ref": "#/$defs/revision_snapshot" },
+                "simulation": { "$ref": "#/$defs/revision_snapshot" },
+                "export": { "$ref": "#/$defs/revision_snapshot" }
+              }
+            },
+            "section_inputs": {
+              "type": "object",
+              "description": "Pro-Abschnitts-Revisionsebene (ADR-017-Nachtrag, Issue #83): je Abschnitt (Schluessel = section_id) ein Zaehler, erhoeht bei einer Aenderung des Abschnitts-Overrides (process_params.sections[id]). Ein Abschnitts-Override bumpt NUR diesen Zaehler → nur Simulation/Export DIESES Abschnitts veralten, die Nachbarn bleiben aktuell. Optional/additiv: fehlt der Block (Altprojekt / kein Abschnitts-Override), gilt Ganzjob-Veraltung wie bisher.",
+              "additionalProperties": { "type": "integer", "minimum": 0 }
+            },
+            "section_outputs": {
+              "type": "object",
+              "description": "Pro-Abschnitts-Output-Schnappschuesse (ADR-017-Nachtrag, Issue #83): je Abschnitt (Schluessel = section_id) je nachgelagerter Stufe (simulation/export) der Schnappschuss der Job-Eingaben PLUS des Abschnitts-Zaehlers ('section') zum Zeitpunkt der letzten Erzeugung. Fehlt der Block, gilt Ganzjob-Veraltung wie bisher (rueckwaertskompatibel).",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "simulation": { "$ref": "#/$defs/revision_snapshot" },
+                  "export": { "$ref": "#/$defs/revision_snapshot" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "revision_snapshot": {
+      "type": "object",
+      "description": "Zaehlerstand je Eingabe-Stufe (Issue #29): entweder die aktuellen Eingabe-Revisionen (inputs) oder der Schnappschuss, den ein Output zuletzt gesehen hat. 'workstation' (Issue #83): ein Workstation-Wechsel veraltet seit #80–82 alle Abschnitte (Ablösung des #77-Seams). 'section' (Issue #83): nur in Pro-Abschnitts-Schnappschuessen (section_outputs) — der Abschnitts-Zaehlerstand zum Zeitpunkt der Erzeugung. 'section_total' (Issue #172, Wurzel-Fix #161/B16/B32): nur im Druckplan-Output-Schnappschuss — die Summe aller Pro-Abschnitts-Zaehler zum Zeitpunkt der Erzeugung, damit der ganze Druckplan bei JEDER Platzierungs-/Abschnitts-Override-Aenderung veraltet (der Zerlegungslauf traegt danach eine ueberholte Platzierung).",
+      "additionalProperties": false,
+      "properties": {
+        "wall": { "type": "integer", "minimum": 0 },
+        "robot": { "type": "integer", "minimum": 0 },
+        "tool": { "type": "integer", "minimum": 0 },
+        "cutplan": { "type": "integer", "minimum": 0 },
+        "process": { "type": "integer", "minimum": 0 },
+        "workstation": { "type": "integer", "minimum": 0 },
+        "section": { "type": "integer", "minimum": 0 },
+        "section_total": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "slice_overrides": {
+      "type": "object",
+      "description": "Basis-Slice-Parameter (Scheibe 2, Issue #59; erweitert um Geschwindigkeiten/io in Scheibe 2b, Issue #60): ueberschreiben die Prozessfenster-Karte/Code-Defaults beim Slicen (simulate_section). Jedes Feld ist optional — nur gesetzte Felder ueberschreiben; ungesetzte fallen auf Karte/Default zurueck. v_print_mm_s/v_travel_mm_s sind die Bahngeschwindigkeiten je Zielart; io_print/io_travel ein Skalar je Zielart, den job_slice_overrides gleichfoermig auf alle io-Kanaele ausdehnt. Ab Issue #82 auch je Abschnitt wiederverwendet (process_params.sections).",
+      "additionalProperties": false,
+      "properties": {
+        "layer_height_mm": { "type": "number", "exclusiveMinimum": 0, "description": "Schichthoehe (mm)." },
+        "strand_width_mm": { "type": "number", "exclusiveMinimum": 0, "description": "Strangbreite (mm)." },
+        "n_shells": { "type": "integer", "minimum": 1, "description": "Schalenzahl (Anzahl der Konturen)." },
+        "v_print_mm_s": { "type": "number", "exclusiveMinimum": 0, "description": "Druck-Bahngeschwindigkeit (mm/s), Issue #60." },
+        "v_travel_mm_s": { "type": "number", "exclusiveMinimum": 0, "description": "Travel-Bahngeschwindigkeit (mm/s), Issue #60." },
+        "io_print": { "type": "number", "minimum": 0, "description": "io-Wert waehrend des Druckens (Skalar ueber alle Kanaele, z. B. Pumpenrate), Issue #60." },
+        "io_travel": { "type": "number", "minimum": 0, "description": "io-Wert waehrend Travel (Skalar ueber alle Kanaele, i. d. R. 0 = Pumpen aus), Issue #60." }
+      }
+    },
+    "orientation_overrides": {
+      "type": "object",
+      "description": "Bahn-relativer Anstellwinkel der Duese (Scheibe 3, Issue #61) — ein erweiterbar entworfenes Objekt. Winkel in Grad; Slicer und placement verrechnen sie ueber dieselbe Funktion nozzle_quat (die eine Orientierungsquelle, Regressionsschutz #51). Nullpunkt 0/0 = senkrecht von oben (heutiges Verhalten). Jedes Feld ist optional; leere Gruppe = kein Block (rueckwaertskompatibel). Weiche Grenzen: Werte werden nicht gekappt (Warnung statt Sperre). Ab Issue #82 auch je Abschnitt wiederverwendet (process_params.sections).",
+      "additionalProperties": false,
+      "properties": {
+        "lead_deg": { "type": "number", "description": "Lead-/Lag-Winkel (Grad): +lead kippt die Duese in Fahrtrichtung, -lead entgegen." },
+        "kipp_deg": { "type": "number", "description": "Kipp-Winkel (Grad): +kipp kippt die Duese zur Wand-Aussenseite (aus dem CCW-Ring eindeutig)." }
+      }
+    },
+    "ik_config_overrides": {
+      "type": "object",
+      "description": "Waehlbare IK-Konfiguration (Kollisionskontrolle S4, Issue #129, ADR-024) — drei Tri-State-Schalter Schulter/Ellbogen/Handgelenk. Je Achse 'a' (Zustand A) oder 'b' (Zustand B); fehlt eine Achse, gilt auto (kein Constraint, heutiges Verhalten). Gesetzte Achsen filtern die 8 IK-Loesungszweige (Bitschema opw.py: SHOULDER=1/ELBOW=2/WRIST=4) in select_along_path HART; unter der Vorgabe unerreichbare Bahnpunkte werden Warnung im Lauf (Befund, kein Gate). Jedes Feld optional; leere Gruppe = kein Block → auto/auto/auto (Altprojekte laden byte-gleich). Ab Issue #129 auch je Abschnitt wiederverwendet (process_params.sections).",
+      "additionalProperties": false,
+      "properties": {
+        "shoulder": { "enum": ["a", "b"], "description": "Schulter-Zweig: 'a' = Bit geloescht, 'b' = Bit gesetzt (SHOULDER=1)." },
+        "elbow": { "enum": ["a", "b"], "description": "Ellbogen-Zweig: 'a' = Bit geloescht, 'b' = Bit gesetzt (ELBOW=2)." },
+        "wrist": { "enum": ["a", "b"], "description": "Handgelenk-Zweig: 'a' = Bit geloescht, 'b' = Bit gesetzt (WRIST=4)." }
+      }
+    }
+  }
+}

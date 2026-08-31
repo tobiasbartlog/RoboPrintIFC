@@ -1,0 +1,1246 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>fgc-viewer</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <!-- Projektliste beim Start (ADR-016, UI-Redesign Scheibe 7, Issue #104):
+         zentrierte Spalte (max. 840px) mit Logo-Kachel, Titel + API-Status,
+         Projekt-Karten im 2er-Grid (Name, Zeitstempel, IFC-Dateiname,
+         Wand-Bilanz-Balken) und einer Dropzone „Neues Projekt aus IFC".
+         Das Namensfeld wird erst nach der Dateiwahl abgefragt (deferred). -->
+    <section id="project-list" hidden>
+      <div class="pl-inner">
+        <div class="pl-header">
+          <span class="pl-logo" aria-hidden="true">FG</span>
+          <h1 class="pl-title">FGC-Planner</h1>
+          <!-- API-Status: grüner Punkt = verbunden, amber = nicht erreichbar
+               (fgc-start-Hinweis im title-Attribut, Scheibe 7). -->
+          <span id="pl-api-status" class="pl-api-status">
+            <span id="pl-api-dot" class="dot ok" aria-hidden="true"></span>
+            <span id="pl-api-label">Core-API verbunden</span>
+          </span>
+        </div>
+        <p class="pl-subtitle">
+          IFC laden → Wände prüfen → zerlegen → slicen → simulieren → exportieren
+        </p>
+
+        <!-- Projekt-Karten (li[data-slug], delegierter Klick); der Bilanz-Balken
+             wird per JS aus candidates.json des Übersichts-Laufs nachgereicht. -->
+        <ul id="pl-projects" class="pl-grid"></ul>
+        <p id="pl-empty" class="hint" hidden>Noch keine Projekte — lege unten eins an.</p>
+
+        <!-- Dropzone über volle Breite: Klick öffnet den Datei-Dialog, Drag&Drop
+             legt die IFC ab. Beides zeigt danach die Namensabfrage (deferred). -->
+        <div id="pl-dropzone" class="pl-dropzone" role="button" tabindex="0"
+             aria-label="Neues Projekt aus IFC — Datei hierher ziehen oder durchsuchen"
+             title="IFC-Datei hierher ziehen oder klicken, um zu durchsuchen">
+          <span class="pl-dropzone-plus" aria-hidden="true">+</span>
+          <div class="pl-dropzone-text">
+            <div class="pl-dropzone-title">Neues Projekt aus IFC</div>
+            <div class="pl-dropzone-sub">
+              IFC-Datei hierher ziehen oder <span class="pl-link">durchsuchen…</span>
+            </div>
+          </div>
+          <span class="pl-dropzone-ext" aria-hidden="true">.ifc</span>
+        </div>
+        <input id="pl-file" type="file" accept=".ifc" hidden />
+
+        <!-- Namensabfrage: erscheint erst NACH der Dateiwahl (Issue #104). Der
+             IFC-Pfad steht editierbar dabei (ADR-016 braucht den Disk-Pfad),
+             vorbefüllt aus der gewählten Datei — der Anlage-Flow bleibt gleich. -->
+        <form id="pl-new" class="pl-new" hidden>
+          <p id="pl-chosen-file" class="pl-chosen-file"></p>
+          <label class="pl-field">
+            <span>Projektname</span>
+            <input id="pl-name" type="text" placeholder="z. B. Wohnhaus Süd" />
+          </label>
+          <label class="pl-field">
+            <span>IFC-Pfad <span class="info" title="Absoluter Pfad der IFC-Datei auf der Platte — der Core liest sie von dort (ADR-016). Aus der Dateiwahl vorbefüllt; bei Bedarf vervollständigen.">ⓘ</span></span>
+            <input id="pl-model" type="text" placeholder="C:\pfad\zum\modell.ifc" />
+          </label>
+          <div class="pl-new-actions">
+            <button id="pl-cancel" type="button" class="btn-secondary">Abbrechen</button>
+            <button id="pl-create" type="submit" class="btn-primary">Projekt anlegen</button>
+          </div>
+        </form>
+        <p id="pl-status" class="hint"></p>
+      </div>
+    </section>
+
+    <!-- Tab-Shell: vier Prozess-Reiter + Bibliothek (ADR-016) -->
+    <div id="shell" hidden>
+      <!-- App-Header (UI-Redesign Scheibe 2, Issue #102): verschmilzt die frühere
+           Tabbar und die Active-Job-Bar zu EINER 50px-Leiste. Links Logo-Kachel
+           („FG", Klick = zurück zur Projektliste) + Projektname, daneben der
+           Druckjob-Chip (ersetzt #active-job-bar, Issue #19). In der Mitte der
+           Stepper (Prozess-Schritte mit „›"-Trennern + 7px-Status-Punkten; Farbe
+           AUSSCHLIESSLICH aus der Staleness-Ableitung, ui/staleness.ts). Er wird
+           von ui/shell.ts aus ui/stepper-state.ts gerendert (erweiterbar auf die
+           5-Schritt-Aufteilung Zerlegung/Slicing der Folge-Issues #106/#107).
+           Rechts: Suchfeld-Attrappe (öffnet später die ⌘K-Palette, Issue #109 —
+           bis dahin ohne Funktion), Theme-Toggle ◐ (Modul aus Scheibe 1,
+           ui/theme.ts) und Bibliothek-Icon ▤. -->
+      <header id="app-header">
+        <div id="header-brand" title="Zur Projektliste — Reiter sind Navigation, kein Zwangspfad">
+          <span class="brand-logo" aria-hidden="true">FG</span>
+          <span id="header-project-name" class="brand-name">FGC-Planner</span>
+        </div>
+        <!-- Aktiver Druckjob als Pill (Issue #19/#102): dauerhaft sichtbar über alle Reiter. -->
+        <span id="header-job-chip" class="job-chip" hidden></span>
+        <!-- Stepper: befüllt von ui/shell.ts (ui/stepper-state.ts). -->
+        <nav id="stepper" aria-label="Prozess-Schritte"></nav>
+        <!-- Suchfeld-Attrappe: noch ohne Funktion (⌘K-Palette folgt in Issue #109). -->
+        <div id="header-search" class="header-search" aria-disabled="true"
+             title="Jede Einstellung und Aktion suchen (folgt in Scheibe 6)">
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <span class="search-label">Suchen…</span>
+          <span class="search-kbd" aria-hidden="true">⌘K</span>
+        </div>
+        <button id="header-theme-toggle" type="button" class="header-icon-btn"
+                title="Zu hellem Design wechseln" aria-pressed="false" aria-label="Theme umschalten">◐</button>
+        <button id="header-library-btn" type="button" class="header-icon-btn header-library-btn"
+                title="Bibliothek — Stammdaten (Roboter, Endeffektoren, Workstations)"
+                aria-label="Bibliothek öffnen">▤</button>
+      </header>
+
+      <div id="tab-body">
+        <!-- Reiter Projekt: bestehende Modellübersicht (Panel; das 3D-Viewport
+             ist geteilt und liegt am Ende von #tab-body — Issue #30) -->
+        <section class="tab-panel" data-panel="projekt">
+    <aside id="panel">
+      <h1>fgc-viewer <span class="info" title="Zustandsloser Abspieler (ADR-007) — lädt einen Laufordner aus runs/.">ⓘ</span></h1>
+
+      <label class="file-button">
+        Laufordner öffnen…
+        <input id="run-input" type="file" webkitdirectory multiple />
+      </label>
+
+      <section id="run-info" hidden>
+        <h2 id="run-name"></h2>
+        <dl id="run-meta"></dl>
+      </section>
+
+      <section id="controls" hidden>
+        <div id="toolpath-controls">
+          <label for="layer-slider">
+            Schicht <output id="layer-value">0</output> / <span id="layer-max">0</span>
+          </label>
+          <input id="layer-slider" type="range" min="0" max="0" value="0" step="1" />
+          <label class="check"><input id="only-current" type="checkbox" /> nur aktive Schicht</label>
+          <label class="check"><input id="show-travel" type="checkbox" checked /> Travel-Wege</label>
+          <label class="check"><input id="show-wall" type="checkbox" checked /> Wand-Mesh</label>
+        </div>
+        <label class="check" id="show-context-label"><input id="show-context" type="checkbox" checked /> Gebäudekontext</label>
+        <label class="check" id="show-model-label" hidden><input id="show-model" type="checkbox" checked /> Modellübersicht</label>
+      </section>
+
+      <!-- Wand-Eignungsbericht: angeklickte Wand im Gesamtmodell (Issue #10) -->
+      <section id="wall-report" hidden>
+        <h2>Eignungsbericht</h2>
+        <p id="wall-report-id" class="hint"></p>
+        <!-- Geprüft-für-Roboter-Hinweis (Issue #20) -->
+        <p id="wall-report-robot" class="hint" hidden></p>
+        <ul id="wall-checks"></ul>
+        <button id="slice-wall-btn" type="button" hidden>Diese Wand slicen</button>
+        <!-- Druckjob-Übernahme (Issue #19): auch für ungeeignete Wände (Befund, kein Gate) -->
+        <button id="adopt-job-btn" type="button" hidden>In Druckjob übernehmen</button>
+      </section>
+
+      <!-- Trajektorien-Animation: Zeit-Slider + io-Verlauf (Issue #14) -->
+      <section id="trajectory-panel" hidden>
+        <h2>Trajektorie</h2>
+        <dl id="traj-meta"></dl>
+        <ul id="traj-warnings" hidden></ul>
+        <div class="traj-time-row">
+          <button id="traj-play-btn" type="button" aria-label="Abspielen">▶</button>
+          <input id="traj-slider" type="range" min="0" max="10000" value="0" step="1" />
+          <output id="traj-time">0.0 s</output>
+        </div>
+        <!-- Sequenz-Phase (Issue #27): welcher Abschnitt druckt / Umbau-Schritt. -->
+        <p id="seq-phase" class="hint seq-phase" hidden></p>
+        <!-- Roboterarm- und Strang-Schalter sind ins ⚙-Menü „Replay-Bühne"
+             gewandert (Issue #159): erreichbar überall, wo eine Bühne läuft. -->
+        <div id="traj-io"></div>
+      </section>
+
+      <!-- Parameter-Panel: Re-Slicing über die Core-API (Issue #9, ADR-014) -->
+      <section id="reslice-panel" hidden>
+        <h2>Slice-Parameter</h2>
+        <p id="reslice-api-hint" class="hint">
+          Core-API nicht erreichbar — Viewer im Abspieler-Modus.
+          Mit <code>fgc start</code> hochfahren.
+        </p>
+        <fieldset id="reslice-fieldset" disabled>
+          <div class="param-row">
+            <label for="param-layer-height">Schichthöhe (mm)</label>
+            <input id="param-layer-height" type="number" step="any" min="0.1" placeholder="Karten-Default" />
+          </div>
+          <div class="param-row">
+            <label for="param-strand-width">Strangbreite (mm)</label>
+            <input id="param-strand-width" type="number" step="any" min="0.1" placeholder="Karten-Default" />
+          </div>
+          <div class="param-row">
+            <label for="param-shells">Schalen</label>
+            <input id="param-shells" type="number" step="1" min="1" placeholder="Karten-Default" />
+          </div>
+          <button id="reslice-btn" type="button">Neu slicen</button>
+        </fieldset>
+      </section>
+
+      <p id="status" class="hint"></p>
+    </aside>
+        </section>
+
+        <!-- Reiter Roboter: Roboterkatalog + roboter-parametrisierte Eignung (Issue #20).
+             UI-Redesign Scheibe 8 (#105): drei Sektionen (Roboter/Endeffektor/
+             Workstation) je mit Select + Kenndaten-Grid (Label --muted / Wert Plex
+             Mono) + bestehenden Warnungen; scrollender Rumpf + Sticky-Speichern-
+             Footer. Alle bestehenden IDs unverändert (reiner Restyle). -->
+        <section class="tab-panel" data-panel="roboter" hidden>
+          <aside id="robot-panel-aside">
+            <div class="robot-step-body">
+              <!-- Sektion Roboter -->
+              <section class="robot-section">
+                <div class="robot-section-head">
+                  <span class="robot-section-title">Roboter</span>
+                  <span class="info" title="Laufparameter, kein Setup — wählt den Solver für den Workspace-Check. Verbindlich wird die Lage erst beim 3-Punkt-Antasten (ADR-006).">ⓘ</span>
+                </div>
+                <p id="robot-api-warning" class="hint pl-warning" hidden>
+                  Core-API nicht erreichbar — mit <code>fgc start</code> hochfahren.
+                </p>
+                <select id="robot-select" class="robot-select" disabled aria-label="Roboter (v1: nur Doosan M1013)">
+                  <option value="">— lädt …</option>
+                </select>
+                <button id="robot-reassess-btn" type="button" class="btn-accent-outline robot-reassess-btn" disabled>↻ Alle Wände neu bewerten</button>
+                <dl id="robot-info" class="robot-kenndaten"></dl>
+                <p id="robot-assessed-for" class="hint" hidden></p>
+                <p id="robot-status" class="hint"></p>
+
+                <!-- Darstellung: globaler Schema/Mesh-Umschalter der Roboter-
+                     Vorschau (Issue #41). Kein eigener Prozess-Schritt — als
+                     dezente Zeile innerhalb der Roboter-Sektion. -->
+                <div class="robot-render-row">
+                  <label for="arm-schema-toggle" class="robot-render-label">
+                    <input type="checkbox" id="arm-schema-toggle" disabled />
+                    Schema-Darstellung (Kapsel-Arm)
+                    <span id="arm-render-hint-anchor" class="info" title="Vorschau und Replay zeigen die echten M1013-Glieder (Default). Umschalten auf das schematische Kapsel-/Zylinder-Modell.">ⓘ</span>
+                  </label>
+                </div>
+                <p id="arm-render-hint" class="hint" hidden>
+                  Vorschau und Replay zeigen die echten M1013-Glieder (Default).
+                  Umschalten auf das schematische Kapsel-/Zylinder-Modell.
+                </p>
+                <p id="arm-attribution" class="hint" hidden></p>
+              </section>
+
+              <!-- Sektion Endeffektor -->
+              <section class="robot-section">
+                <div class="robot-section-head">
+                  <span class="robot-section-title">Endeffektor</span>
+                  <span class="info" title="Deklariert logische IO-Kanäle (ADR-011); das Setup mappt sie später auf physische Ausgänge. Wahl wird im Druckjob persistiert, gepflegt in der Bibliothek.">ⓘ</span>
+                </div>
+                <p id="tool-api-warning" class="hint pl-warning" hidden>
+                  Core-API nicht erreichbar — mit <code>fgc start</code> hochfahren.
+                </p>
+                <select id="tool-select" class="robot-select" disabled aria-label="Endeffektor">
+                  <option value="">— lädt …</option>
+                </select>
+                <dl id="tool-info" class="robot-kenndaten"></dl>
+                <p id="tool-saved-for" class="hint" hidden></p>
+                <p id="tool-payload-warning" class="tool-payload-warning robot-warn" hidden></p>
+                <p id="tool-compat-warning" class="tool-payload-warning robot-warn" hidden></p>
+                <p id="tool-status" class="hint"></p>
+              </section>
+
+              <!-- Sektion Workstation -->
+              <section class="robot-section robot-section-last">
+                <div class="robot-section-head">
+                  <span class="robot-section-title">Workstation</span>
+                  <span class="info" title="Aufstell-Umgebung des Roboters (Zelle oder mobile Workstation). Ihre Podesthöhen/Mobilität nutzt die automatische Platzierungssuche im Druckplan — eine Änderung veraltet daher noch keine Ergebnisse. Wahl wird im Druckjob persistiert.">ⓘ</span>
+                </div>
+                <p id="wsc-api-warning" class="hint pl-warning" hidden>
+                  Core-API nicht erreichbar — mit <code>fgc start</code> hochfahren.
+                </p>
+                <select id="wsc-select" class="robot-select" disabled aria-label="Workstation">
+                  <option value="">— lädt …</option>
+                </select>
+                <dl id="wsc-info" class="robot-kenndaten"></dl>
+                <p id="wsc-saved-for" class="hint" hidden></p>
+                <p id="wsc-compat-warning" class="tool-payload-warning robot-warn" hidden></p>
+                <p id="wsc-status" class="hint"></p>
+              </section>
+            </div>
+
+            <!-- Sticky-Footer: eine sichtbare „Speichern"-Aktion für den Roboter-
+                 Schritt. Sie persistiert Endeffektor + Workstation über deren
+                 bestehende, unabhängige Core-Endpoints — realisiert durch
+                 Weiterleiten an die (verborgenen, weiterhin verdrahteten)
+                 Sektions-Buttons; deren Aktiv-Zustand gattert jeden Aufruf, sodass
+                 jeder Flow byte-gleich bleibt (kein Umbau). Roboterwahl persistiert
+                 separat über „Alle Wände neu bewerten" (eigener Solver-Lauf). -->
+            <div class="robot-step-footer">
+              <button id="tool-save-btn" type="button" hidden disabled>Speichern</button>
+              <button id="wsc-save-btn" type="button" hidden disabled>Speichern</button>
+              <span class="robot-step-footer-hint">Persistiert im Druckjob (ADR-016)</span>
+              <button id="robot-step-save-btn" type="button" class="btn-primary">Speichern</button>
+            </div>
+          </aside>
+        </section>
+        <!-- Reiter Zerlegung (UI-Redesign Scheibe 4, Issue #106, PRD #88): erster
+             Teil des Druckplan-Splits. Die frühere Rubrik „Zerlegung & Platzierung"
+             (#89) wird ein eigener Prozess-Schritt mit Inspector-Panel rechts
+             (352px) aus Accordions. Die Fachlogik (cutplan-state, zerlegungsart-
+             state, aufstell-state, placement-override-state, parts-palette-state)
+             ist UNVERÄNDERT wiederverwendet — die Element-Ids bleiben dieselben,
+             der DruckplanPanel steuert sie weiterhin (dokument-globales byId).
+             „Automatisch vorschlagen" löst den Zerlegungsvorschlag (#24) aus —
+             die Abschnitts-Platzierungen sucht der Core je Teil automatisch
+             (#80/#132); der frühere Gesamtwand-Optimalvorschlag (#23) ist mit
+             Issue #134 entfallen. Kein Gilt-für-Scope hier
+             (der lebt künftig nur im Slicing-Schritt, #107). Sichtbarkeit
+             AUSSCHLIESSLICH über `.hidden`. -->
+        <section class="tab-panel" data-panel="zerlegung" hidden>
+          <aside id="zerlegung-aside" class="inspector">
+            <!-- Kopf: Titel + „gilt global" + Primärbutton „Automatisch vorschlagen" -->
+            <div class="inspector-head">
+              <div class="inspector-head-row">
+                <h2>Zerlegung</h2>
+                <span class="inspector-scope-note">gilt global <span class="info" title="Die Zerlegung (Art, Aufstellung, Schnittplan) gilt für den ganzen Druckjob. Feldweise Overrides je Teil betreffen nur die Platzierung (unten) — es gibt hier keinen Gilt-für-Umschalter (der lebt im Slicing-Schritt).">ⓘ</span></span>
+                <span id="zerlegung-head-status" class="badge-ok" hidden></span>
+              </div>
+              <p id="placement-api-warning" class="hint pl-warning" hidden>
+                Core-API nicht erreichbar — mit <code>fgc start</code> hochfahren.
+              </p>
+              <p id="placement-precondition" class="hint pl-warning" hidden></p>
+              <button id="zerlegung-auto-btn" type="button" class="btn-primary btn-block" disabled title="Der Core schlägt eine Zerlegung in erreichbare Teile vor und sucht dabei je Teil automatisch die beste Platzierung (zentral, beste Podesthöhe, optimierter Abstand). Read-only (ADR-007).">✦ Automatisch vorschlagen</button>
+              <!-- Zielfunktion der Zerlegungs-Suche (Issue #212, PRD #183 Stufe 3):
+                   öffnet das Einstellungs-Fenster (Overlay unten, ui/objective.ts). -->
+              <button id="objective-open-btn" type="button" class="btn-add btn-block" disabled title="Zielfunktion der Zerlegungs-Suche einstellen: ein Gewichts-Satz, zwei Lesarten — ohne Aufwiegen ist die Gewichts-Reihenfolge die Rangfolge (Standard), mit Aufwiegen zählt die gewichtete Summe. Erreichbarkeit bleibt immer hartes K.-o.">⚖ Zielfunktion …</button>
+            </div>
+
+            <!-- Accordion „Art & Aufstellung": Zerlegungsart (Segmented #95),
+                 Aufstell-Toggle (#81) bzw. Modulgrenzen (#90) je Art, dezente
+                 Workstation-Zeile. Aufklapp-Muster wie collapsible-state.ts. -->
+            <div class="accordion">
+              <button
+                id="zerlegung-acc-art-toggle"
+                class="accordion-toggle"
+                type="button"
+                aria-expanded="true"
+                aria-controls="zerlegung-acc-art-body"
+              ><span class="acc-marker" aria-hidden="true">▾</span> Art &amp; Aufstellung</button>
+              <div id="zerlegung-acc-art-body" class="accordion-body">
+                <!-- Zerlegungsart-Weiche (Issue #95, ADR-022): Abschnitte ↔ Module. -->
+                <div id="zerlegungsart-weiche" class="zerlegungsart-weiche" role="radiogroup" aria-label="Zerlegungsart">
+                  <span class="zerlegungsart-caption">Zerlegungsart</span>
+                  <label class="zerlegungsart-option"><input type="radio" name="zerlegungsart" value="abschnitt" id="zerlegungsart-abschnitt" checked disabled /> <strong>Abschnitte</strong> — vor Ort drucken (Roboter wird umgesetzt)</label>
+                  <label class="zerlegungsart-option"><input type="radio" name="zerlegungsart" value="modul" id="zerlegungsart-modul" disabled /> <strong>Module</strong> — an der Workstation vorproduzieren, montieren</label>
+                </div>
+
+                <!-- Modulgrößen-Obergrenzen (Issue #90/#95, ADR-022) — nur bei Art „modul". -->
+                <div id="module-limits-group" class="module-limits-group" hidden>
+                  <h3>Modulgröße (optional) <span class="info" title="Optionale globale Obergrenzen für Transport/Montage. Leer = keine Grenze (nur der Arbeitsraum an der Workstation begrenzt). Eine Grenze verfeinert das Raster; das Modulgewicht steht je Teil in der Teile-Palette — Befund, kein Gate (ADR-022).">ⓘ</span></h3>
+                  <div class="process-params-fields">
+                    <label class="placement-field">
+                      <span>max. Länge (mm)</span>
+                      <input id="module-max-length" type="number" step="any" min="0" disabled />
+                    </label>
+                    <label class="placement-field">
+                      <span>max. Höhe (mm)</span>
+                      <input id="module-max-height" type="number" step="any" min="0" disabled />
+                    </label>
+                  </div>
+                  <p id="module-limits-status" class="hint"></p>
+                </div>
+
+                <!-- Aufstell-Toggle (#81) — Abschnitt-only (Sichtbarkeitsmatrix #95). -->
+                <div id="aufstell-group" class="aufstell-group">
+                  <h3>Aufstellung <span class="info" title="Steht der Roboter auf dem Boden oder darf er erhöht (auf einem Podest der Workstation) stehen? „Boden“ erzwingt Höhe 0 (mehr, kleinere Höhenbänder — die vertikale Reichweite ist begrenzt), „erhöht“ erlaubt die realen Podesthöhen (weniger Bänder). Umschalten stößt die Neubewertung an.">ⓘ</span></h3>
+                  <div id="aufstell-toggle" class="aufstell-toggle" role="radiogroup" aria-label="Aufstellung">
+                    <label><input type="radio" name="aufstell-mode" value="floor" id="aufstell-floor" checked disabled /> Roboter steht auf dem Boden</label>
+                    <label><input type="radio" name="aufstell-mode" value="elevated" id="aufstell-elevated" disabled /> darf auch erhöht stehen</label>
+                  </div>
+                  <p id="aufstell-status" class="hint"></p>
+                </div>
+
+                <!-- Gebäudekontext-Schalter der Kollisionskontrolle (#131) —
+                     Abschnitt-only (bei Modul gegenstandslos, ADR-022). -->
+                <div id="kontext-group" class="aufstell-group">
+                  <h3>Kollisionskontrolle <span class="info" title="Prüft die Simulation den Arm zusätzlich gegen den Gebäudekontext (Decken, Stützen, Nachbarwände aus dem Gebäudemodell)? Standard aus. Der Schalter wirkt erst bei der nächsten Simulation; bei Zerlegungsart „Module“ ist er gegenstandslos (die Workstation ist der Druckort).">ⓘ</span></h3>
+                  <label><input type="checkbox" id="kontext-check" /> Gebäudekontext bei der Simulation prüfen</label>
+                  <p id="kontext-status" class="hint"></p>
+                </div>
+
+                <!-- Dezente Workstation-Zeile: freundlicher Hinweis „modul ohne
+                     Workstation" (Befund, kein Gate — #95/ADR-022). -->
+                <p id="zerlegungsart-hint" class="hint pl-warning zerlegung-workstation-line" hidden></p>
+              </div>
+            </div>
+
+            <!-- Accordion „Schnittplan" (#25): je Schnitt eine Zeile mit
+                 Zahleneingabe, zwei Add-Buttons, Fugen-Versatz. Dirty/geprüft
+                 steuert cutplan-state.ts (unverändert) — Kopf-Badge oben. -->
+            <div class="accordion">
+              <button
+                id="zerlegung-acc-cuts-toggle"
+                class="accordion-toggle"
+                type="button"
+                aria-expanded="true"
+                aria-controls="zerlegung-acc-cuts-body"
+              ><span class="acc-marker" aria-hidden="true">▾</span> Schnittplan <span class="info" title="Schnitte setzen/verschieben/entfernen; „Prüfen lassen“ (Fußzeile) lässt den Core den editierten Plan neu bewerten (Ampel). Die Teile mit Ampel, erreichbarem Anteil, Override-Marker und Platzierungswahl stehen in der Teile-Palette am 3D-Feld. Die Schnittebenen lassen sich in der 3D-Ansicht ziehen — synchron mit den Zahlenfeldern.">ⓘ</span></button>
+              <div id="zerlegung-acc-cuts-body" class="accordion-body">
+                <ul id="decompose-cuts"></ul>
+                <div class="decompose-add-row">
+                  <button id="decompose-add-horizontal-btn" type="button" class="btn-add" disabled title="Höhenschnitt (horizontal) hinzufügen">+ Höhenschnitt</button>
+                  <button id="decompose-add-vertical-btn" type="button" class="btn-add" disabled title="Längsschnitt (vertikal) hinzufügen">+ Längsschnitt</button>
+                </div>
+                <label class="decompose-joint-row">
+                  Fugen-Versatz (mm):
+                  <input id="decompose-joint-offset" type="number" step="any" disabled />
+                </label>
+              </div>
+            </div>
+
+            <!-- Accordion „Platzierung — <Teil>" (#94): 3 Felder (seitlich/Abstand/
+                 Höhe) des in der Teile-Palette gewählten Teils. Leer = automatische
+                 Platzierung (dezenter Platzhalter „<wert> · Auto"); Eingabe =
+                 feldweiser Override (.field-box.overridden + ↺). Getrieben vom Fokus
+                 (kein Gilt-für-Scope hier) über placement-override-state.ts. -->
+            <div class="accordion">
+              <button
+                id="zerlegung-acc-placement-toggle"
+                class="accordion-toggle"
+                type="button"
+                aria-expanded="true"
+                aria-controls="zerlegung-acc-placement-body"
+              ><span class="acc-marker" aria-hidden="true">▾</span> <span id="zerlegung-placement-title">Platzierung</span> <span id="placement-override-hint" class="info" title="Platzierung des in der Teile-Palette gewählten Teils. Ein Teil wählen und seitlich / Abstand / Aufstellhöhe frei übersteuern. Die Aufstellhöhe ist absolut über dem Boden (= Wandfuß); 0 = Roboter steht auf dem Boden. Leer = automatische Platzierung; ↺ zurück auf Automatik.">ⓘ</span></button>
+              <div id="zerlegung-acc-placement-body" class="accordion-body">
+                <div class="process-params-fields">
+                  <label class="placement-field">
+                    <span>Seitlich (mm)</span>
+                    <input id="placement-override-lateral" type="number" step="any" disabled />
+                    <button id="placement-override-lateral-reset" class="override-reset" type="button" hidden title="↺ zurück auf Automatik — dieses Feld erbt wieder die automatische Platzierung">↺</button>
+                  </label>
+                  <label class="placement-field">
+                    <span title="Freier Abstand der Roboterbasis vor der Wand-/Modulfläche (Issue #160) — das Zollstock-Maß am Aufstellort. Simulation, Kollisionsurteil und Basis-Marker rechnen alle mit genau diesem Maß.">Abstand vor der Wand (mm)</span>
+                    <input id="placement-override-standoff" type="number" step="any" disabled />
+                    <button id="placement-override-standoff-reset" class="override-reset" type="button" hidden title="↺ zurück auf Automatik — dieses Feld erbt wieder die automatische Platzierung">↺</button>
+                  </label>
+                  <label class="placement-field">
+                    <span title="Absolute Höhe der Roboterbasis über dem Boden (= Wandfuß, Issue #132/#133); 0 = Roboter steht auf dem Boden.">Aufstellhöhe ü. Boden (mm)</span>
+                    <input id="placement-override-standheight" type="number" step="any" disabled />
+                    <button id="placement-override-standheight-reset" class="override-reset" type="button" hidden title="↺ zurück auf Automatik — dieses Feld erbt wieder die automatische Platzierung">↺</button>
+                  </label>
+                </div>
+                <p id="placement-override-status" class="hint"></p>
+
+                <!-- Kollisions-Ampel je Platzierungsvorschlag (Issue #231, ADR-026
+                     Punkt 2): der Core liefert die Machbarkeits-Einstufung fertig
+                     gerechnet (POST …/placement-suggestion, Issue #228) — der
+                     Viewer rechnet keine Schwellen, er zeigt nur (Muster
+                     collision-advisor.ts). Bei „kein machbarer Kandidat" bietet der
+                     Hinweis den direkten Absprung auf den vorhandenen Beam-
+                     Zerlegungs-Trigger (#221/#222, unten) — der Vorschlag ruft den
+                     Zerleger nie selbst (lose Kopplung, PRD #225). -->
+                <div id="placement-suggestion" class="placement-suggestion">
+                  <button id="placement-suggestion-check-btn" type="button" class="btn-add btn-block" disabled
+                          title="Optimalvorschlag der Basis-Lage abfragen (POST …/placement-suggestion) und je Vorschlag die Kollisions-Ampel des Core-Grob-Checks anzeigen — reine Vorschau, ändert nichts (Befund, kein Gate).">Kollisions-Ampel prüfen</button>
+                  <p id="placement-suggestion-status" class="hint"></p>
+                  <ul id="placement-suggestion-list" class="placement-suggestion-list" hidden></ul>
+                  <p id="placement-suggestion-hint" class="hint pl-warning" hidden>
+                    <span id="placement-suggestion-hint-text"></span>
+                    <button id="placement-suggestion-jump-btn" type="button" class="btn-add"
+                            title="Springt zum vorhandenen Beam-Zerlegungs-Trigger unten (startet ihn nicht automatisch)">Zum Zerlegungs-Trigger ↓</button>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Freigang-Befund (Issue #163): „Wand zu dick für einseitigen Druck".
+                 Wand-weit, Befund kein Gate — nur sichtbar, wenn sicher zu dick. -->
+            <p id="decompose-freigang" class="hint warn" hidden></p>
+
+            <!-- Stufe-2-Prüf-Tür entkoppelt (Issue #175): die teure Druckbarkeits-
+                 prüfung verlässt den interaktiven Loop (Befund B14: ~71 s Freeze je
+                 Schnitt-Edit). Sie läuft nur auf ausdrücklichen Anstoß als Hintergrund-
+                 lauf mit Fortschritt + Abbrechen; ihr Ausbleiben ist „ungeprüft"
+                 (kein stilles Grün, ADR-013). Fokus-Prüfung ist die Default-Wahl. -->
+            <div id="pruef-check" class="pruef-check">
+              <p id="pruef-last" class="hint" data-tone="warn">Druckbarkeit: noch nicht geprüft</p>
+              <div class="pruef-actions">
+                <button id="pruef-focus-btn" type="button" class="btn-secondary" disabled
+                        title="Nur die Höhenreihe des Fokus-Teils prüfen (schnell) — Default-Wahl">Fokus prüfen (Teil wählen)</button>
+                <button id="pruef-global-btn" type="button" class="btn-secondary" disabled
+                        title="Die ganze Wand prüfen (alle Höhenreihen) — die bewusste, teurere Wahl">Ganze Wand prüfen</button>
+              </div>
+              <div id="pruef-progress" class="pruef-progress hidden">
+                <span id="pruef-progress-label" class="hint" data-tone="muted"></span>
+                <progress id="pruef-progress-bar" class="hidden" max="1" value="0"></progress>
+                <button id="pruef-cancel-btn" type="button" class="btn-secondary hidden"
+                        title="Den laufenden Hintergrund-Prüflauf abbrechen (es wird nichts persistiert)">Abbrechen</button>
+              </div>
+            </div>
+
+            <!-- Beam-Zerlegungslauf auslösbar (Issue #221, Folge #217): die
+                 kollisionsgetriebene Beam-Suche (PRD #183 Stufe 3) läuft als
+                 Hintergrundlauf mit Fortschritt (Prüf-Tür-Aufrufe) + Abbrechen.
+                 Bei Erfolg übernimmt der Viewer den Sieger-Schnittplan und zeigt
+                 den Such-Ausweis (Verworfen-Gründe US 10, Relaxationsausweis
+                 US 22) aus dem `refinement`-Block. Befund, kein Gate (ADR-007). -->
+            <div id="beam-search" class="pruef-check">
+              <div class="pruef-actions">
+                <button id="beam-start-btn" type="button" class="btn-secondary" disabled
+                        title="Kollisionsgetriebene Beam-Suche als Hintergrundlauf: sucht den besten druckbaren Schnittplan (verbraucht ein Prüf-Tür-Kontingent)">✦ Beam-Zerlegung suchen</button>
+              </div>
+              <div id="beam-progress" class="pruef-progress hidden">
+                <span id="beam-progress-label" class="hint" data-tone="muted"></span>
+                <progress id="beam-progress-bar" class="hidden" max="1" value="0"></progress>
+                <button id="beam-cancel-btn" type="button" class="btn-secondary hidden"
+                        title="Den laufenden Beam-Lauf abbrechen (es wird nichts persistiert)">Abbrechen</button>
+              </div>
+              <!-- Such-Ausweis (refinement-state.ts): Kopfzeile, Relaxationsausweis,
+                   Verworfen-Gründe. Nur sichtbar, wenn der Lauf etwas zu zeigen hat. -->
+              <p id="beam-summary" class="hint" data-tone="muted" hidden></p>
+              <p id="beam-relax" class="hint" data-tone="warn" hidden></p>
+              <ul id="beam-verworfen" class="beam-verworfen" hidden></ul>
+            </div>
+
+            <!-- Sticky-Footer: Status links, Primärbutton „Prüfen lassen" rechts. -->
+            <div class="inspector-footer">
+              <p id="decompose-status" class="hint"></p>
+              <button id="decompose-check-btn" type="button" class="btn-primary" disabled title="Editierten Schnittplan vom Core neu bewerten lassen (Ampel)">✓ Prüfen lassen</button>
+            </div>
+          </aside>
+        </section>
+
+        <!-- Reiter Druckplan (Issue #22): Platzierung im Bewertungsmodus -->
+        <section class="tab-panel" data-panel="druckplan" hidden>
+          <aside id="druckplan-aside" class="inspector">
+            <!-- UI-Redesign Scheibe 5 (#107): „Slicing" ist ein eigener Prozess-
+                 Schritt mit 352px-Inspector. Kopf = Gilt-für-Umschalter (der Scope
+                 lebt NUR hier, #92). Darunter drei Accordions (Prozessparameter,
+                 Fortgeschritten, Singularitäts-Advisor) + Sticky-Footer „Speichern".
+                 Der Modus-/Simulieren-Bereich (#86) bleibt unten erhalten (nichts
+                 gelöscht). Kehrt die Rubriken-Navigation #89 um: eigener Schritt
+                 statt Umschalter. Sichtbarkeit AUSSCHLIESSLICH über `.hidden`. -->
+            <div class="inspector-head">
+              <div class="inspector-head-row">
+                <h2>Slicing</h2>
+              </div>
+              <!-- Gilt-für-Umschalter Global↔Teil (#92, OrcaSlicer-Vorbild):
+                   sichtbar nur bei gewähltem Teil (Teile-Palette/Fokus, #84/#91).
+                   Auf „Teil" übersteuern DIESELBEN Formulare feldweise
+                   (process_params.sections, #82-Mechanik). Reines `.hidden`-
+                   Toggling; ScopeSwitch treibt die Radios unverändert (kein Fork). -->
+              <div id="scope-switch" class="scope-switch segmented" role="radiogroup" aria-label="Gilt für" hidden>
+                <span class="scope-switch-title">Gilt für <span id="scope-hint" class="info" title="Eingaben in den Slicing-Formularen übersteuern nur dieses Teil (feldweise; ↺ setzt ein Feld auf global zurück; nur seine Simulation/sein Export veraltet). Strukturelle Einstellungen (Aufstellung, Zerlegung, Schnittplan) gelten global im Reiter Zerlegung; der Singularitäts-Advisor prüft das fokussierte Teil (#134)." hidden>ⓘ</span></span>
+                <label><input type="radio" name="scope" value="global" id="scope-global" checked /> Global</label>
+                <label><input type="radio" name="scope" value="teil" id="scope-teil" /> <span id="scope-teil-name">Teil</span></label>
+              </div>
+            </div>
+
+            <!-- Accordion „Prozessparameter" (#59/#61): 2-spaltiges .field-box-Grid
+                 (Schichthöhe/Strangbreite/Schalen/Lead/Kipp), Einheit rechts im Feld.
+                 Platzhalter: global leer = Karten-Default, Teil leer = „… · erbt".
+                 Kopf zeigt „N Overrides" (Teil-Scope) bzw. „gilt global". -->
+            <div class="accordion">
+              <button
+                id="slicing-acc-prozess-toggle"
+                class="accordion-toggle has-scope"
+                type="button"
+                aria-expanded="true"
+                aria-controls="slicing-acc-prozess-body"
+              ><span class="acc-marker" aria-hidden="true">▾</span> Prozessparameter <span class="info" title="Basis-Slice-Parameter des Druckjobs — Wahrheitsquelle beim Slicen (Schichthöhe, Strangbreite, Schalen) plus Anstellwinkel (Lead/Kipp, bahn-relativ). Leer gelassene Felder fallen auf die Prozessfenster-Karte/Defaults zurück. Ändern lässt Zerlegung, Simulation und Export veralten (sichtbar, nicht gelöscht).">ⓘ</span> <span id="slicing-prozess-scope" class="acc-scope-note">gilt global</span></button>
+              <div id="slicing-acc-prozess-body" class="accordion-body">
+              <!-- Je Feld ein ↺ „auf global zurück" (Issue #92): nur im Teil-Scope
+                   an übersteuerten Feldern sichtbar (`.hidden`). -->
+                <div class="slicing-fields">
+                  <label class="slicing-field">
+                    <span class="slicing-field-label">Schichthöhe <button id="process-params-layer-height-reset" class="override-reset" type="button" hidden title="↺ auf global zurück — dieses Feld erbt wieder">↺</button></span>
+                    <span class="field-box"><input id="process-params-layer-height" type="number" step="any" min="0" disabled /><span class="unit">mm</span></span>
+                  </label>
+                  <label class="slicing-field">
+                    <span class="slicing-field-label">Strangbreite <button id="process-params-strand-width-reset" class="override-reset" type="button" hidden title="↺ auf global zurück — dieses Feld erbt wieder">↺</button></span>
+                    <span class="field-box"><input id="process-params-strand-width" type="number" step="any" min="0" disabled /><span class="unit">mm</span></span>
+                  </label>
+                  <label class="slicing-field">
+                    <span class="slicing-field-label">Schalen <button id="process-params-shells-reset" class="override-reset" type="button" hidden title="↺ auf global zurück — dieses Feld erbt wieder">↺</button></span>
+                    <span class="field-box"><input id="process-params-shells" type="number" step="1" min="1" disabled /></span>
+                  </label>
+                  <label class="slicing-field">
+                    <span class="slicing-field-label">Lead/Lag <span class="info" title="Anstellwinkel der Düse (bahn-relativ): +Lead kippt in Fahrtrichtung. Leer bzw. 0 = senkrecht von oben.">ⓘ</span> <button id="process-params-lead-deg-reset" class="override-reset" type="button" hidden title="↺ auf global zurück — dieses Feld erbt wieder">↺</button></span>
+                    <span class="field-box"><input id="process-params-lead-deg" type="number" step="any" disabled /><span class="unit">°</span></span>
+                  </label>
+                  <label class="slicing-field">
+                    <span class="slicing-field-label">Kipp <span class="info" title="Anstellwinkel der Düse (bahn-relativ): +Kipp kippt zur Wand-Außenseite und beeinflusst die Erreichbarkeits-Ampel. Leer bzw. 0 = senkrecht von oben.">ⓘ</span> <button id="process-params-kipp-deg-reset" class="override-reset" type="button" hidden title="↺ auf global zurück — dieses Feld erbt wieder">↺</button></span>
+                    <span class="field-box"><input id="process-params-kipp-deg" type="number" step="any" disabled /><span class="unit">°</span></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <!-- Accordion „Fortgeschritten" (#60, default zu): Geschwindigkeiten +
+                 io je Zielart. Der Aufklapp-Zustand gehört ProcessParamsPanel
+                 (collapsible-state.ts, IDs process-params-advanced-*) — unverändert
+                 wiederverwendet (kein Fork). -->
+            <div class="accordion">
+              <div class="collapsible-head">
+                <button
+                  id="process-params-advanced-toggle"
+                  class="collapsible-toggle"
+                  type="button"
+                  aria-expanded="false"
+                  aria-controls="process-params-advanced-body"
+                >▸ Fortgeschritten (Geschwindigkeiten, io)</button>
+                <span class="info" title="Bahngeschwindigkeit und io-Wert je Zielart. Leer gelassene Felder fallen auf Karten-/Code-Defaults zurück (v_print 100 / v_travel 250 mm/s, io 0,5 / 0,0). Der io-Wert gilt gleichförmig über alle Kanäle (v0). Ändern lässt Zerlegung/Simulation/Export veralten.">ⓘ</span>
+              </div>
+              <div id="process-params-advanced-body" class="collapsible-body" hidden>
+                <div class="slicing-fields">
+                  <label class="slicing-field">
+                    <span class="slicing-field-label">Druck-Geschw. <button id="process-params-v-print-reset" class="override-reset" type="button" hidden title="↺ auf global zurück — dieses Feld erbt wieder">↺</button></span>
+                    <span class="field-box"><input id="process-params-v-print" type="number" step="any" min="0" disabled /><span class="unit">mm/s</span></span>
+                  </label>
+                  <label class="slicing-field">
+                    <span class="slicing-field-label">Travel-Geschw. <button id="process-params-v-travel-reset" class="override-reset" type="button" hidden title="↺ auf global zurück — dieses Feld erbt wieder">↺</button></span>
+                    <span class="field-box"><input id="process-params-v-travel" type="number" step="any" min="0" disabled /><span class="unit">mm/s</span></span>
+                  </label>
+                  <label class="slicing-field">
+                    <span class="slicing-field-label">io Druck <button id="process-params-io-print-reset" class="override-reset" type="button" hidden title="↺ auf global zurück — dieses Feld erbt wieder">↺</button></span>
+                    <span class="field-box"><input id="process-params-io-print" type="number" step="any" min="0" disabled /></span>
+                  </label>
+                  <label class="slicing-field">
+                    <span class="slicing-field-label">io Travel <button id="process-params-io-travel-reset" class="override-reset" type="button" hidden title="↺ auf global zurück — dieses Feld erbt wieder">↺</button></span>
+                    <span class="field-box"><input id="process-params-io-travel" type="number" step="any" min="0" disabled /></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Accordion „IK-Konfiguration" (Kollisionskontrolle S4, #129, ADR-024):
+                 drei Tri-State-Schalter Schulter/Ellbogen/Handgelenk (auto/Zustand A/
+                 Zustand B). Persistiert wie ein Slicing-Parameter (global + je Teil über
+                 den Gilt-für-Umschalter, #92): geerbt dezent (Hinweis), Override + ↺.
+                 ProcessParamsPanel treibt die IDs (ik-config-state.ts). -->
+            <div class="accordion">
+              <button
+                id="slicing-acc-ikconfig-toggle"
+                class="accordion-toggle"
+                type="button"
+                aria-expanded="false"
+                aria-controls="slicing-acc-ikconfig-body"
+              ><span class="acc-marker" aria-hidden="true">▸</span> IK-Konfiguration <span class="info" title="Wählbarer IK-Lösungszweig je Achse: Schulter links/rechts, Ellbogen oben/unten, Handgelenk normal/geflippt. Default auto = gelenkraum-nächste Wahl wie bisher. Ein fixierter Zustand filtert die Lösungen hart; unter der Vorgabe unerreichbare Bahnpunkte werden Warnung im Lauf (Befund, kein Gate). Gilt global oder je Teil (Gilt-für-Umschalter).">ⓘ</span></button>
+              <div id="slicing-acc-ikconfig-body" class="accordion-body" hidden>
+                <div class="slicing-fields">
+                  <label class="slicing-field">
+                    <span class="slicing-field-label">Schulter <span id="process-params-ik-shoulder-hint" class="ik-inherit-hint" hidden></span> <button id="process-params-ik-shoulder-reset" class="override-reset" type="button" hidden title="↺ auf global zurück — diese Achse erbt wieder">↺</button></span>
+                    <span class="field-box"><select id="process-params-ik-shoulder" disabled><option value="">auto</option><option value="a">Zustand A</option><option value="b">Zustand B</option></select></span>
+                  </label>
+                  <label class="slicing-field">
+                    <span class="slicing-field-label">Ellbogen <span id="process-params-ik-elbow-hint" class="ik-inherit-hint" hidden></span> <button id="process-params-ik-elbow-reset" class="override-reset" type="button" hidden title="↺ auf global zurück — diese Achse erbt wieder">↺</button></span>
+                    <span class="field-box"><select id="process-params-ik-elbow" disabled><option value="">auto</option><option value="a">Zustand A</option><option value="b">Zustand B</option></select></span>
+                  </label>
+                  <label class="slicing-field">
+                    <span class="slicing-field-label">Handgelenk <span id="process-params-ik-wrist-hint" class="ik-inherit-hint" hidden></span> <button id="process-params-ik-wrist-reset" class="override-reset" type="button" hidden title="↺ auf global zurück — diese Achse erbt wieder">↺</button></span>
+                    <span class="field-box"><select id="process-params-ik-wrist" disabled><option value="">auto</option><option value="a">Zustand A</option><option value="b">Zustand B</option></select></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Accordion „Singularitäts-Advisor" (#65, Fokus-Verankerung #134):
+                 Befund-Box + Prüfen/Anwenden. Geprüft wird die Platzierung des
+                 Fokus-Abschnitts (Teile-Palette); ohne Fokus freundlicher
+                 Hinweis. SingularityAdvisorPanel treibt die IDs unverändert
+                 (kein Fork). Die frühere separate #82-Overrides-Sektion
+                 ist längst im Gilt-für-Umschalter aufgegangen (#92). -->
+            <div class="accordion">
+              <button
+                id="slicing-acc-advisor-toggle"
+                class="accordion-toggle has-scope"
+                type="button"
+                aria-expanded="true"
+                aria-controls="slicing-acc-advisor-body"
+              ><span class="acc-marker" aria-hidden="true">▾</span> Singularitäts-Advisor <span class="info" title="Prüft die Platzierung des in der Teile-Palette gewählten Teils (Fokus-Abschnitt) auf Singularitätsnähe und nennt den Typ (Handgelenk J5≈0 / Ellbogen gestreckt / Schulter über der Basisachse) samt gezieltem Vorschlag. Anwenden schreibt ihn (Kipp → Anstellwinkel, Platzierung → Platzierungs-Override des Teils) und lässt den Core neu bewerten.">ⓘ</span> <span class="acc-scope-note">Fokus-Teil</span></button>
+              <div id="slicing-acc-advisor-body" class="accordion-body">
+                <button id="singularity-advisor-check-btn" type="button" disabled title="Singularitätsnähe der Platzierung des Fokus-Abschnitts prüfen — ohne gewähltes Teil erscheint ein Hinweis">Singularität prüfen</button>
+                <div id="singularity-advisor-detail" class="hint" hidden></div>
+                <button id="singularity-advisor-apply-btn" type="button" disabled hidden title="Vorschlag anwenden — schreibt über die bestehende Route und stößt die Neubewertung an (ADR-007)">Anwenden</button>
+                <p id="singularity-advisor-status" class="hint"></p>
+              </div>
+            </div>
+
+            <!-- Accordion „Kollisions-Advisor" (#130, ADR-024 Punkt 5; Prüf-UX
+                 Karte #139/#145): ZWEIGETEILTE Prüfung — „Kollision prüfen" holt
+                 nur den Basis-Befund des geprüften Teils (EINE Neu-Simulation,
+                 ≈ 20 s), „Hebel-Optionen suchen" startet bewusst das teure Menü
+                 (Basis + ~17 Kandidaten je Neu-Simulation, mehrere Minuten).
+                 Geprüft wird das FOKUSSIERTE Teil (Teile-Palette), ohne Fokus das
+                 erste Teil des Plans — der Scope-Chip sagt das ehrlich (der
+                 frühere statische Hinweis „global" war falsch). Jede Option trägt
+                 einen eigenen Anwenden-Knopf über eine bestehende Route
+                 (process-params / placement-override). CollisionAdvisorPanel
+                 treibt die IDs. -->
+            <div class="accordion">
+              <button
+                id="slicing-acc-collision-advisor-toggle"
+                class="accordion-toggle has-scope"
+                type="button"
+                aria-expanded="false"
+                aria-controls="slicing-acc-collision-advisor-body"
+              ><span class="acc-marker" aria-hidden="true">▸</span> Kollisions-Advisor <span class="info" title="Prüft den Kollisionsbefund des fokussierten Teils (ohne Fokus: erstes Teil des Plans) per Neu-Simulation — schnell als reiner Befund oder teuer als gerankte Optionsliste über drei Hebel (IK-Konfiguration, Kipp/Lead, Platzierung). Anwenden schreibt über die bestehende Route und lässt den Core neu bewerten.">ⓘ</span> <span id="collision-advisor-scope" class="acc-scope-note">erstes Teil (kein Fokus)</span></button>
+              <div id="slicing-acc-collision-advisor-body" class="accordion-body" hidden>
+                <button id="collision-advisor-check-btn" type="button" disabled title="Nur den Kollisionsbefund des geprüften Teils holen — eine Neu-Simulation (≈ 20 s), keine Optionssuche">Kollision prüfen (≈ 20 s)</button>
+                <button id="collision-advisor-options-btn" type="button" disabled title="Gerankte Hebel-Optionen suchen — je Kandidat eine volle Neu-Simulation (IK-Konfiguration, Kipp/Lead, Platzierung), das dauert mehrere Minuten">Hebel-Optionen suchen (Minuten)</button>
+                <div id="collision-advisor-baseline" class="hint" hidden></div>
+                <ul id="collision-advisor-list" class="collision-option-list" hidden></ul>
+                <p id="collision-advisor-status" class="hint"></p>
+              </div>
+            </div>
+
+            <!-- Simulieren wird ein Dock statt Modus (Scheibe 6, #108): der frühere
+                 Modus-Umschalter „Vorbereiten↔Simulieren" (#86) und der eingeblendete
+                 Simulieren-Bereich sind hier ENTFALLEN — die Simulier-Aktionen + der
+                 Trajektorien-Abspieler wohnen jetzt in der festen Leiste #sim-dock am
+                 Fuß des Viewports (siehe unten, Geschwister von #viewport). Schnittplan-
+                 Bearbeitung und Simulation koexistieren ohne Modus; den Veraltet-Schutz
+                 leistet die Veraltet-Markierung selbst (nur veraltete Teile amber,
+                 ADR-017). Kehrt #86 um. -->
+
+            <!-- Sticky-Footer (#107): Status links, „Speichern" rechts — speichert
+                 im Geltungsbereich des Gilt-für-Umschalters (global bzw. sections,
+                 #82-Mechanik). ProcessParamsPanel treibt beide IDs unverändert. -->
+            <div class="inspector-footer">
+              <p id="process-params-status" class="hint"></p>
+              <button id="process-params-save-btn" class="btn-primary" type="button" disabled title="Slicing-Werte im Druckjob speichern — im Geltungsbereich des Gilt-für-Umschalters: Global oder gewähltes Teil. Ändern veraltet Simulation und Export (sichtbar, nicht gelöscht).">Speichern</button>
+            </div>
+          </aside>
+        </section>
+        <!-- Reiter Export (Issue #29): DRL je Abschnitt + Übergabe-Checkliste -->
+        <section class="tab-panel" data-panel="export" hidden>
+          <aside id="export-aside">
+            <h2>Export — DRL je Abschnitt <span class="info" title="Die Platzierung ist ein Plan — verbindlich wird die Lage erst durchs Antasten (ADR-006). Ohne gemessenes Setup bleibt der Export unvollständig und wird sichtbar gekennzeichnet (kein Gate).">ⓘ</span></h2>
+            <p id="export-api-warning" class="hint pl-warning" hidden>
+              Core-API nicht erreichbar — mit <code>fgc start</code> hochfahren.
+            </p>
+            <p id="export-precondition" class="hint pl-warning" hidden></p>
+
+            <h3>Querschnitts-Konsistenz <span class="info" title="Ändert sich Vorgelagertes (Wand, Roboter, Endeffektor, Schnittplan), werden nachgelagerte Stände als veraltet markiert — sichtbar, nicht gelöscht. Neu bewerten/erzeugen hebt die Markierung stufenweise auf.">ⓘ</span></h3>
+            <div id="export-stages" class="export-stages"></div>
+
+            <h3>Übergabe-Checkliste</h3>
+            <ol id="export-checklist" class="export-checklist">
+              <li><strong>Aufbauen</strong> — Roboter und Endeffektor an der
+                geplanten Aufstellhöhe/-position der Platzierung aufbauen.</li>
+              <li><strong>Antasten</strong> — Wandnullpunkt am Roboter antasten und
+                das <em>Setup</em> schreiben (Lage Wand↔Basis, TCP, Kanal-Mapping,
+                Totzeit). <em>Die Platzierung ist ein Plan — verbindlich wird die
+                Lage erst durchs Antasten.</em></li>
+              <li><strong>Drucken</strong> — das je Abschnitt erzeugte DRL-Programm
+                fahren (Reihenfolge unten → oben, Umbau zwischen Abschnitten).</li>
+            </ol>
+
+            <h3>DRL-Programme <span class="info" title="Je Abschnitt ein DRL-Programm (program.drl im Abschnitts-Lauf): per Toolpath-Target movel (Druck) / movej (Travel). Der Abschnitt muss zuvor simuliert sein (Modus Simulieren im Druckplan). Mit gemessenem Setup entsteht ein vollständiges Programm; sonst ein gekennzeichneter Antasten-Hinweis.">ⓘ</span></h3>
+            <!-- Provisorik-/S1-Warnung: sichtbare Ausnahme (Scheibe 3), als kompakte
+                 amber Box statt Absatz. Kein Gate — das Programm entsteht trotzdem. -->
+            <p class="warn-box">
+              <strong>Provisorisch (Spike S1):</strong> Bewegungsgrenzen (vel/acc/Blending)
+              stammen aus angenommenen Prozesswerten, nicht aus am Gerät gemessenen Grenzen.
+              Das DRL trägt einen Provisorik-Stempel — kein Gate, aber bis zur S1-Messung
+              als vorläufig zu behandeln.
+            </p>
+            <p id="export-empty" class="hint">
+              Noch keine Abschnitte — erst in Zerlegung zerlegen, dann in Slicing
+              slicen + simulieren.
+            </p>
+            <ul id="export-sections"></ul>
+            <p id="export-status" class="hint"></p>
+          </aside>
+        </section>
+        <!-- Bibliothek: Stammdaten außerhalb des Prozesses (Issue #28/#56/#75).
+             Rubriken-Umschaltung Roboter / Endeffektor / Workstation — rein über
+             das .hidden-Attribut (globales [hidden]{display:none!important}); NIE
+             display:flex/none, sonst kehrt der tote-Reiter-Bug wieder (#56). -->
+        <section class="tab-panel" data-panel="bibliothek" hidden>
+          <nav id="lib-rubrics" class="lib-rubrics" role="tablist" aria-label="Bibliothek-Rubriken">
+            <button id="lib-rubric-btn-roboter" type="button" class="lib-rubric" data-rubric="roboter">Roboter</button>
+            <button id="lib-rubric-btn-endeffektor" type="button" class="lib-rubric active" data-rubric="endeffektor">Endeffektor</button>
+            <button id="lib-rubric-btn-workstation" type="button" class="lib-rubric" data-rubric="workstation">Workstation</button>
+          </nav>
+
+          <!-- Rubrik Roboter: schreibgeschützte Galerie aus GET /robots (Issue #76).
+               Karten mit Stammdaten + statischem PNG-Thumbnail; kein Anlegen/
+               Bearbeiten/Löschen (Kinematik hart verdrahtet, Scope-Klärung #69). -->
+          <div id="lib-rubric-roboter" class="lib-rubric-view" hidden>
+            <div class="lib-header"><h2>Roboter-Bibliothek <span class="info" title="Der Roboterbestand — schreibgeschützt. Die Kinematik ist je Roboter hart verdrahtet (Solver-Konstanten, vendored Meshes, Viewer-DH), deshalb kein Anlegen/Bearbeiten/Löschen. Im Reiter Roboter wird der Roboter des Druckjobs gewählt.">ⓘ</span></h2></div>
+            <p id="rob-api-warning" class="hint pl-warning" hidden>
+              Core-API nicht erreichbar — mit <code>fgc start</code> hochfahren.
+            </p>
+            <p id="rob-status" class="hint"></p>
+            <div id="rob-cards" class="lib-cards"></div>
+            <p id="rob-empty" class="hint" hidden>
+              Kein Roboter im Bestand — die Roboterdefinitionen liegen in
+              <code>robots/</code> (z. B. <code>doosan_m1013.json</code>).
+            </p>
+          </div>
+
+          <!-- Rubrik Endeffektor: bestehende Galerie + Konfigurator (Issue #28/#56) -->
+          <div id="lib-rubric-endeffektor" class="lib-rubric-view">
+          <!-- Galerie-Ansicht: Karten aller Endeffektoren (Issue #56) -->
+          <div id="lib-gallery">
+            <div class="lib-header">
+              <h2>Endeffektor-Bibliothek <span class="info" title="Stammdaten außerhalb des Prozesses — deine angelegten Endeffektoren. „Bearbeiten“ öffnet den Konfigurator vorbefüllt, „Löschen“ entfernt Definition und Mesh. Angelegte/geänderte Endeffektoren sind im Reiter Roboter sofort wählbar.">ⓘ</span></h2>
+              <button id="lib-new-btn" type="button" class="lib-new-btn">+ Neuer Endeffektor</button>
+            </div>
+            <p id="lib-api-warning" class="hint pl-warning" hidden>
+              Core-API nicht erreichbar — mit <code>fgc start</code> hochfahren.
+            </p>
+            <p id="lib-status" class="hint"></p>
+            <div id="lib-cards" class="lib-cards"></div>
+            <p id="lib-empty" class="hint" hidden>
+              Noch keine Endeffektoren angelegt. Lege mit „+ Neuer Endeffektor"
+              deinen ersten an.
+            </p>
+          </div>
+
+          <!-- Editor-Ansicht: bestehender 5-Schritt-Konfigurator (Issue #28/#56) -->
+          <div id="lib-editor" hidden>
+          <aside id="configurator-aside">
+            <button id="lib-back-btn" type="button" class="lib-back-btn">← Zurück zur Übersicht</button>
+            <div class="cfg-heading-row">
+              <h2 id="cfg-heading">Neuer Endeffektor</h2>
+              <span class="info" title="Bibliothek — Stammdaten außerhalb des Prozesses. Ein realer Endeffektor wird hochgeladen, am Roboterflansch ausgerichtet, mit TCP und logischen Kanälen versehen und abgelegt. Er ist danach ohne Neustart im Reiter Roboter wählbar.">ⓘ</span>
+            </div>
+            <p id="cfg-api-warning" class="hint pl-warning" hidden>
+              Core-API nicht erreichbar — mit <code>fgc start</code> hochfahren.
+            </p>
+
+            <h3>1 · Mesh hochladen</h3>
+            <label class="file-button">
+              STL / OBJ / GLB wählen…
+              <input id="cfg-mesh-input" type="file" accept=".stl,.obj,.glb" />
+            </label>
+
+            <h3>2 · Am Flansch ausrichten <span class="info" title="Klicke im 3D-Bild auf die Montagefläche des Endeffektors — die Fläche unter dem Cursor wird beim Überfahren hervorgehoben. Ihr Mittelpunkt landet exakt im Flansch-Ursprung, sie legt sich bündig an (Außennormale in den Arm), der Körper ragt weg. Danach optional um die Flansch-Achse drehen. Das Flansch-Koordinatensystem ist als Achsenkreuz sichtbar.">ⓘ</span></h3>
+            <div class="param-row">
+              <label for="cfg-mount-rotation">Drehung um Flansch-z (°)</label>
+              <input id="cfg-mount-rotation" type="number" value="0" step="15" />
+            </div>
+            <div class="param-row">
+              <label for="cfg-mount-offset-x">Versatz am Flansch (mm) <span class="info" title="Feinjustage: schiebt das Mesh nachträglich in der Flanschebene (x/y) bzw. entlang der Achse (z). Nötig, wenn die Montagefläche größer/asymmetrisch ist und ihr Mittelpunkt nicht der Flanschmitte entspricht. Der TCP wandert mit.">ⓘ</span></label>
+              <div class="cfg-cog-row">
+                <input id="cfg-mount-offset-x" type="number" step="any" placeholder="x" />
+                <input id="cfg-mount-offset-y" type="number" step="any" placeholder="y" />
+                <input id="cfg-mount-offset-z" type="number" step="any" placeholder="z" />
+              </div>
+            </div>
+            <p id="cfg-mount-status" class="hint">
+              Noch keine Fläche gewählt — Mesh laden und eine Fläche anklicken.
+            </p>
+
+            <h3>3 · TCP (Werkzeugarbeitspunkt) <span class="info" title="Der TCP (rote Kugel, z. B. Düsenspitze) sitzt automatisch auf der vom Flansch am weitesten entfernten Mesh-Spitze. Alternativ „TCP-Fläche wählen“ und die Fläche der Extruderöffnung anklicken — der TCP springt auf ihren Mittelpunkt; der Modus bleibt zum Nachjustieren aktiv, bis der Button ihn beendet. Oder die Koordinaten (relativ zum Flansch-Ursprung, ADR-006) direkt eintragen; alle drei Felder leeren = wieder automatisch. Genutzt von Platzierung/Simulation.">ⓘ</span></h3>
+            <button id="cfg-tcp-pick" type="button" disabled>TCP-Fläche wählen</button>
+            <div class="param-row">
+              <label>TCP am Flansch (mm)</label>
+              <div class="cfg-cog-row">
+                <input id="cfg-tcp-x" type="number" step="any" placeholder="x" />
+                <input id="cfg-tcp-y" type="number" step="any" placeholder="y" />
+                <input id="cfg-tcp-z" type="number" step="any" placeholder="z" />
+              </div>
+            </div>
+            <p id="cfg-tcp-readout" class="hint cfg-tcp-readout"></p>
+
+            <h3>4 · Stammdaten</h3>
+            <div class="param-row">
+              <label for="cfg-name">Name</label>
+              <input id="cfg-name" type="text" placeholder="z. B. Zweikomponenten-Düse" />
+            </div>
+            <div class="param-row">
+              <label for="cfg-vendor">Hersteller (optional)</label>
+              <input id="cfg-vendor" type="text" placeholder="z. B. FGC-Lab" />
+            </div>
+            <div class="param-row">
+              <label for="cfg-weight">Gewicht (kg)</label>
+              <input id="cfg-weight" type="number" step="any" min="0" placeholder="z. B. 3.5" />
+            </div>
+            <div class="param-row">
+              <label>Schwerpunkt (mm, optional)</label>
+              <div class="cfg-cog-row">
+                <input id="cfg-cog-x" type="number" step="any" placeholder="x" />
+                <input id="cfg-cog-y" type="number" step="any" placeholder="y" />
+                <input id="cfg-cog-z" type="number" step="any" placeholder="z" />
+              </div>
+            </div>
+            <div class="param-row">
+              <label for="cfg-compatible-robots">Passt zu Roboter(n) <span class="info" title="Mehrfachauswahl (Strg/Cmd + Klick). Keine Auswahl = „unbekannt“, nicht „inkompatibel“ — der Endeffektor bleibt für jeden Roboter wählbar.">ⓘ</span></label>
+              <select id="cfg-compatible-robots" multiple size="3"></select>
+            </div>
+
+            <h3>5 · Logische Kanäle (ADR-011) <span class="info" title="Der Endeffektor deklariert seine Kanäle (z. B. pump_a, pump_b, foam); das Setup mappt sie später auf physische Ausgänge.">ⓘ</span></h3>
+            <div id="cfg-channels"></div>
+            <button id="cfg-add-channel" type="button">+ Kanal</button>
+
+            <button id="cfg-save-btn" type="button" disabled>Endeffektor speichern</button>
+            <p id="cfg-status" class="hint"></p>
+          </aside>
+          <main id="cfg-viewport"></main>
+          </div>
+          </div>
+
+          <!-- Rubrik Workstation: Galerie + reiner Formular-Editor (Issue #75).
+               Kein Mesh/WebGL — die Karte ist eine schlichte SVG-Grafik. -->
+          <div id="lib-rubric-workstation" class="lib-rubric-view" hidden>
+            <!-- Galerie-Ansicht: Karten aller Workstations -->
+            <div id="ws-gallery">
+              <div class="lib-header">
+                <h2>Workstation-Bibliothek</h2>
+                <button id="ws-new-btn" type="button" class="lib-new-btn">+ Neue Workstation</button>
+              </div>
+              <p class="hint">
+                Die Aufstell-Umgebung des Roboters — stationäre Zelle oder mobile,
+                ggf. höhenverstellbare Workstation. Reine Stammdaten (kein Mesh):
+                Typ, Podesthöhen bzw. Höhenbereich, Sicherheitsabstand,
+                Roboter-Kompatibilität. „Bearbeiten" öffnet das Formular
+                vorbefüllt, „Löschen" entfernt die Definition.
+              </p>
+              <p id="ws-api-warning" class="hint pl-warning" hidden>
+                Core-API nicht erreichbar — mit <code>fgc start</code> hochfahren.
+              </p>
+              <p id="ws-status" class="hint"></p>
+              <div id="ws-cards" class="lib-cards"></div>
+              <p id="ws-empty" class="hint" hidden>
+                Noch keine Workstations angelegt. Lege mit „+ Neue Workstation"
+                deine erste an.
+              </p>
+            </div>
+
+            <!-- Editor-Ansicht: reines Formular (kein Gizmo/WebGL) -->
+            <div id="ws-editor" hidden>
+              <aside class="ws-editor-aside">
+                <button id="ws-back-btn" type="button" class="lib-back-btn">← Zurück zur Übersicht</button>
+                <h2 id="ws-heading">Neue Workstation</h2>
+                <p class="hint">
+                  Bibliothek — Stammdaten außerhalb des Prozesses. Der Name ist beim
+                  Bearbeiten fixiert (kein Umbenennen).
+                </p>
+
+                <div class="param-row">
+                  <label for="ws-name">Name</label>
+                  <input id="ws-name" type="text" placeholder="z. B. Zelle Halle A" />
+                </div>
+                <div class="param-row">
+                  <label for="ws-mobility">Typ</label>
+                  <select id="ws-mobility">
+                    <option value="stationary">stationär (Zelle)</option>
+                    <option value="mobile">mobil (fährt zur Wand)</option>
+                  </select>
+                </div>
+                <div class="param-row ws-toggle-row">
+                  <label for="ws-height-adjustable">höhenverstellbar</label>
+                  <input id="ws-height-adjustable" type="checkbox" />
+                </div>
+
+                <!-- Höhen: diskrete Podestliste ODER stufenloser min/max-Bereich.
+                     Umschaltung über .hidden (nie display:flex). -->
+                <div id="ws-heights-discrete">
+                  <h3>Podesthöhen (mm)</h3>
+                  <p class="hint">
+                    Geordneter Satz Podesthöhen, streng aufsteigend und inkl. 0
+                    (Bodenhöhe). Der Core prüft die Regel.
+                  </p>
+                  <div id="ws-heights-list"></div>
+                  <button id="ws-add-height" type="button">+ Podesthöhe</button>
+                </div>
+                <div id="ws-heights-range" hidden>
+                  <h3>Höhenbereich (mm)</h3>
+                  <p class="hint">Stufenlos verstellbar; min &lt; max.</p>
+                  <div class="param-row">
+                    <label for="ws-range-min">min</label>
+                    <input id="ws-range-min" type="number" step="any" placeholder="z. B. 0" />
+                  </div>
+                  <div class="param-row">
+                    <label for="ws-range-max">max</label>
+                    <input id="ws-range-max" type="number" step="any" placeholder="z. B. 800" />
+                  </div>
+                </div>
+
+                <div class="param-row">
+                  <label for="ws-safety">Sicherheitsabstand (mm)</label>
+                  <input id="ws-safety" type="number" step="any" min="0" value="50" />
+                </div>
+                <div class="param-row">
+                  <label for="ws-vendor">Hersteller (optional)</label>
+                  <input id="ws-vendor" type="text" placeholder="z. B. FGC-Lab" />
+                </div>
+                <div class="param-row">
+                  <label for="ws-compatible-robots">Passt zu Roboter(n)</label>
+                  <select id="ws-compatible-robots" multiple size="3"></select>
+                  <p class="hint">
+                    Mehrfachauswahl (Strg/Cmd + Klick). Keine Auswahl = „unbekannt",
+                    nicht „inkompatibel".
+                  </p>
+                </div>
+
+                <!-- Mesh & Roboter-Platzierung (Issue #78): optionaler Mesh-Upload,
+                     Roboter auf eine Fläche stellen (Flächen-Mittelpunkt + Drehung,
+                     wie beim Endeffektor), Arbeitsfläche wählen, Bohrbild-Auto-Snap. -->
+                <div class="ws-place-section">
+                  <h3>Mesh &amp; Roboter-Platzierung</h3>
+                  <p class="hint">
+                    Optional: ein Mesh der Aufstell-Umgebung laden, den Roboter auf
+                    eine Fläche stellen (Flächen-Mittelpunkt + Drehung) und die
+                    Arbeitsfläche wählen. Ohne Bohrbild lässt sich der Roboter
+                    zusätzlich an eine <em>Randkante</em> der Standfläche schieben
+                    (Kante anklicken + Abstand). „Am Bohrbild ausrichten" erkennt
+                    die 4 Basis-Bohrlöcher auf dem <em>gespeicherten</em> Mesh und
+                    schnappt den Roboter darauf.
+                  </p>
+                  <div class="param-row">
+                    <label for="ws-mesh-input">Mesh (STL/OBJ/GLB)</label>
+                    <input id="ws-mesh-input" type="file" accept=".stl,.obj,.glb,.gltf" />
+                  </div>
+                  <div class="ws-place-controls">
+                    <button id="ws-base-pick" type="button">Roboter platzieren: Fläche wählen</button>
+                    <button id="ws-surface-pick" type="button">Arbeitsfläche wählen</button>
+                  </div>
+                  <div class="param-row">
+                    <label for="ws-base-rotation">Drehung um die Normale (°)</label>
+                    <input id="ws-base-rotation" type="number" step="any" value="0" />
+                  </div>
+                  <!-- Kanten-Verschiebung: Basis an eine Randkante der Standfläche
+                       schieben (Tisch ohne Bohrung); Abstand misst zur Basis-Mitte. -->
+                  <div class="ws-place-controls">
+                    <button id="ws-edge-pick" type="button">An Kante schieben: Kante wählen</button>
+                    <button id="ws-edge-clear" type="button">Zurück zur Flächenmitte</button>
+                  </div>
+                  <div class="param-row">
+                    <label for="ws-edge-distance">Abstand Basis-Mitte → Kante (mm)</label>
+                    <input id="ws-edge-distance" type="number" step="any" min="0" value="100" />
+                  </div>
+                  <div class="param-row">
+                    <label for="ws-snap-robot">Bohrbild-Roboter</label>
+                    <select id="ws-snap-robot"></select>
+                  </div>
+                  <div class="ws-place-controls">
+                    <button id="ws-autosnap" type="button">Roboter am Bohrbild ausrichten</button>
+                    <button id="ws-clear-placement" type="button">Platzierung löschen</button>
+                  </div>
+                  <p id="ws-place-status" class="hint"></p>
+                </div>
+
+                <button id="ws-save-btn" type="button">Workstation speichern</button>
+                <p id="ws-editor-status" class="hint"></p>
+              </aside>
+              <!-- 3D-Editor: Workstation-Mesh + Roboter-Platzierung (Issue #78). -->
+              <div id="ws-viewport" class="ws-viewport"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Geteiltes Hauptsichtfeld (Issue #30): eine 3D-Ansicht über alle
+             Prozess-Reiter (Projekt, Roboter, Druckplan, Simulation, Export) —
+             seit #114 liegt das 3D-Feld links (per CSS `order`), die
+             Inspector-Panels rechts wechseln, die Szene bleibt. Im Reiter Roboter
+             zeigt sie die Roboter-Vorschau (Issue #31), sonst die
+             Modellübersicht; die Bibliothek nutzt ihre eigene Szene und
+             blendet dieses Viewport aus (ui/shell.ts). -->
+        <main id="viewport"></main>
+
+        <!-- Teile-Palette am 3D-Feld (Druckplan-Neuordnung II S2, Issue #91,
+             PRD #88): eine ein-/ausklappbare schmale Leiste über dem geteilten
+             3D-Feld mit allen Teilen des Druckjobs — je Teil Ampel, Name,
+             erreichbarer Anteil, ein ▪-Marker bei individuellen (Slicing-)
+             Overrides und ein Platzierungs-Override-Select. Auswahl in der Palette
+             und 3D-Fokus (#84) sind beidseitig synchron. Die frühere
+             Abschnittsliste im Aside (#decompose-sections) ist hierin aufgegangen.
+             Sichtbar nur im Reiter Druckplan (main.ts) — AUSSCHLIESSLICH über
+             `.hidden` (nie style.display, Lehre aus #56). -->
+        <aside id="parts-palette" class="parts-palette float-panel" hidden aria-label="Teile-Palette">
+          <div class="parts-palette-head">
+            <button
+              id="parts-palette-toggle"
+              type="button"
+              class="parts-palette-toggle"
+              aria-expanded="true"
+              aria-controls="parts-palette-body"
+              title="Teile-Palette ein-/ausklappen"
+            >▾ Teile</button>
+            <!-- Zähler (Issue #106): „N/M ✓" (erreichbar/gesamt) bzw. „ungeprüft"
+                 (amber), abgeleitet aus denselben Palette-Ampeln (zerlegung-status.ts). -->
+            <span id="parts-palette-count" class="badge-ok" hidden></span>
+          </div>
+          <div id="parts-palette-body" class="parts-palette-body">
+            <p id="parts-palette-empty" class="hint">
+              Noch keine Teile — zuerst die Wand zerlegen (Schnittebenen setzen).
+            </p>
+            <ul id="parts-palette-list" class="parts-palette-list"></ul>
+          </div>
+        </aside>
+
+        <!-- Viewer-Einstellungen am 3D-Feld (Wand-Fokus ab Zerlegung): ein
+             schwebendes, ein-/ausklappbares Menü rechts oben über dem geteilten
+             #viewport. Ab dem Reiter Zerlegung fokussiert das Feld die gewählte
+             Wand; der Kontext-Schalter blendet das restliche Gebäude (übrige
+             Wände + Gebäudekontext-Geist) wieder ein. Nur in den Fokus-Reitern
+             sichtbar (main.ts onTabChanged) — AUSSCHLIESSLICH über `.hidden`
+             (Lehre aus #56). ui/viewer-settings.ts treibt die IDs. -->
+        <aside id="viewer-settings" class="viewer-settings float-panel" hidden aria-label="Viewer-Einstellungen">
+          <div class="viewer-settings-head">
+            <button
+              id="viewer-settings-toggle"
+              type="button"
+              class="viewer-settings-toggle"
+              aria-expanded="false"
+              aria-controls="viewer-settings-body"
+              title="Viewer-Einstellungen ein-/ausklappen"
+            >▸ ⚙ Ansicht</button>
+          </div>
+          <div id="viewer-settings-body" class="viewer-settings-body" hidden>
+            <!-- Sicht-Schalter werden aus der ToggleSpec-Liste in main.ts
+                 aufgebaut (ui/viewer-settings.ts) — hier nur der Mount-Punkt,
+                 damit neue Schalter ohne HTML-Änderung dazukommen. -->
+            <div id="viewer-settings-toggles" class="viewer-settings-toggles"></div>
+            <button id="vs-fit-wall" type="button" class="vs-fit-btn">Auf Wand einpassen</button>
+          </div>
+        </aside>
+
+        <!-- Druckort-Ansicht (Druckplan-Neuordnung II S8, Issue #96, PRD #88,
+             ADR-022): Ansichts-Umschalter Einbauort ↔ Druckort am 3D-Feld —
+             existiert NUR am fokussierten Modul (bei Abschnitten ist Einbauort
+             = Druckort). Druckort blendet die Szene auf die Workstation um
+             (Mesh, Roboter an robot_base_frame, Modul auf der Arbeitsfläche);
+             fehlen die Workstation-Frames, erscheint der Hinweis (kein Gate).
+             Sichtbarkeit AUSSCHLIESSLICH über `.hidden` (Lehre aus #56). -->
+        <div id="druckort-toggle" class="druckort-toggle" hidden>
+          <div role="radiogroup" aria-label="Ansicht">
+            <label><input type="radio" name="druckort-view" value="einbauort" id="druckort-view-einbauort" checked /> Einbauort</label>
+            <label><input type="radio" name="druckort-view" value="druckort" id="druckort-view-druckort" /> Druckort</label>
+          </div>
+          <p id="druckort-hint" class="hint" hidden></p>
+        </div>
+
+        <!-- „Plan — vor dem Druck antasten" (ADR-006, Scheibe 3): sichtbare
+             Ausnahme als schwebender Pill-Chip unten im Viewport. Nur im Reiter
+             Druckplan sichtbar — Sichtbarkeit AUSSCHLIESSLICH über `.hidden`
+             (main.ts onTabChanged, Lehre aus #56). -->
+        <div id="plan-chip" class="plan-chip" hidden
+             title="Die Platzierung ist die geplante Basis-Lage; verbindlich wird sie erst über das Antast-Verfahren als Setup (ADR-006).">
+          <span class="plan-chip-dot" aria-hidden="true"></span>
+          Plan — vor dem Druck antasten
+          <span class="info" aria-hidden="true">ⓘ</span>
+        </div>
+
+        <!-- Simulations-Dock (UI-Redesign Scheibe 6, #108): feste Leiste am Fuß des
+             Viewports (Panel-Hintergrund 96 %, Border oben). Ersetzt den Modus-
+             Umschalter (#86, ersatzlos entfallen): die bestehenden Simulier-Aktionen
+             (#26/#27/#48, Modul-Simulation #97) + der Trajektorien-Abspieler docken
+             hier an. Nur im Reiter Slicing (druckplan) sichtbar — AUSSCHLIESSLICH
+             über `.hidden` (main.ts onTabChanged, Lehre aus #56). SimulationPanel
+             treibt die IDs. -->
+        <div id="sim-dock" class="sim-dock" hidden aria-label="Simulation">
+          <button id="sim-focus-btn" class="btn-primary sim-dock-primary" type="button" disabled title="Fokus-Abschnitt slicen + als vollen Arm-Lauf abspielen (Zeit-Slider, TCP-Marker, Roboterarm, Warnungen, Achsauslastung)">▶ Fokus-Abschnitt simulieren</button>
+          <button id="sim-sequence-btn" class="sim-dock-secondary" type="button" disabled title="Alle Abschnitte in Druckreihenfolge abspielen (unten → oben, mit Umbau-Schritt)">Ganze Wand (unten → oben)</button>
+          <!-- Voraussetzungs-/API-Hinweise: kompakt in der Leiste, nur bei Bedarf. -->
+          <span id="sim-api-warning" class="sim-dock-note pl-warning" hidden>Core-API nicht erreichbar — mit <code>fgc start</code> hochfahren.</span>
+          <span id="sim-precondition" class="sim-dock-note pl-warning" hidden></span>
+          <!-- Abspielgeschwindigkeit als Vielfaches der Echtzeit (Issue #155): schmales
+               <select> im Replay-Modus (mit dem Player ein-/ausgeblendet, nur `.hidden`).
+               Optionen (Faktor + resultierende Replay-Dauer, „50× · ~1:44") baut
+               SimulationPanel je Lauf; der Faktor klebt an der Sitzung (Default 1×).
+               Umbaupausen bleiben 3 s, skalieren NICHT mit. -->
+          <select id="sim-speed" class="sim-dock-speed" hidden
+                  aria-label="Abspielgeschwindigkeit (Vielfaches der Echtzeit)"
+                  title="Abspielgeschwindigkeit als Vielfaches der Echtzeit. 1× = so schnell fährt die Maschine wirklich (für enge Stellen). Umbaupausen bleiben 3 s, unabhängig vom Faktor."></select>
+          <!-- Trajektorien-Abspieler (#14/#18/#27/#48): erscheint erst beim Abspielen —
+               Timeline (5px Track, Fill+Knopf in Akzent), Zeit (Plex Mono), Phasen-Pill.
+               „← Übersicht" stellt die Modellübersicht im geteilten 3D-Feld wieder her. -->
+          <div id="sim-player" class="sim-dock-player" hidden>
+            <button id="sim-play-btn" type="button" class="sim-dock-play" aria-label="Abspielen">▶</button>
+            <div class="sim-timeline">
+              <input id="sim-slider" type="range" min="0" max="10000" value="0" step="1" aria-label="Zeit" />
+              <!-- Anklickbare Kollisions-/Warn-Marker (Kollisionskontrolle S3, US 9,
+                   #128): je rot/gelb-Intervall ein Marker über dem Track, aus
+                   `meta.collision.intervals` (verbatim, ADR-007). Leer bei Altläufen. -->
+              <div id="sim-collision-markers" class="sim-collision-markers" aria-hidden="true"></div>
+            </div>
+            <output id="sim-time" class="sim-dock-time">0.0 s</output>
+            <!-- Live-Abstandszahl (US 11, #128): mm am aktuellen Sample, per ⚙-Schalter
+                 abschaltbar; hidden ohne Befund oder bei ausgeschaltetem Schalter. -->
+            <output id="sim-collision-dist" class="sim-collision-dist" hidden></output>
+            <span id="sim-phase" class="sim-phase-pill" hidden title="Kinematisches Replay. Der Kollisionsbefund (falls vorhanden) steht im Befund-Badge daneben; ohne Befund findet keine Kollisionsprüfung statt. Die Lage stammt aus der geplanten Platzierung; das gemessene Setup bleibt Voraussetzung des echten Drucks (ADR-006)."></span>
+            <!-- Kollisions-Befund-Badge (US 12/25, #128): Anker des Befundblocks —
+                 ein Klick klappt den Befundblock der Leiste auf/zu (Issue #156),
+                 OHNE Reiter-/Bühnenwechsel (#147/#157). Label bleibt kurz. -->
+            <span id="sim-collision-badge" class="sim-collision-badge" hidden
+                  role="button" tabindex="0" aria-expanded="false"
+                  aria-controls="sim-collision-panel"></span>
+            <button id="sim-back-btn" type="button" class="sim-dock-back" title="Zurück zur Modellübersicht (Schnittebenen + Basis-Marker)">← Übersicht</button>
+          </div>
+          <!-- Aufklappbarer Kollisions-Befundblock der Leiste (Issue #156): der Befund
+               ist eine Lauf-Eigenschaft und bekommt hier — anders als in der Player-
+               ZEILE — seinen eigenen Block. Der Badge öffnet ihn OHNE Reiterwechsel;
+               als Overlay über der Leiste (position:absolute) bleibt die Dock-Zeile
+               einzeilig und gleich hoch (#154). Zahlen → <dl>, Vorbehalte → <ul>,
+               dieselbe reine Zerlegung wie im Reiter Projekt (collision-state.ts). -->
+          <div id="sim-collision-panel" class="sim-collision-panel" hidden role="group" aria-label="Kollisionsbefund">
+            <dl id="sim-collision-panel-meta" class="sim-collision-panel-meta"></dl>
+            <ul id="sim-collision-panel-warnings" class="sim-collision-panel-warnings" hidden></ul>
+          </div>
+          <span id="sim-status" class="sim-dock-note" hidden></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⌘K-Befehlspalette (UI-Redesign Scheibe 9, Issue #109): Overlay über der
+         ganzen App (600px Panel, Radius 14px, Modal-Schatten, abgedunkelter
+         Hintergrund). Startet versteckt — Sichtbarkeit AUSSCHLIESSLICH über das
+         `hidden`-Attribut (ui/palette.ts). ⌘K/Ctrl-K + Klick auf #header-search
+         öffnen, ESC schließt. Zeilen: Icon | Label | Gruppe (rechts). -->
+    <!-- Einstellungs-Fenster der Zielfunktion (Issue #212, PRD #183 Stufe 3):
+         ein Gewichts-Satz, zwei Lesarten (Aufwiegen AN = gewichtete Summe,
+         AUS = Rangfolge). Die Gewichts-Zeilen baut ui/objective.ts aus der
+         Kriterien-Registry (objective-state.ts); Gleichstand im Aus-Modus
+         sperrt das Speichern. Sichtbarkeit AUSSCHLIESSLICH über `hidden`. -->
+    <div id="objective-fenster" class="objective-fenster" hidden role="dialog" aria-modal="true" aria-label="Zielfunktion der Zerlegungs-Suche">
+      <div class="objective-card" role="document">
+        <h2>Zielfunktion der Zerlegungs-Suche <span class="info" title="Wonach die automatische Zerlegungs-Suche Kandidaten vergleicht. Erreichbarkeit ist kein Kriterium, sondern ein hartes K.-o. davor: ein unerreichbares Teil macht den Kandidaten wertlos — kein Gewicht wiegt das auf. Die komplette Einstellung wird in die Provenienz jedes Zerlegungslaufs gestempelt (reproduzierbar).">ⓘ</span></h2>
+        <label class="objective-aufwiegen-row">
+          <input type="checkbox" id="objective-aufwiegen" />
+          Aufwiegen — Kriterien dürfen einander aufwiegen (gewichtete Summe)
+          <span class="info" title="Aus (Standard): kein Aufwiegen — die Gewichts-Reihenfolge ist die Rangfolge; erst wenn ein Kriterium gleichauf liegt, entscheidet das nächste. Kein noch so gutes nachrangiges Kriterium kompensiert ein vorrangiges (kein c_v-Komfort wiegt einen zusätzlichen Umsetz-/Einmessvorgang auf). An: dieselben Zahlen wirken als gewichtete Summe.">ⓘ</span>
+        </label>
+        <div id="objective-weights" class="process-params-fields"></div>
+        <p id="objective-reading" class="hint"></p>
+        <p id="objective-status" class="hint"></p>
+        <div class="objective-actions">
+          <button id="objective-reset-btn" type="button" class="btn-add" title="Auf die Standard-Zielfunktion zurücksetzen (Rangfolge Umsetzvorgänge > Fugenfläche > kinematische Marge > c_v, ohne Aufwiegen).">↺ Standard</button>
+          <span class="objective-actions-spacer"></span>
+          <button id="objective-cancel-btn" type="button" class="btn-add">Abbrechen</button>
+          <button id="objective-save-btn" type="button" class="btn-primary">Speichern</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="command-palette" class="cmd-palette" hidden role="dialog" aria-modal="true" aria-label="Befehlspalette">
+      <div class="cmd-palette-panel" role="document">
+        <div class="cmd-palette-head">
+          <span class="cmd-palette-search-icon" aria-hidden="true">⌕</span>
+          <input id="command-palette-input" class="cmd-palette-input" type="text"
+                 placeholder="Einstellung oder Aktion suchen…" autocomplete="off"
+                 aria-label="Einstellung oder Aktion suchen" aria-controls="command-palette-list" />
+          <span class="cmd-palette-kbd" aria-hidden="true">ESC</span>
+        </div>
+        <ul id="command-palette-list" class="cmd-palette-list" role="listbox" aria-label="Treffer"></ul>
+        <div id="command-palette-empty" class="cmd-palette-empty" hidden>Keine Treffer</div>
+        <div class="cmd-palette-foot">
+          <span>Klick öffnet den Ort der Einstellung</span>
+          <span class="cmd-palette-foot-right">⌘K schließen</span>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

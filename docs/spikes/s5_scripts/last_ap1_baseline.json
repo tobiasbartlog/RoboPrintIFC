@@ -1,0 +1,107 @@
+{
+  "config": {
+    "spike": "S5/AP-1-Baseline (Issue #206)",
+    "run_origin": "runs/20260709-140251_slice_Denkmal (Denkmal, Abschnitt-1, Modul)",
+    "reproduction": "slice_and_simulate_section('denkmal','abschnitt-1') → find_collisions",
+    "travel_stride": 5,
+    "safety_distance_mm": 50.0,
+    "freizone_radius_mm": 40.0,
+    "decomposition_kind": "modul",
+    "self_collision_produktiv": false,
+    "n_samples_full": 16203,
+    "n_travel_samples_full": 5445,
+    "n_samples_thinned": 11968,
+    "n_layers": 55,
+    "tool_hull": true,
+    "n_timing_repeats": 3,
+    "machine": {
+      "platform": "Windows-11-10.0.26200-SP0",
+      "python": "3.14.0",
+      "processor": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel"
+    }
+  },
+  "determinism_gate": {
+    "thinned_self_false_run1": {
+      "n_samples": 11968,
+      "n_red": 5106,
+      "n_yellow": 1142,
+      "n_green": 5720,
+      "min_distance_mm": -149.824,
+      "worst_index": 9794
+    },
+    "thinned_self_false_run2": {
+      "n_samples": 11968,
+      "n_red": 5106,
+      "n_yellow": 1142,
+      "n_green": 5720,
+      "min_distance_mm": -149.824,
+      "worst_index": 9794
+    },
+    "identical": true
+  },
+  "counts_full_vs_thinned_self_false": {
+    "full_stride1": {
+      "n_samples": 16203,
+      "n_red": 6187,
+      "n_yellow": 1938,
+      "n_green": 8078,
+      "min_distance_mm": -147.453,
+      "worst_index": 13595
+    },
+    "thinned_stride5": {
+      "n_samples": 11968,
+      "n_red": 5106,
+      "n_yellow": 1142,
+      "n_green": 5720,
+      "min_distance_mm": -149.824,
+      "worst_index": 9794
+    }
+  },
+  "wall_seconds": {
+    "thinned_self_false": {
+      "runs": [
+        7.081,
+        7.096,
+        7.178
+      ],
+      "min": 7.081,
+      "median": 7.096
+    },
+    "thinned_self_true": {
+      "runs": [
+        142.469
+      ],
+      "min": 142.469,
+      "median": 142.469
+    },
+    "slice_sim_s": 5.841,
+    "fk_link_frames_s": 1.008
+  },
+  "callsite_arm_obstacle": {
+    "instrumented_match": true,
+    "n_fcl": 23468,
+    "t_fcl_s": 0.831,
+    "ms_per_fcl": 0.0354,
+    "t_setparts_s": 3.14,
+    "t_broad_s": 0.337,
+    "n_broad_eval": 82257,
+    "n_broad_reject": 58789,
+    "pct_broad_reject": 71.5
+  },
+  "callsite_self_collision": {
+    "instrumented_match": true,
+    "note": "Im Produktiv-Befund AUS; hier als eigener Aufrufort fuer die SDF-Abloesung (US 13) auf derselben verduennten Auswahl gemessen.",
+    "n_fcl": 54248,
+    "t_fcl_s": 105.122,
+    "ms_per_fcl": 1.9378,
+    "t_setparts_s": 11.529,
+    "t_broad_s": 1.927,
+    "n_broad_eval": 251328,
+    "n_broad_reject": 197080,
+    "pct_broad_reject": 78.4
+  },
+  "obstacle_rebuild": {
+    "n_rebuild": 55,
+    "t_total_s": 0.066
+  }
+}

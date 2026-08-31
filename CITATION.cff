@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+title: "RoboPrintIFC — Planungs- und Slicing-System für den funktional gradierten Lehm-3D-Druck"
+message: "Wenn Sie diese Software verwenden, zitieren Sie sie bitte wie folgt."
+type: software
+authors:
+  - family-names: Bartlog
+    given-names: Tobias
+    email: bartlog@icom.rwth-aachen.de
+    affiliation: "RWTH Aachen University"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"   # bei Bedarf eintragen
+repository-code: "https://github.com/tobiasbartlog/RoboPrintIFC"
+abstract: >-
+  RoboPrintIFC überführt IFC-Gebäudemodelle in ausführbare Roboterprogramme für
+  den 3D-Druck mit Lehm. Aus einem IFC-Modell werden druckbare Wände gefiltert,
+  kollisions- und reichweitengetrieben in fertigbare Module zerlegt, planar
+  gesliced, kinematisch simuliert und als DRL-Programm für den Doosan M1013
+  exportiert. Jeder Schritt hinterlässt versionierte, schema-geprüfte Artefakte
+  mit Provenienz, sodass jedes Ergebnis reproduzierbar bleibt.
+keywords:
+  - "3D concrete printing"
+  - "clay 3D printing"
+  - "functionally graded materials"
+  - "BIM"
+  - "IFC"
+  - "robot path planning"
+  - "inverse kinematics"
+  - "collision-driven decomposition"
+  - "digital fabrication"
+license: MIT
+version: "0.1.0"

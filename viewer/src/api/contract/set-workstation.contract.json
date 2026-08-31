@@ -1,0 +1,29 @@
+{
+  "slug": "kontrakthaus",
+  "name": "Kontrakthaus",
+  "model_path": "<tmp>\\modell.ifc",
+  "overview_run": "<tmp>\\runs\\20260722-125107_walls-list_modell",
+  "print_jobs": [
+    {
+      "job_id": "default",
+      "wall_global_id": "WALLAAAAAAAAAAAAAAAAAA",
+      "assessment_run": "<tmp>\\runs\\20260722-125107_walls-list_modell",
+      "runs": [],
+      "revisions": {
+        "inputs": {
+          "wall": 1,
+          "robot": 1,
+          "tool": 1,
+          "cutplan": 0,
+          "process": 0,
+          "workstation": 1
+        },
+        "outputs": {}
+      },
+      "robot": "doosan_m1013",
+      "tool": "30gut",
+      "workstation": "mobile_hub"
+    }
+  ],
+  "compatible": true
+}

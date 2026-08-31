@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboprintifc/schemas/wallspec.schema.json",
+  "title": "WallSpec",
+  "description": "Was gebaut werden soll: eine ausgewaehlte Wand mit Geometrie (Mesh, mm) und Zielparametern. Oeffnungen sind ab v0.1 Teil des Vertrags, auch wenn der Slicer sie in v1 nicht behandelt (OD-3).",
+  "type": "object",
+  "required": ["schema_version", "provenance", "global_id", "geometry", "targets"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "provenance": { "$ref": "setup.schema.json#/$defs/provenance" },
+    "global_id": { "type": "string", "description": "IFC GlobalId" },
+    "name": { "type": "string" },
+    "geometry": {
+      "type": "object",
+      "required": ["vertices_mm", "faces"],
+      "additionalProperties": false,
+      "properties": {
+        "vertices_mm": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }
+        },
+        "faces": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 3, "maxItems": 3 }
+        }
+      }
+    },
+    "openings": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": ["global_id", "outline_mm"],
+        "properties": {
+          "global_id": { "type": "string" },
+          "outline_mm": {
+            "type": "array",
+            "minItems": 3,
+            "items": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }
+          }
+        }
+      }
+    },
+    "targets": {
+      "type": "object",
+      "description": "Zielparameter aus Pset_WallCommon und Pset_FGC_Targets",
+      "required": ["load_bearing"],
+      "additionalProperties": false,
+      "properties": {
+        "load_bearing": { "type": "boolean" },
+        "target_u_value_w_m2k": { "type": "number", "exclusiveMinimum": 0 },
+        "max_weight_kg": { "type": "number", "exclusiveMinimum": 0 },
+        "min_compressive_strength_mpa": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    }
+  }
+}

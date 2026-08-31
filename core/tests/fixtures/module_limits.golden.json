@@ -1,0 +1,80 @@
+{
+  "_description": "Golden-Faelle der Modulgrenzen-Pruefung (Issue #90, ADR-022): Teil-Abmessungen + optionale Obergrenzen + Dichte -> Befund je Grenze + Gewicht (Volumen x Dichte, kg). Handgerechnet; 'expected' ist exakt ModuleCheck.to_dict(). Grenzfall-Vertrag: exakt auf der Grenze = eingehalten (exceeded strikt >). Dichte-Default 1900 kg/m3 stammt aus der Prozessfenster-Karte (density_kg_m3, eine Quelle wie default_shells).",
+  "density_default_kg_m3": 1900.0,
+  "cases": [
+    {
+      "name": "keine-obergrenzen-nur-gewicht",
+      "length_mm": 2000.0,
+      "height_mm": 1000.0,
+      "thickness_mm": 200.0,
+      "density_kg_m3": 1900.0,
+      "limits": {},
+      "expected": {
+        "weight_kg": 760.0,
+        "density_kg_m3": 1900.0,
+        "limits": []
+      }
+    },
+    {
+      "name": "exakt-auf-beiden-grenzen-eingehalten",
+      "length_mm": 2000.0,
+      "height_mm": 1000.0,
+      "thickness_mm": 200.0,
+      "density_kg_m3": 1900.0,
+      "limits": { "max_length_mm": 2000.0, "max_height_mm": 1000.0 },
+      "expected": {
+        "weight_kg": 760.0,
+        "density_kg_m3": 1900.0,
+        "limits": [
+          { "limit": "max_length", "limit_mm": 2000.0, "actual_mm": 2000.0, "exceeded": false },
+          { "limit": "max_height", "limit_mm": 1000.0, "actual_mm": 1000.0, "exceeded": false }
+        ]
+      }
+    },
+    {
+      "name": "laenge-verletzt",
+      "length_mm": 2500.0,
+      "height_mm": 1000.0,
+      "thickness_mm": 200.0,
+      "density_kg_m3": 1900.0,
+      "limits": { "max_length_mm": 2000.0 },
+      "expected": {
+        "weight_kg": 950.0,
+        "density_kg_m3": 1900.0,
+        "limits": [
+          { "limit": "max_length", "limit_mm": 2000.0, "actual_mm": 2500.0, "exceeded": true }
+        ]
+      }
+    },
+    {
+      "name": "hoehe-verletzt-leichtlehm-dichte",
+      "length_mm": 1000.0,
+      "height_mm": 3000.0,
+      "thickness_mm": 300.0,
+      "density_kg_m3": 600.0,
+      "limits": { "max_height_mm": 2600.0 },
+      "expected": {
+        "weight_kg": 540.0,
+        "density_kg_m3": 600.0,
+        "limits": [
+          { "limit": "max_height", "limit_mm": 2600.0, "actual_mm": 3000.0, "exceeded": true }
+        ]
+      }
+    },
+    {
+      "name": "nur-hoehe-gesetzt-eingehalten",
+      "length_mm": 4000.0,
+      "height_mm": 800.0,
+      "thickness_mm": 175.0,
+      "density_kg_m3": 1900.0,
+      "limits": { "max_height_mm": 1000.0 },
+      "expected": {
+        "weight_kg": 1064.0,
+        "density_kg_m3": 1900.0,
+        "limits": [
+          { "limit": "max_height", "limit_mm": 1000.0, "actual_mm": 800.0, "exceeded": false }
+        ]
+      }
+    }
+  ]
+}

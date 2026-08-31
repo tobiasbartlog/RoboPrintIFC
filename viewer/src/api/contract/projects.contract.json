@@ -1,0 +1,10 @@
+{
+  "projects": [
+    {
+      "slug": "kontrakthaus",
+      "name": "Kontrakthaus",
+      "model_path": "<tmp>\\modell.ifc",
+      "n_print_jobs": 0
+    }
+  ]
+}

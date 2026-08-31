@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboprintifc/schemas/placement.schema.json",
+  "title": "Placement",
+  "description": "Bewertungslauf der Platzierung (Bewertungsmodus, Issue #22): der Nutzer gibt reale Aufstellmoeglichkeiten vor, der Core bewertet sie (erreichbarer Wandanteil + kinematische Marge ueber ein festes Sampling-Raster). Ein provenienz-gestempeltes, reproduzierbares Lauf-Artefakt (ADR-004): was die GUI an Scores zeigt, steht hier. Die Platzierung ist ein Plan, kein Setup (ADR-006) — verbindlich wird die Lage erst durch das Antast-Verfahren.",
+  "type": "object",
+  "required": ["schema_version", "provenance", "robot", "tool", "wall", "options"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "provenance": { "$ref": "setup.schema.json#/$defs/provenance" },
+    "wall_global_id": {
+      "type": "string",
+      "description": "GlobalId der bewerteten Wand (aus candidates.json); optional, da das Modul auch mit synthetischen Waenden bewertet."
+    },
+    "robot": {
+      "type": "string",
+      "description": "Name der Roboterdefinition (robots/<name>.json), fuer die bewertet wurde"
+    },
+    "tool": {
+      "type": "string",
+      "description": "Name der Endeffektor-Definition (tools/<name>.json), fuer die bewertet wurde"
+    },
+    "wall": {
+      "type": "object",
+      "description": "Die bewertete Wandflaeche im Wand-Koordinatensystem (Rechteck: Laenge x Hoehe).",
+      "required": ["length_mm", "height_mm"],
+      "additionalProperties": false,
+      "properties": {
+        "length_mm": { "type": "number", "minimum": 0 },
+        "height_mm": { "type": "number", "minimum": 0 },
+        "thickness_mm": { "type": "number", "minimum": 0 }
+      }
+    },
+    "sampling": {
+      "type": "object",
+      "description": "Das feste Sampling-Raster (deterministisch, ADR-004-Geist).",
+      "additionalProperties": true,
+      "properties": {
+        "spacing_mm": { "type": "number", "exclusiveMinimum": 0 },
+        "n_length": { "type": "integer", "minimum": 2 },
+        "n_height": { "type": "integer", "minimum": 2 }
+      }
+    },
+    "selected": {
+      "type": ["string", "null"],
+      "description": "option_id der als gewaehlt markierten Aufstellmoeglichkeit; null, wenn (noch) keine gewaehlt ist."
+    },
+    "options": {
+      "type": "array",
+      "description": "Die bewerteten Aufstellmoeglichkeiten mit ihren Scores.",
+      "items": {
+        "type": "object",
+        "required": ["option_id", "lateral_mm", "standoff_mm", "stand_height_mm", "score"],
+        "additionalProperties": false,
+        "properties": {
+          "option_id": { "type": "string" },
+          "lateral_mm": { "type": "number" },
+          "standoff_mm": { "type": "number" },
+          "stand_height_mm": { "type": "number" },
+          "yaw_rad": { "type": "number", "default": 0.0 },
+          "score": { "$ref": "#/$defs/score" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "score": {
+      "type": "object",
+      "description": "Bewertung einer Aufstellmoeglichkeit — reine Daten, kein Gate. Warnungen sind Daten (kein Abbruch).",
+      "required": ["reachable_fraction", "n_samples", "n_reachable"],
+      "additionalProperties": false,
+      "properties": {
+        "reachable_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "n_samples": { "type": "integer", "minimum": 0 },
+        "n_reachable": { "type": "integer", "minimum": 0 },
+        "kinematic_margin": { "type": ["number", "null"] },
+        "mean_margin": { "type": ["number", "null"] },
+        "reach_estimate": {
+          "type": ["object", "null"],
+          "description": "Karten-Schaetzung des erreichbaren Anteils (Issue #214, Reichweitenkarte als Vorfilter): reine Schaetzung, KEIN Prueftuer-Urteil (ADR-007/#164) — reachable_fraction bleibt das IK-Urteil (Ampel unveraendert). Nur vorhanden, wenn beim Bewerten eine Reichweitenkarte vorlag; ohne Karte fehlt der Schluessel (Altlaeufe byte-gleich, US 12).",
+          "additionalProperties": false,
+          "required": ["reachable_fraction", "is_estimate", "source"],
+          "properties": {
+            "reachable_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+            "is_estimate": { "const": true },
+            "source": { "type": "string" },
+            "note": { "type": "string" }
+          }
+        },
+        "collision": {
+          "type": ["object", "null"],
+          "description": "Kollisions-Grob-Urteil des Kandidaten (Issue #228, ADR-026 Punkt 1): Machbarkeits-Befund aus dem Platzierungs-Grob-Check (fgc.collision.coarse). free=true → status 'clear' (kollisionsfrei), free=false → 'colliding' (grobe Durchdringung). Ein Befund, kein Gate — vorderster Sortierschluessel UND sichtbares Feld. Nur vorhanden, wenn der Grob-Check lief (Kollisionsgeometrie da); sonst fehlt der Schluessel (byte-gleich zum reinen Reichweiten-Zustand).",
+          "additionalProperties": false,
+          "required": ["free", "status"],
+          "properties": {
+            "free": { "type": "boolean" },
+            "status": { "enum": ["clear", "colliding"] },
+            "source": { "type": "string" }
+          }
+        },
+        "ik_config": {
+          "type": "object",
+          "description": "Prior-gefuehrt gewaehlter IK-Konfig-Zweig dieses Kandidaten (Issue #233, ADR-026 Punkt 5): a/b-Block Schulter/Ellbogen/Handgelenk, gewaehlt aus Prior-Shortlist (+auto) bzw. der vollen 8er-Achse. Nach aussen sichtbar, damit Simulation/Druck DENSELBEN Zweig fahren wie die Bewertung (IkConfigFilter.from_block). Nur vorhanden, wenn die Konfig-Suchachse lief und ein echter Zweig gewann; fehlt/leer = auto.",
+          "additionalProperties": false,
+          "properties": {
+            "shoulder": { "enum": ["a", "b"] },
+            "elbow": { "enum": ["a", "b"] },
+            "wrist": { "enum": ["a", "b"] }
+          }
+        },
+        "sampling": { "type": "object", "additionalProperties": true },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "target_index", "detail"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": { "enum": ["unreachable", "joint_limits", "singularity"] },
+              "target_index": { "type": "integer", "minimum": 0 },
+              "detail": { "type": "string" },
+              "value": { "type": ["number", "null"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

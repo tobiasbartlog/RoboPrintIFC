@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.1",
+  "provisional": true,
+  "_note": "Provisorische Prozessparameter-Karte (ADR-013). ALLE Werte sind Platzhalter, bis Spike S4 und die Extruderversuche Zahlen liefern (P4 gilt auch fuer Prozessparameter). Eine Quelle fuer E1-Stufe-2 UND Slicer.",
+  "strand_width_mm": null,
+  "strand_width_range_mm": [null, null],
+  "layer_height_mm": null,
+  "wall_thickness_min_mm": null,
+  "wall_thickness_max_mm": null,
+  "min_inner_radius_strand_widths": 0.5,
+  "min_web_width_strand_widths": 1.5,
+  "min_convex_angle_deg": 30,
+  "mitre_limit": 2.0,
+  "default_shells": 2,
+  "phi_target_resolution_mm": null,
+  "density_kg_m3": 1900.0,
+  "_source": "min_inner_radius_strand_widths, min_web_width_strand_widths und min_convex_angle_deg aus docs/spikes/S4_offset_robustheit.md (2026-07-02, normiert in Strangbreiten w -- w selbst noch unbekannt, s. S1). mitre_limit (shapely join_style=mitre an shell_rings()/has_narrow_web()-Erosionen, E1 UND Slicer) ebenfalls aus S4 (notch-Familie, konkave Reflex-Kerbe): Default 5.0 zerfaellt ab Kerbwinkel <=30 Grad in ein MultiPolygon, 2.0 bleibt im gesamten Testbereich 15-90 Grad zerfallsfrei -- Issue #2, kein S1-Bezug (reine Offset-Robustheit, nicht materialabhaengig), daher nicht null wie die noch unbelegten mm-Werte. default_shells (fuer E1 angenommene Schalenzahl, deckt sich mit SliceParams-Default) aus Design-Log 2026-07-02. wall_thickness_min_mm/max_mm bleiben null: die Dickenuntergrenze wird solange aus Strangbreite x Schalenlogik abgeleitet (S4-Stegformel), bis explizite mm-Werte aus S1/Extruderversuchen vorliegen; diese haetten dann Vorrang. density_kg_m3 (Dichte des Druckguts fuer die Modulgewichts-Rechnung, Issue #90/ADR-022): Lehm-typischer PLATZHALTER, bis S1/Materialversuche messen -- eine Quelle wie default_shells."
+}

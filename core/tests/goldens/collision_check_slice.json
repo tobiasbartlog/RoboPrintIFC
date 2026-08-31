@@ -1,0 +1,11 @@
+{
+  "_comment": "Distanz-Golden (mm, 3 Dez.) fuer test_collision_check — deterministisch (python-fcl, Spike S0). Neu erzeugen ueber das Testszenario _scenario().",
+  "distances_mm": [
+    -8.157,
+    -4.818,
+    -2.468,
+    -8.361,
+    -15.746,
+    -0.114
+  ]
+}

@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        # [geo] muss mit: die Testmodule importieren numpy/trimesh/ifcopenshell/
+        # fcl direkt (kein importorskip), ohne den Stack bricht die Collection ab.
+        run: python -m pip install -e "core[dev,geo]"
+      - name: Lint
+        run: python -m ruff check core
+      - name: Test
+        run: python -m pytest core
+
+  viewer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+      - name: Install
+        run: npm --prefix viewer ci
+      # vitest schließt die Py↔TS-Paritätshälften (ADR-009): die geteilten Goldens
+      # (fk, nozzle-*, staleness) prüft der Core in pytest, der Viewer hier.
+      - name: Test
+        run: npm --prefix viewer test
+      # tsc --noEmit + vite build — fängt Typ-/Build-Drift (z. B. Konstanten-Umbau).
+      - name: Build
+        run: npm --prefix viewer run build

@@ -1,0 +1,25 @@
+{
+  "_comment": "Erzeugt von core/scripts/build_reachability_map.py — nicht editieren.",
+  "alpha_step_rad": 0.08726646259971647,
+  "cell_mm": 50.0,
+  "coords": "RM4D (p_z, alpha, x_t, y_t): Posenhoehe ueber Basis, Anflugwinkel zur Vertikalen, kanonische Basisposition relativ zur Pose (Azimut-Frame der Anflugrichtung; senkrechter Anflug ungedreht).",
+  "extent_mm": 1500.0,
+  "generator": "core/scripts/build_reachability_map.py",
+  "kinematics_sha256": "82bfee920118dd578661e52a8156f320c6e97ebb3a9c640c0c93d6192146c866",
+  "n_alpha": 37,
+  "n_cells": 8398297,
+  "n_reachable": 2032119,
+  "packing": "numpy packbits (bool, C-Ordnung)",
+  "rm_format_version": 1,
+  "robot": "doosan_m1013",
+  "semantics": "Binaer, direkt-invers ueber die analytische OPW-IK: Zelle wahr = die Repraesentant-Pose des Zellknotens hat eine IK-Loesung innerhalb der Achsgrenzen. Vorfilter — das Urteil bleibt bei der Pruef-Tuer.",
+  "shape": [
+    61,
+    37,
+    61,
+    61
+  ],
+  "source": "robots/doosan_m1013.json (kinematics-Block) via fgc.kinematics.opw",
+  "units": "mm/rad (ADR-006)",
+  "values_file": "values.npy"
+}

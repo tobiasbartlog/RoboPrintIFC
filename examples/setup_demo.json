@@ -1,0 +1,66 @@
+{
+  "schema_version": "0.1",
+  "provenance": {
+    "source": "fgc setup new --p0 400.0,-300.0,100.0 --p1 1400.0,-300.0,100.0 --p2 400.0,-300.0,1100.0 --robot doosan_m1013 --output examples\\setup_demo.json",
+    "created": "2026-07-04T19:29:16+00:00",
+    "git_commit": "8ae5d97"
+  },
+  "robot": "doosan_m1013",
+  "wall_to_base": {
+    "pos_mm": [
+      400.0,
+      -300.0,
+      100.0
+    ],
+    "quat": [
+      0.7071067811865476,
+      0.7071067811865475,
+      0.0,
+      0.0
+    ]
+  },
+  "tcp": {
+    "pos_mm": [
+      0.0,
+      0.0,
+      200.0
+    ],
+    "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "io_channels": {
+    "pump_a": {
+      "kind": "analog_voltage",
+      "index": 0,
+      "physical_range": [
+        0.0,
+        10.0
+      ]
+    },
+    "pump_b": {
+      "kind": "analog_voltage",
+      "index": 1,
+      "physical_range": [
+        0.0,
+        10.0
+      ]
+    },
+    "foam": {
+      "kind": "analog_voltage",
+      "index": 2,
+      "physical_range": [
+        0.0,
+        5.0
+      ]
+    }
+  },
+  "deadtime": {
+    "t_tot_s": 3.0,
+    "compensation": "simulation_shift",
+    "provisional": true
+  }
+}

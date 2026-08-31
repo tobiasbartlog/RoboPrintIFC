@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roboprintifc/schemas/tool.schema.json",
+  "title": "Tool",
+  "description": "Endeffektor-Definition: projektunabhaengiges Artefakt mit TCP-Frame (relativ Flansch, ADR-006), Gewicht/Schwerpunkt (v1: statischer Payload-Check) und Deklaration der logischen IO-Kanaele (ADR-011). Das Setup mappt die deklarierten Kanaele auf physische Ausgaenge; der Endeffektor *deklariert* sie nur.",
+  "type": "object",
+  "required": ["schema_version", "name", "tcp_frame", "weight_kg", "channels"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Eindeutiger Name des Endeffektors (Dateiname ohne Endung)"
+    },
+    "vendor": {
+      "type": "string",
+      "description": "Hersteller oder Herkunft (optional)"
+    },
+    "tcp_frame": {
+      "$ref": "setup.schema.json#/$defs/frame",
+      "description": "TCP-Frame relativ zum Roboterflansch (ADR-006: pos_mm + quat w-first)"
+    },
+    "weight_kg": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Gewicht des Endeffektors in kg (fuer statischen Payload-Check gegen Roboter-Traglast)"
+    },
+    "cog_mm": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 3,
+      "maxItems": 3,
+      "description": "Schwerpunkt relativ zum Roboterflansch in mm (ADR-006, x/y/z). Optional; v1 nur Gewicht, kein Momentencheck."
+    },
+    "mesh": {
+      "type": "string",
+      "description": "Dateiname der Mesh-Datei im selben tools/-Verzeichnis (z.B. 'two_component_nozzle.glb'). Optional."
+    },
+    "mesh_transform": {
+      "$ref": "setup.schema.json#/$defs/frame",
+      "description": "Lage des Mesh-Ursprungs relativ zum Roboterflansch (ADR-006: pos_mm + quat w-first). Am Flansch per Gizmo ausgerichtet (Endeffektor-Konfigurator, Issue #28). Optional; fehlt = Identitaet (Mesh-Ursprung liegt im Flansch)."
+    },
+    "compatible_robots": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Namen der Roboterdefinitionen, zu denen dieser Endeffektor passt (Kompatibilitaets-Tags, Issue #71). Optional; fehlt oder leer = 'unbekannt' (nicht 'inkompatibel', Migrationsschutz). Der Roboter ist die Nabe; #74 nutzt die Tags zum Ausgrauen im Reiter Roboter — hier nur das Feld, das round-trippt."
+    },
+    "tcp_provisional": {
+      "type": "boolean",
+      "description": "Ehrliche, additive Kennzeichnung eines noch nicht ausgemessenen TCP (Issue #136, Geist von ADR-013 / deadtime.provisional): true = der TCP-Versatz ist ein Schaetzwert, noch nicht am Geraet vermessen. Optional; fehlt/false = bestaetigt. Das Gate des Modul-Exports (ADR-006/022) laesst nur einen nicht-provisorischen TCP durch."
+    },
+    "envelope_mm": {
+      "$ref": "#/$defs/envelope",
+      "description": "Huellkennzahl des Endeffektor-Mesh um die Flanschachse (ADR-026 Punkt 4, PRD #225, Issue #229): zweite Groesse der Tool-Aehnlichkeits-Regel des Platzierungs-Priors, neben dem TCP-Versatz. Beim Upload einmalig aus dem Mesh berechnet (bezogen auf ``mesh_transform``, Default Identitaet) und additiv gespeichert. Optional; fehlt bei Tools ohne Mesh oder bei Altbestand vor #229 = 'unbekannt' (Migrationsschutz wie compatible_robots, #71) -> neutraler Prior. Nie im Vorschlagspfad neu berechnet (kein Mesh-Laden dort)."
+    },
+    "channels": {
+      "type": "object",
+      "description": "Deklaration der logischen IO-Kanaele des Endeffektors (ADR-011). Kanalname (z.B. 'pump_a') -> Kanaldeklaration. Das Setup mappt diese Kanaele auf physische Ausgaenge; der Toolpath referenziert sie per Namen.",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/channel_decl" }
+    }
+  },
+  "$defs": {
+    "envelope": {
+      "type": "object",
+      "description": "Huellkennzahl um die Flanschachse: Bounding-Radius (radial) und Laenge (axial entlang Flansch-z), in mm.",
+      "required": ["radius_mm", "length_mm"],
+      "additionalProperties": false,
+      "properties": {
+        "radius_mm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Groesster radialer Abstand eines Mesh-Punkts zur Flanschachse (z), in mm."
+        },
+        "length_mm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Ausdehnung des Mesh entlang der Flanschachse (z-Spanne), in mm."
+        }
+      }
+    },
+    "channel_decl": {
+      "type": "object",
+      "description": "Deklaration eines logischen IO-Kanals. 'kind' gibt die erwartete physische Ausgangsart an (Grundlage fuer spaetere Pruefung gegen Setup-Mapping).",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": ["analog", "digital"],
+          "description": "Art des erwarteten physischen Ausgangs: 'analog' = AO (0..1 logisch), 'digital' = DO (0 oder 1)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Kurzbeschreibung des Kanals (z.B. 'Pumpe A — Komponente 1')"
+        },
+        "default_value": {
+          "type": "number",
+          "description": "Standardwert im Toolpath wenn nicht explizit gesetzt (default 0.0)"
+        }
+      }
+    }
+  }
+}

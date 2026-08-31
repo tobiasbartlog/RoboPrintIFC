@@ -1,0 +1,87 @@
+{
+  "workstations": [
+    {
+      "name": "doosantisch",
+      "mobility": "stationary",
+      "height_adjustable": false,
+      "base_heights_mm": [
+        0.0
+      ],
+      "height_range_mm": null,
+      "safety_min_distance_mm": 50.0,
+      "vendor": "ICoM",
+      "compatible_robots": [
+        "doosan_m1013"
+      ],
+      "mesh": "doosantisch.stl",
+      "mesh_path": "<repo>\\workstations\\doosantisch.stl",
+      "robot_base_frame": {
+        "pos_mm": [
+          780.0,
+          1090.0,
+          901.0
+        ],
+        "quat": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "work_surface_frame": {
+        "pos_mm": [
+          780.0,
+          605.0,
+          901.0
+        ],
+        "quat": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "io_channels": null,
+      "deadtime": null
+    },
+    {
+      "name": "mobile_hub",
+      "mobility": "mobile",
+      "height_adjustable": true,
+      "base_heights_mm": [],
+      "height_range_mm": {
+        "min": 0.0,
+        "max": 600.0
+      },
+      "safety_min_distance_mm": 80.0,
+      "vendor": "FGC-Labor",
+      "compatible_robots": [],
+      "mesh": null,
+      "mesh_path": null,
+      "robot_base_frame": null,
+      "work_surface_frame": null,
+      "io_channels": null,
+      "deadtime": null
+    },
+    {
+      "name": "zelle_fest",
+      "mobility": "stationary",
+      "height_adjustable": false,
+      "base_heights_mm": [
+        0.0,
+        200.0,
+        400.0
+      ],
+      "height_range_mm": null,
+      "safety_min_distance_mm": 50.0,
+      "vendor": "FGC-Labor",
+      "compatible_robots": [],
+      "mesh": null,
+      "mesh_path": null,
+      "robot_base_frame": null,
+      "work_surface_frame": null,
+      "io_channels": null,
+      "deadtime": null
+    }
+  ]
+}
