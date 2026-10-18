@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from roboprint import frames
+from roboprint import frames, selfcheck
 from roboprint.assets import REPO_ROOT, load_tool, load_workstation
 from roboprint.contracts import (
     BBox,
@@ -201,7 +201,7 @@ def _trajectory(pp: PartPlan, kin: Kin, params: PlannerParams) -> Trajectory:
 
 
 def _write_part(
-    out: Path, job: PartJob, pp: PartPlan, kin: Kin, params: PlannerParams
+    out: Path, job: PartJob, pp: PartPlan, kin: Kin, params: PlannerParams, scn: Scenario | None = None
 ) -> tuple[PartEntry, Trajectory]:
     pdir = out / "parts" / job.part_id
     pdir.mkdir(parents=True, exist_ok=True)
@@ -209,6 +209,7 @@ def _write_part(
     tp = to_toolpath(pp.sliced, pp.T_WP, job.part_id)
     dump_json(tp, pdir / "toolpath.json")
     tr = _trajectory(pp, kin, params)
+    selfcheck.apply(pp, job, tr, tp, params, scn)
     dump_json(tr, pdir / "trajectory.json")
     path = pp.path
     status = "machbar" if path.feasible else "nicht machbar"
@@ -337,7 +338,7 @@ def run_scenario(path: Path, out: Path, jobs: int = 1, progress: ProgressCallbac
     dump_json(_scene(params, root), out / "scene.json")
     entries = []
     for job, pp in zip(part_jobs, plans, strict=True):
-        entry, _ = _write_part(out, job, pp, kin, params)
+        entry, _ = _write_part(out, job, pp, kin, params, scn)
         entries.append(entry)
 
     def summary() -> Summary:

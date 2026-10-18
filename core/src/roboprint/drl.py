@@ -40,6 +40,7 @@ from typing import Literal
 
 import numpy as np
 
+from roboprint import params as speeds
 from roboprint.contracts import PartArtifact, Provenance, Scene, Summary, Toolpath, Trajectory, load_json
 from roboprint.robot import JOINT_VEL_LIMITS, fk_batch
 
@@ -51,7 +52,7 @@ MOVESX_MAX_POINTS = 100
 AO_CHANNELS = (1, 2)
 AO_VOLT_RANGE = (0.0, 10.0)
 TCP_SPEED_MAX_MM_S = 1000.0  # Datenblatt M1013: max. TCP-Geschwindigkeit 1 m/s
-_JOINT_ACC_FACTOR = 4.0  # robots/doosan_m1013.json: Beschleunigungsgrenze ~ 4 x v_max (provisorisch)
+_JOINT_ACC_FACTOR = speeds.JOINT_ACC_FACTOR  # robots/doosan_m1013.json: ~ 4 x v_max (provisorisch)
 _LINEAR_TOL_MM = 0.01  # Abweichung, ab der ein kartesischer Knick ein neues movel ist
 _LINEAR_TOL_RAD = 1e-6  # dito fuer gelenklineare Transfers
 _SAME_MM = 1e-4
@@ -124,15 +125,15 @@ def format_posj(q: np.ndarray) -> str:
 class DrlParams:
     """Emitter-Parameter (SPEC §10). Felder mit Kommentar "A" sind Annahmen fuer den Programmkopf."""
 
-    v_print_mm_s: float = 100.0  # A
+    v_print_mm_s: float = speeds.V_PRINT_MM_S  # A
     w_print_deg_s: float = 60.0  # A (Orientierung beim Druck)
-    a_print_mm_s2: float = 500.0  # A
+    a_print_mm_s2: float = speeds.A_PRINT_MM_S2  # A
     aw_print_deg_s2: float = 120.0  # A
-    v_travel_mm_s: float = 250.0  # A
+    v_travel_mm_s: float = speeds.V_TRAVEL_MM_S  # A
     w_travel_deg_s: float = 90.0  # A
-    a_travel_mm_s2: float = 1000.0  # A
+    a_travel_mm_s2: float = speeds.A_TRAVEL_MM_S2  # A
     aw_travel_deg_s2: float = 180.0  # A
-    joint_speed_fraction: float = 0.30  # A, Gelenke <= 30 % der Grenzen
+    joint_speed_fraction: float = speeds.JOINT_SPEED_FRACTION  # A, Gelenke <= 30 % der Grenzen
     pump_channel: int = 1  # A, AO 1 = pump_a
     v_pump_v: float = 5.0  # A
     t_tot_s: float = 3.0  # A, provisorisch
@@ -498,12 +499,14 @@ def _render(pp: PlannedPart, dialect: str, steps: list[Step], T_BT: np.ndarray) 
                     f"{ind}movel({px}, radius={_f(st.radius_mm, 4)}, ref=DR_BASE, ra=DR_MV_RA_DUPLICATE)"
                     f"  # s{st.sample}"
                 )
-        elif st.kind in ("lift", "lower"):
-            px = format_posx(T_BT[st.sample])
-            out.append(f"{ind}movel({px}, {vt}, {at}, ref=DR_BASE)  # {st.kind}, s{st.sample}")
         else:
+            # Geschwindigkeit je Bewegungsart aus `roboprint.params` (wie die Zeitachse in `timing`):
+            # Druckgeschwindigkeit = Vorgabe von set_velx, sonst explizites vel=/acc=.
             px = format_posx(T_BT[st.sample])
-            out.append(f"{ind}movel({px}, ref=DR_BASE)  # {st.kind}, s{st.sample}")
+            if st.kind in speeds.PRINT_SPEED_KINDS:
+                out.append(f"{ind}movel({px}, ref=DR_BASE)  # {st.kind}, s{st.sample}")
+            else:
+                out.append(f"{ind}movel({px}, {vt}, {at}, ref=DR_BASE)  # {st.kind}, s{st.sample}")
     flush()
     out += [
         f"{ind}# Abschluss",

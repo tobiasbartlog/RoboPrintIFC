@@ -7,6 +7,8 @@ from typing import Any
 
 import numpy as np
 
+from roboprint import params as speeds
+
 
 @dataclass(frozen=True)
 class PlannerParams:
@@ -14,9 +16,9 @@ class PlannerParams:
     layer_height_mm: float = 10.0
     bead_width_mm: float = 30.0
     shells: int = 2
-    v_print_mm_s: float = 100.0
-    v_travel_mm_s: float = 250.0
-    joint_speed_fraction: float = 0.30
+    v_print_mm_s: float = speeds.V_PRINT_MM_S
+    v_travel_mm_s: float = speeds.V_TRAVEL_MM_S
+    joint_speed_fraction: float = speeds.JOINT_SPEED_FRACTION
     z_lift_mm: float = 30.0
     approach_mm: float = 20.0
     v_pump_v: float = 5.0
