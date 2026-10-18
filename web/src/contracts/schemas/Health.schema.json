@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "const": "ok",
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "status",
+    "version",
+    "versions"
+  ],
+  "title": "Health",
+  "type": "object"
+}

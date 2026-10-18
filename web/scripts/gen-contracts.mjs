@@ -1,26 +1,28 @@
-// Erzeugt web/src/contracts/*.ts aus den JSON-Schemas in web/src/contracts/schemas/.
+// Erzeugt web/src/contracts/<Name>.ts aus web/src/contracts/schemas/<Name>.schema.json.
 // Die Schemas schreibt `roboprint export-contracts web/src/contracts/schemas`.
-// Fehlt der Schemaordner, tut das Skript nichts.
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+// Fehlt der Schemaordner, tut das Skript nichts. index.ts ist statisch.
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compileFromFile } from 'json-schema-to-typescript';
+import { compile } from 'json-schema-to-typescript';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'contracts');
-const schemaDir = join(root, 'schemas');
+const dir = join(root, 'schemas');
 
-if (!existsSync(schemaDir)) {
+if (!existsSync(dir)) {
   console.log('gen:contracts: kein Schemaordner, nichts zu tun');
   process.exit(0);
 }
 
-const files = readdirSync(schemaDir).filter((f) => f.endsWith('.json'));
-mkdirSync(root, { recursive: true });
-for (const file of files) {
-  const ts = await compileFromFile(join(schemaDir, file), {
-    bannerComment: '/* Automatisch erzeugt (npm run gen:contracts), nicht von Hand aendern. */',
+for (const f of readdirSync(dir).filter((f) => f.endsWith('.schema.json')).sort()) {
+  const name = f.replace('.schema.json', '');
+  const schema = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+  const ts = await compile(schema, name, {
+    bannerComment:
+      '/* eslint-disable */\n/**\n * GENERIERT aus schemas/' + f + ' (npm run gen:contracts). Nicht von Hand ändern.\n */',
     additionalProperties: false,
+    cwd: dir,
   });
-  writeFileSync(join(root, basename(file, '.json') + '.ts'), ts);
-  console.log(`gen:contracts: ${file}`);
+  writeFileSync(join(root, name + '.ts'), ts);
+  console.log(`gen:contracts: ${f}`);
 }

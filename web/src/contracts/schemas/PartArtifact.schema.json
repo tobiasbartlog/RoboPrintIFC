@@ -1,0 +1,182 @@
+{
+  "$defs": {
+    "BBox": {
+      "additionalProperties": false,
+      "properties": {
+        "max": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "min": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ],
+      "title": "BBox",
+      "type": "object"
+    },
+    "Cause": {
+      "additionalProperties": false,
+      "properties": {
+        "link": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "obstacle": {
+          "type": "string"
+        },
+        "sample": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "t_s": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "sample",
+        "t_s",
+        "link",
+        "obstacle",
+        "message"
+      ],
+      "title": "Cause",
+      "type": "object"
+    },
+    "Placement": {
+      "additionalProperties": false,
+      "properties": {
+        "x_mm": {
+          "type": "number"
+        },
+        "y_mm": {
+          "type": "number"
+        },
+        "yaw_deg": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x_mm",
+        "y_mm",
+        "yaw_deg"
+      ],
+      "title": "Placement",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "T_LP": {
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "maxItems": 4,
+        "minItems": 4,
+        "type": "array"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "T_SP": {
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "maxItems": 4,
+        "minItems": 4,
+        "type": "array"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "T_WP": {
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "maxItems": 4,
+        "minItems": 4,
+        "type": "array"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "bbox_P": {
+      "$ref": "#/$defs/BBox"
+    },
+    "cause": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Cause"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "n_layers": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "part_id": {
+      "type": "string"
+    },
+    "placement": {
+      "$ref": "#/$defs/Placement"
+    },
+    "schema_version": {
+      "const": "2",
+      "default": "2",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "machbar",
+        "nicht machbar"
+      ],
+      "type": "string"
+    },
+    "volume_mm3": {
+      "type": "number"
+    },
+    "wall_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "part_id",
+    "wall_id",
+    "T_LP",
+    "T_SP",
+    "T_WP",
+    "placement",
+    "bbox_P",
+    "volume_mm3",
+    "n_layers",
+    "status",
+    "cause"
+  ],
+  "title": "PartArtifact",
+  "type": "object"
+}

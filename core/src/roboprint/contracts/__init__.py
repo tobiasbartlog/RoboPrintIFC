@@ -1,5 +1,68 @@
-"""Pydantic-Modelle aller Artefakte (SPEC §6) und JSON-Schema-Export.
+"""Verträge: Pydantic-Modelle aller Artefakte, API- und Szenario-Formate, Schema-Export."""
 
-Wird in Aufgabe A0.3 gefuellt (`Summary`, `PartArtifact`, `Toolpath`, `Trajectory`, `Scene`,
-`export_schemas(dir)`).
-"""
+from ._types import SCENARIO_SCHEMA_VERSION, SCHEMA_VERSION, Kind, PartStatus, RingKind, Status
+from .api import Example, Health, JobCreate, JobCreated, JobState, ProjectCreate, ProjectCreated, ProjectInfo
+from .artifacts import (
+    BBox,
+    Cause,
+    PartArtifact,
+    PartEntry,
+    Placement,
+    Provenance,
+    Ring,
+    Scene,
+    SceneParams,
+    SceneRobot,
+    SceneTool,
+    SceneWorkstation,
+    Summary,
+    Toolpath,
+    Trajectory,
+    TrajectorySummary,
+    WallEntry,
+)
+from .io import TOP_LEVEL_MODELS, dump_json, export_schemas, load_json
+from .scenario import BoxSource, IfcSource, PlacementOverride, Scenario, ScenarioLimits
+
+__all__ = [
+    "SCENARIO_SCHEMA_VERSION",
+    "SCHEMA_VERSION",
+    "TOP_LEVEL_MODELS",
+    "BBox",
+    "BoxSource",
+    "Cause",
+    "Example",
+    "Health",
+    "IfcSource",
+    "JobCreate",
+    "JobCreated",
+    "JobState",
+    "Kind",
+    "PartArtifact",
+    "PartEntry",
+    "PartStatus",
+    "Placement",
+    "PlacementOverride",
+    "ProjectCreate",
+    "ProjectCreated",
+    "ProjectInfo",
+    "Provenance",
+    "Ring",
+    "RingKind",
+    "Scenario",
+    "ScenarioLimits",
+    "Scene",
+    "SceneParams",
+    "SceneRobot",
+    "SceneTool",
+    "SceneWorkstation",
+    "Status",
+    "Summary",
+    "Toolpath",
+    "Trajectory",
+    "TrajectorySummary",
+    "WallEntry",
+    "dump_json",
+    "export_schemas",
+    "load_json",
+]  # fmt: skip

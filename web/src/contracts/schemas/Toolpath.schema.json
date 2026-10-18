@@ -1,0 +1,81 @@
+{
+  "$defs": {
+    "Ring": {
+      "additionalProperties": false,
+      "properties": {
+        "closed": {
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "outer",
+            "inner",
+            "hole"
+          ],
+          "type": "string"
+        },
+        "layer": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "shell": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "waypoints": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 7,
+            "minItems": 7,
+            "type": "array"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "layer",
+        "shell",
+        "kind",
+        "closed",
+        "waypoints"
+      ],
+      "title": "Ring",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "bead_width_mm": {
+      "type": "number"
+    },
+    "layer_height_mm": {
+      "type": "number"
+    },
+    "part_id": {
+      "type": "string"
+    },
+    "rings": {
+      "items": {
+        "$ref": "#/$defs/Ring"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "2",
+      "default": "2",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "part_id",
+    "layer_height_mm",
+    "bead_width_mm",
+    "rings"
+  ],
+  "title": "Toolpath",
+  "type": "object"
+}
