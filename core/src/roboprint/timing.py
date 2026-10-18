@@ -1,10 +1,116 @@
-"""Zeitparametrierung unter Gelenk- und Bahngrenzen."""
+"""Zeitparametrierung (SPEC §5.5): Trapezprofile je Bewegungsabschnitt, `t_s` streng monoton.
+
+- Druck: konstante Bahngeschwindigkeit v_print (Rampen mit a_print an Anfang und Ende des Rings).
+- An-/Abfahrt, Abheben, Absenken: kartesisch mit v_travel.
+- Transfer (movej): gelenklinear mit hoechstens `joint_speed_fraction` der Achsgrenzen.
+- In jedem Abschnitt gilt zusaetzlich |dq_j| / dt <= Achsgrenze (Druck: volle Grenze, Travel:
+  Anteil); wo das greift, wird die Zeit gestreckt.
+- Verweilzeit t_tot am Ringstart: Das erste Druck-Sample (Duplikat des Ringstarts) bekommt
+  t_tot zusaetzlich (Pumpe an, `wait(t_tot)` im DRL).
+
+Die Zeiten dienen der Wiedergabe und der Druckzeitschaetzung; geprueft wird geometrisch.
+"""
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
+
+import numpy as np
+
+from roboprint.robot import JOINT_VEL_LIMITS
+
+DT_FLOOR_S = 1e-3
+_CARTESIAN = ("print", "approach", "retract", "lift", "lower")
 
 
-def time_parametrize(*args: Any, **kwargs: Any) -> Any:
-    """Versieht die Gelenktrajektorie mit Zeitstempeln `t_s`."""
-    raise NotImplementedError
+@dataclass(frozen=True)
+class TimingParams:
+    v_print_mm_s: float = 100.0
+    a_print_mm_s2: float = 500.0
+    v_travel_mm_s: float = 250.0
+    a_travel_mm_s2: float = 1000.0
+    joint_speed_fraction: float = 0.30
+    joint_acc_factor: float = 4.0  # Gelenkbeschleunigung = Faktor x Gelenkgeschwindigkeit (1/s)
+    t_tot_s: float = 3.0
+
+
+def trapezoid_times(s: np.ndarray, v: float, a: float) -> np.ndarray:
+    """Zeit, zu der die Bogenlaenge s (aufsteigend, ab 0) im Trapezprofil erreicht wird."""
+    s = np.asarray(s, float)
+    S = float(s[-1]) if len(s) else 0.0  # noqa: N806
+    if S <= 0.0:
+        return np.zeros_like(s)
+    s_acc = v * v / (2.0 * a)
+    if S >= 2.0 * s_acc:
+        t_acc = v / a
+        t_cruise = (S - 2.0 * s_acc) / v
+        t = np.where(
+            s <= s_acc,
+            np.sqrt(2.0 * np.maximum(s, 0.0) / a),
+            np.where(
+                s <= S - s_acc,
+                t_acc + (s - s_acc) / v,
+                t_acc + t_cruise + t_acc - np.sqrt(2.0 * np.maximum(S - s, 0.0) / a),
+            ),
+        )
+    else:
+        vp = np.sqrt(S * a)
+        th = vp / a
+        t = np.where(
+            s <= S / 2,
+            np.sqrt(2.0 * np.maximum(s, 0.0) / a),
+            2 * th - np.sqrt(2.0 * np.maximum(S - s, 0.0) / a),
+        )
+    return t
+
+
+def _runs(kind: list[str], ring: list[int]) -> list[tuple[int, int]]:
+    runs, s = [], 0
+    for i in range(1, len(kind) + 1):
+        if i == len(kind) or kind[i] != kind[s] or ring[i] != ring[s]:
+            runs.append((s, i))
+            s = i
+    return runs
+
+
+def time_parametrize(
+    q: np.ndarray,
+    tcp_mm: np.ndarray,
+    kind: list[str],
+    ring: list[int],
+    params: TimingParams | None = None,
+) -> np.ndarray:
+    """Zeitstempel t_s (N,) fuer die dichte Trajektorie; Sample 0 bei t = 0."""
+    p = params or TimingParams()
+    q = np.asarray(q, float)
+    P = np.asarray(tcp_mm, float)  # noqa: N806
+    n = len(q)
+    dt = np.zeros(n)
+    vj_full = JOINT_VEL_LIMITS
+    vj_travel = p.joint_speed_fraction * JOINT_VEL_LIMITS
+    for a, b in _runs(kind, ring):
+        if a == 0:
+            a = 1  # Sample 0 ist der Start (Home)
+            if b <= a:
+                continue
+        k = kind[a]
+        idx = np.arange(a, b)
+        dq = np.abs(q[idx] - q[idx - 1])
+        if k in _CARTESIAN:
+            ds = np.linalg.norm(P[idx] - P[idx - 1], axis=1)
+            v, acc = (
+                (p.v_print_mm_s, p.a_print_mm_s2) if k == "print" else (p.v_travel_mm_s, p.a_travel_mm_s2)
+            )
+            t = trapezoid_times(np.concatenate([[0.0], np.cumsum(ds)]), v, acc)
+            d = np.diff(t)
+            vlim = vj_full if k == "print" else vj_travel
+        else:  # transfer, gelenklinear: Fortschritt in "Zeit bei Hoechstgeschwindigkeit"
+            du = (dq / vj_travel).max(axis=1)
+            t = trapezoid_times(np.concatenate([[0.0], np.cumsum(du)]), 1.0, p.joint_acc_factor)
+            d = np.diff(t)
+            vlim = vj_travel
+        d = np.maximum(d, (dq / vlim).max(axis=1))
+        dt[idx] = np.maximum(d, DT_FLOOR_S)
+        if k == "print":
+            dt[a] += p.t_tot_s
+    return np.cumsum(dt)
