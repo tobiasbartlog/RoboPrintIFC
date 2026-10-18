@@ -1,7 +1,8 @@
 """Zeitparametrierung (SPEC §5.5): Trapezprofile je Bewegungsabschnitt, `t_s` streng monoton.
 
 - Druck: konstante Bahngeschwindigkeit v_print (Rampen mit a_print an Anfang und Ende des Rings).
-- An-/Abfahrt, Abheben, Absenken: kartesisch mit v_travel.
+- An-/Abfahrt: kartesisch mit v_print (wie im DRL ohne `vel=`); Abheben, Absenken: v_travel.
+  Zuordnung und Standardwerte stehen in `roboprint.params` (eine Quelle fuer `timing` und `drl`).
 - Transfer (movej): gelenklinear mit hoechstens `joint_speed_fraction` der Achsgrenzen.
 - In jedem Abschnitt gilt zusaetzlich |dq_j| / dt <= Achsgrenze (Druck: volle Grenze, Travel:
   Anteil); wo das greift, wird die Zeit gestreckt.
@@ -17,20 +18,23 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from roboprint import params as speeds
 from roboprint.robot import JOINT_VEL_LIMITS
 
 DT_FLOOR_S = 1e-3
-_CARTESIAN = ("print", "approach", "retract", "lift", "lower")
+_CARTESIAN = speeds.CARTESIAN_KINDS
 
 
 @dataclass(frozen=True)
 class TimingParams:
-    v_print_mm_s: float = 100.0
-    a_print_mm_s2: float = 500.0
-    v_travel_mm_s: float = 250.0
-    a_travel_mm_s2: float = 1000.0
-    joint_speed_fraction: float = 0.30
-    joint_acc_factor: float = 4.0  # Gelenkbeschleunigung = Faktor x Gelenkgeschwindigkeit (1/s)
+    """Standardwerte aus `roboprint.params` (eine Quelle mit dem DRL-Emitter)."""
+
+    v_print_mm_s: float = speeds.V_PRINT_MM_S
+    a_print_mm_s2: float = speeds.A_PRINT_MM_S2
+    v_travel_mm_s: float = speeds.V_TRAVEL_MM_S
+    a_travel_mm_s2: float = speeds.A_TRAVEL_MM_S2
+    joint_speed_fraction: float = speeds.JOINT_SPEED_FRACTION
+    joint_acc_factor: float = speeds.JOINT_ACC_FACTOR  # Gelenkbeschleunigung = Faktor x Gelenkgeschw. (1/s)
     t_tot_s: float = 3.0
 
 
@@ -98,8 +102,8 @@ def time_parametrize(
         dq = np.abs(q[idx] - q[idx - 1])
         if k in _CARTESIAN:
             ds = np.linalg.norm(P[idx] - P[idx - 1], axis=1)
-            v, acc = (
-                (p.v_print_mm_s, p.a_print_mm_s2) if k == "print" else (p.v_travel_mm_s, p.a_travel_mm_s2)
+            v, acc = speeds.cartesian_speed(
+                k, p.v_print_mm_s, p.a_print_mm_s2, p.v_travel_mm_s, p.a_travel_mm_s2
             )
             t = trapezoid_times(np.concatenate([[0.0], np.cumsum(ds)]), v, acc)
             d = np.diff(t)
