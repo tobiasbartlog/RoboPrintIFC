@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T00:34:58+02:00 · Session: orchestrator · Phase: P2
+Herzschlag: 2026-10-19T00:59:26+02:00 · Session: orchestrator · Phase: P2
 
 # PROGRESS — Nachtlauf v2
 
@@ -10,9 +10,9 @@ Ablauf und Regeln stehen in `spec/NACHTLAUF.md`, die Gates in `spec/SPEC.md` §1
 |---|---|---|---|
 | G1 Kinematik | grün | 2000 FK + 2000 IK gegen Pinocchio | P0 Ende |
 | G2 Kollision | grün | 500 Posen; d_rp ≥ 0,5 mm unter d_coal, |Δ| ≤ 4,3 mm (beide ≥ 0) | P1 A1.4 |
-| G3 Referenzmodul S1 | rot | — | |
+| G3 Referenzmodul S1 | grün | d_min 10,83 mm, 62 112 Samples, 0 coll/unreach | P2 A2.1 |
 | G4 Beispiel-IFC S2 + S3 | rot | — | |
-| G5 DRL | rot | — | |
+| G5 DRL | grün (nur S1) | fake_drcf v2+v3 S1 | P2 A2.1 |
 | G6 Viewer | rot | — | |
 | G7 Laufzeit | rot | — | |
 | G8 Qualität | grün | ruff, pytest 17, web lint/typecheck/test | P0 A0.1 |
@@ -194,3 +194,16 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Ergebnis: G1, G2, G8 grün; Kollisionswelt nutzt frames/assets statt eigener JSON-Lesung; URDF wird nur noch in
   `urdf_chain.py` geparst. `ik_batch` unverändert schnell (20k Posen ~1,9 s).
 - Commit: 929fe77
+
+### 2026-10-19 00:59 P2/A2.1 Planer, Travel, Verdichtung, timing, pipeline, CLI
+- Ergebnis: **G3 grün** (S1 machbar, d_min 10,83 mm nozzle_tip ↔ table in Schicht 0, 62 112 Samples, 0 collision,
+  0 unreachable, 0 Zweigwechsel); **G5 grün für S1** (v2 + v3). `verify --fast`: G1, G2, G3, G5, G8 grün.
+  Laufzeit S1 run-scenario 89,8 s (Grenze 180 s), check_run 26,7 s. S3: nicht machbar, 68 594 collision-Samples,
+  d_min −207 mm, check_run bestätigt.
+- Commit: 358e40d
+- Verfahren: Planung mit schnellem Kugel-Double, danach jedes Sample gegen `collision.World` (3 Prozesse);
+  bei Verstoß automatische Neuplanung mit der echten Welt. Platzierung S1: (−500, 325) mm, Gier 0°.
+- Annahmen: nach dem letzten Ring nur `lift`, kein Rücktransfer nach Home; ein zusätzliches Druck-Sample am
+  Ringstart trägt t_tot; Teil-ID bei Box `box_01`. Reserve zum Tisch in Schicht 0 knapp (10,83 mm bei d_hard 10 mm),
+  weil die Düsenspitze nur 1,85 mm über dem TCP endet.
+- Naht für P2/A2.2: `roboprint.decompose.scenario_parts(scenario, params) -> (walls, parts)`.
