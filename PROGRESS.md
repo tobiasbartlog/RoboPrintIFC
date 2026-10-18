@@ -207,3 +207,8 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   Ringstart trägt t_tot; Teil-ID bei Box `box_01`. Reserve zum Tisch in Schicht 0 knapp (10,83 mm bei d_hard 10 mm),
   weil die Düsenspitze nur 1,85 mm über dem TCP endet.
 - Naht für P2/A2.2: `roboprint.decompose.scenario_parts(scenario, params) -> (walls, parts)`.
+
+### 2026-10-19 01:09 P3 G6-Lauf gegen echte Läufe S1/S3
+- Ergebnis: S3 erzeugt, check_run bestätigt (BESTANDEN). e2e: 7 passed, 1 failed – G6-Uhr-Invariante läuft in den
+  Test-Timeout (120 s) bei `seek` auf den 62k-Sample-Läufen. Glückspfad und Kollisionspfad S3 grün.
+- Offen: A3.5 (opus) behebt die Laufzeit von `seek`, ohne das Kriterium zu lockern.
