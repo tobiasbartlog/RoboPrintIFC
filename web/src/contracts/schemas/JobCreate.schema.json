@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "params": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "boolean"
+          }
+        ]
+      },
+      "type": "object"
+    },
+    "planner_mode": {
+      "default": "collision_aware",
+      "enum": [
+        "collision_aware",
+        "ignore_collision"
+      ],
+      "type": "string"
+    },
+    "wall_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "wall_id",
+    "params",
+    "planner_mode"
+  ],
+  "title": "JobCreate",
+  "type": "object"
+}

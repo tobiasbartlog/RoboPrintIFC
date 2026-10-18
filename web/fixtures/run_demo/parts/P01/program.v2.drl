@@ -1,0 +1,6 @@
+# PLATZHALTER (Fixture, nicht geprueft): kein ausfuehrbares Programm.
+# Dialekt v2, TCP FGC_30GUT, Teil P01 (600 x 200 x 40 mm, 4 Schichten)
+set_tcp("FGC_30GUT")
+movej(posj(0.0, 0.0, 90.0, 0.0, 90.0, 0.0), vel=30, acc=60)
+# ... Fixture: die eigentlichen Bewegungsbefehle erzeugt der Planer ...
+movej(posj(0.0, 0.0, 90.0, 0.0, 90.0, 0.0), vel=30, acc=60)
