@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-18T22:57:57+02:00 · Session: orchestrator · Phase: P0
+Herzschlag: 2026-10-18T23:01:51+02:00 · Session: orchestrator · Phase: P0
 
 # PROGRESS — Nachtlauf v2
 
@@ -105,3 +105,11 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Fehlend: Abstandskosten, psi-Strafe, Kantenschranke dq_max, d_min/Zeugen je Pose; Binding 0.35 jung.
 - **Empfehlung: nicht hinter der Backend-Naht übernehmen.** Bericht `docs/spikes/tesseract-spike.md`.
 - Commit: 66c467c
+
+### 2026-10-18 23:01 P3/A3.1 API + Web-Client (vorgezogen)
+- Ergebnis: alle Endpunkte SPEC §8 + `GET /api/runs`; pytest core 107 passed, Web lint/typecheck/test grün
+- Commit: 51f5b36
+- Merge-Korrektur: Die tolerante Eignungsprüfung (`eligibility(wall, None)`, bei Fehler "geeignet") durch die
+  echte Signatur mit w = 30 mm ersetzt; Rauchtest mit dem Beispiel-IFC: plumbing wall ungeeignet mit Grund.
+- Annahmen: run_id = relativer Pfad unter `--runs` (z. B. `verify/S1`); Jobs in Hintergrundprozessen mit
+  Statusdatei; Progress-Callback `progress(stage, fraction, message)`; Upload ohne python-multipart.
