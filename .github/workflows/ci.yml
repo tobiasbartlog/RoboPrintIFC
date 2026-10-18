@@ -1,7 +1,7 @@
 name: ci
 
-# v2 (geführter Neustart): Jobs laufen, sobald core/ bzw. web/ existieren (Phase P0).
-# legacy/ wird nicht mehr geprüft.
+# v2 (geführter Neustart): legacy/ wird nicht mehr geprüft.
+# G1/G2 laufen als Schritte, sobald die Orakel-Dateien existieren (hashFiles).
 
 on:
   push:
@@ -10,7 +10,6 @@ on:
 jobs:
   core:
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('core/pyproject.toml') != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,12 +21,15 @@ jobs:
         run: python -m ruff check core verify
       - name: Unit-Tests
         run: python -m pytest core -q
-      - name: Gates G1 G2 (schnell)
-        run: python scripts/verify.py --gate G1 G2
+      - name: Gate G1 (Kinematik)
+        if: ${{ hashFiles('verify/oracle/test_g1_kinematics.py') != '' }}
+        run: python -m pytest verify/oracle/test_g1_kinematics.py -q
+      - name: Gate G2 (Kollision)
+        if: ${{ hashFiles('verify/oracle/test_g2_collision.py') != '' }}
+        run: python -m pytest verify/oracle/test_g2_collision.py -q
 
   web:
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('web/package.json') != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

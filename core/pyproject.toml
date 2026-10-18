@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roboprint"
+version = "2.0.0.dev0"
+description = "RoboPrintIFC v2: vom IFC-Wandmodell zum druckbaren Doosan-M1013-Programm"
+requires-python = ">=3.12"
+dependencies = [
+    "jsonschema>=4.21",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pydantic>=2",
+    "ifcopenshell",
+    "trimesh",
+    "shapely",
+    "numpy",
+    "scipy",
+    "networkx",
+    "rtree",
+    "pycollada",
+    "python-fcl",
+    "mapbox-earcut",
+    "vhacdx",
+    "manifold3d",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-xdist>=3.6",
+    "ruff>=0.6",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+roboprint = "roboprint.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
