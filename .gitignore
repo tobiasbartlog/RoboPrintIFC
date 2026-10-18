@@ -12,6 +12,10 @@ build/
 # Node / Viewer
 node_modules/
 viewer/dist/
+legacy/viewer/dist/
+web/dist/
+web/test-results/
+web/playwright-report/
 
 # Laufordner (Artefakte, ADR-004) — nie versionieren
 runs/*
@@ -27,8 +31,12 @@ projects/*
 Thumbs.db
 desktop.ini
 
-# Lokale Werkzeug-/Assistenz-Konfiguration
-.claude/
+# Lokale Werkzeug-/Assistenz-Konfiguration. Versioniert sind nur die geteilten
+# Claude-Code-Dateien (settings.json, hooks/, cloud/), die die Cloud-Session braucht.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/cloud/
 .codex/
 
 # Recherche-Volltexte (urheberrechtlich geschuetzt, ~145 MB).

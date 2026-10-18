@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "S2_beispiel_ifc_modul",
+  "beschreibung": "Alle Waende aus examples/Building-Architecture.ifc, Modus Modul am Doosantisch. Geeignete Waende muessen vollstaendig in machbare Module zerlegt werden; ungeeignete (z. B. die 24 mm duenne plumbing wall) brauchen eine regelkonforme Begruendung.",
+  "mode": "modul",
+  "source": { "kind": "ifc", "path": "examples/Building-Architecture.ifc", "walls": "all" },
+  "decompose": true,
+  "robot": "robots/doosan_m1013.json",
+  "urdf": "third_party/doosan_m1013/urdf/m1013.white.urdf",
+  "tool": "tools/30gut.json",
+  "workstation": "workstations/doosantisch.json",
+  "params": {},
+  "planner_mode": "collision_aware",
+  "expect": { "eligible_walls": "fully_decomposed_all_feasible", "ineligible_walls": "reason_required" },
+  "limits": { "wall_time_s": 1800 }
+}

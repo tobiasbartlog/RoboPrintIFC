@@ -1,0 +1,111 @@
+{
+  "permissions": {
+    "allow": [
+      "Workflow",
+      "Agent",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "WebFetch",
+      "WebSearch",
+      "Bash(bash *)",
+      "Bash(sh *)",
+      "Bash(cd *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(rm -rf runs/*)",
+      "Bash(rm -rf web/node_modules *)",
+      "Bash(touch *)",
+      "Bash(chmod *)",
+      "Bash(echo *)",
+      "Bash(sed *)",
+      "Bash(wc *)",
+      "Bash(sort *)",
+      "Bash(which *)",
+      "Bash(kill *)",
+      "Bash(pkill *)",
+      "Bash(curl -s http://localhost*)",
+      "Bash(curl http://localhost*)",
+      "Bash(curl -s http://127.0.0.1*)",
+      "Bash(ruff *)",
+      "Bash(pytest *)",
+      "Bash(git -C *)",
+      "Bash(git rev-parse *)",
+      "Bash(git ls-files *)",
+      "Bash(git restore *)",
+      "Bash(git reset --soft *)",
+      "Bash(git cherry-pick *)",
+      "Bash(git push origin HEAD:v2-nachtlauf *)",
+      "Bash(git push origin HEAD:v2/*)",
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(uv *)",
+      "Bash(pip *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git checkout *)",
+      "Bash(git switch *)",
+      "Bash(git merge *)",
+      "Bash(git rebase *)",
+      "Bash(git worktree *)",
+      "Bash(git branch *)",
+      "Bash(git fetch *)",
+      "Bash(git stash *)",
+      "Bash(git push origin v2-nachtlauf *)",
+      "Bash(git push origin v2/*)",
+      "Bash(git push -u origin v2/*)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr view *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(find *)",
+      "Bash(mkdir *)",
+      "Bash(date *)",
+      "Bash(TZ=Europe/Berlin date *)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git push origin main *)",
+      "Bash(git push origin HEAD:main *)",
+      "Bash(gh pr merge *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh\"",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ \"$CLAUDE_CODE_REMOTE\" = \"true\" ]; then python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\"; fi",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "S3_kollision_negativ",
+  "beschreibung": "Negativfall: S1-Quader, kollisionsblind geplant und so platziert, dass er in die Roboterbasis ragt (Teilmitte 155 mm vor der J1-Achse, Vorderflaeche 55 mm). Die eigene Pruefung muss collision melden, der unabhaengige Pruefer muss das bestaetigen. Dient auch dem Viewer-Test der Kollisionsanzeige.",
+  "mode": "modul",
+  "source": { "kind": "box", "size_mm": [600, 200, 400] },
+  "decompose": false,
+  "robot": "robots/doosan_m1013.json",
+  "urdf": "third_party/doosan_m1013/urdf/m1013.white.urdf",
+  "tool": "tools/30gut.json",
+  "workstation": "workstations/doosantisch.json",
+  "params": {},
+  "planner_mode": "ignore_collision",
+  "placement_override": { "x_mm": 0, "y_mm": 330, "yaw_deg": 0 },
+  "expect": { "parts": "collision_detected" },
+  "limits": { "wall_time_s": 180 }
+}

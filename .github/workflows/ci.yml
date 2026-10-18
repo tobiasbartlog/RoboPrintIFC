@@ -1,5 +1,8 @@
 name: ci
 
+# v2 (geführter Neustart): Jobs laufen, sobald core/ bzw. web/ existieren (Phase P0).
+# legacy/ wird nicht mehr geprüft.
+
 on:
   push:
   pull_request:
@@ -7,35 +10,36 @@ on:
 jobs:
   core:
     runs-on: ubuntu-latest
+    if: ${{ hashFiles('core/pyproject.toml') != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install
-        # [geo] muss mit: die Testmodule importieren numpy/trimesh/ifcopenshell/
-        # fcl direkt (kein importorskip), ohne den Stack bricht die Collection ab.
-        run: python -m pip install -e "core[dev,geo]"
+        run: python -m pip install -e "core[dev]"
       - name: Lint
-        run: python -m ruff check core
-      - name: Test
-        run: python -m pytest core
+        run: python -m ruff check core verify
+      - name: Unit-Tests
+        run: python -m pytest core -q
+      - name: Gates G1 G2 (schnell)
+        run: python scripts/verify.py --gate G1 G2
 
-  viewer:
+  web:
     runs-on: ubuntu-latest
+    if: ${{ hashFiles('web/package.json') != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
-          cache-dependency-path: viewer/package-lock.json
+          cache-dependency-path: web/package-lock.json
       - name: Install
-        run: npm --prefix viewer ci
-      # vitest schließt die Py↔TS-Paritätshälften (ADR-009): die geteilten Goldens
-      # (fk, nozzle-*, staleness) prüft der Core in pytest, der Viewer hier.
-      - name: Test
-        run: npm --prefix viewer test
-      # tsc --noEmit + vite build — fängt Typ-/Build-Drift (z. B. Konstanten-Umbau).
-      - name: Build
-        run: npm --prefix viewer run build
+        run: npm --prefix web ci
+      - name: Lint
+        run: npm --prefix web run lint
+      - name: Typecheck
+        run: npm --prefix web run typecheck
+      - name: Unit-Tests
+        run: npm --prefix web run test

@@ -1,4 +1,7 @@
 <!-- Titelblock -->
+> **Branch `v2-nachtlauf`: geführter Neustart im Aufbau.** Diese README beschreibt noch v1,
+> deren Code jetzt unter `legacy/` liegt. Stand und Plan stehen in `PROGRESS.md` und `spec/`.
+
 # RoboPrintIFC
 
 **Vom IFC-Gebäudemodell zum ausführbaren Roboterprogramm für den 3D-Druck.**
