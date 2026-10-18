@@ -123,6 +123,22 @@ def movel_chain(
         okc = np.concatenate([okc, np.zeros(len(u_add), bool)])[order]
         Qc, okc = Qc[~new], okc[~new]  # noqa: N806
         u = u_all[order]
+    else:
+        # Verfeinerungsgrenze erreicht: die zuletzt eingefuegten Samples brauchen noch IK, sonst
+        # passen q (alte Laenge) und u (neue Laenge) nicht zusammen (A2.2, IndexError in plan.py).
+        s_i = np.minimum(np.floor(u - 1e-12).astype(int), n - 2)
+        f = u - s_i
+        pts = P[s_i] + f[:, None] * (P[s_i + 1] - P[s_i])
+        ps = psi[s_i] + f * dpsi[s_i]
+        Qn, okn = kin.ik(pts[new], ps[new])  # noqa: N806
+        b = br[s_i[new] + 1]
+        Qfull = np.zeros((len(u), 6))  # noqa: N806
+        okfull = np.zeros(len(u), bool)
+        Qfull[~new], okfull[~new] = Qc, okc
+        Qfull[new] = Qn[np.arange(len(b)), b]
+        okfull[new] = okn[np.arange(len(b)), b]
+        Qc, okc = Qfull, okfull  # noqa: N806
+        q = _follow(Qc, okc, q_a)
     s_i = np.minimum(np.floor(u - 1e-12).astype(int), n - 2)
     f = u - s_i
     pts = P[s_i] + f[:, None] * (P[s_i + 1] - P[s_i])
@@ -156,4 +172,8 @@ def movej(kin: Kin, q_a: np.ndarray, q_b: np.ndarray, params: PlannerParams) -> 
         if step <= params.dense_tcp_mm:
             break
         m = int(np.ceil(m * step / params.dense_tcp_mm * 1.05))
+    else:  # Grenze erreicht: Samples zum zuletzt bestimmten m (sonst Laengen-Mismatch)
+        u = np.linspace(0.0, 1.0, m + 1)
+        Q = q_a + u[:, None] * dq  # noqa: N806
+        T = kin.tcp_W(Q)  # noqa: N806
     return Dense(Q[1:], np.ones(m, bool), T[1:, :3, 3], psi_of(T[1:, :3, :3]), u[1:])

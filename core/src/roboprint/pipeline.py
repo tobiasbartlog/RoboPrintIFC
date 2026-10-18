@@ -70,6 +70,9 @@ class PartJob:
     mesh_P: Any  # trimesh.Trimesh  # noqa: N815
     T_LP: np.ndarray  # noqa: N815
     placement: frames.Placement | None
+    plan: PartPlan | None = None  # schon in der Zerlegung voll geplant (A2.2), nicht wiederholen
+    expected_size_mm: tuple[float, float, float] | None = None  # Zellmasse (Selbstpruefung f)
+    expected_volume_mm3: float | None = None
 
 
 def _git_commit(root: Path) -> str | None:
@@ -115,7 +118,9 @@ def _box_job(scn: Scenario) -> tuple[WallEntry, list[PartJob]]:
     return wall, [PartJob(pid, "box", mesh, T_LP, pl)]
 
 
-def _ifc_jobs(scn: Scenario, params: PlannerParams) -> tuple[list[WallEntry], list[PartJob]]:
+def _ifc_jobs(
+    scn: Scenario, params: PlannerParams, jobs: int = 1, progress: ProgressCallback | None = None
+) -> tuple[list[WallEntry], list[PartJob]]:
     """IFC-Quelle: Zerlegung in Module (A2.2, `roboprint.decompose`)."""
     from roboprint import decompose
 
@@ -125,7 +130,7 @@ def _ifc_jobs(scn: Scenario, params: PlannerParams) -> tuple[list[WallEntry], li
             "IFC-Szenarien brauchen roboprint.decompose.scenario_parts(scenario, params) "
             "-> (walls, parts) (Aufgabe A2.2)"
         )
-    return fn(scn, params)
+    return fn(scn, params, jobs=jobs, progress=progress)
 
 
 def _plan_job(job: PartJob, params: PlannerParams, mode: str, procs: int = 1) -> PartPlan:
@@ -327,14 +332,17 @@ def run_scenario(path: Path, out: Path, jobs: int = 1, progress: ProgressCallbac
         wall, part_jobs = _box_job(scn)
         walls = [wall]
     else:
-        walls, part_jobs = _ifc_jobs(scn, params)
+        walls, part_jobs = _ifc_jobs(
+            scn, params, jobs, lambda s, f, m: report("decompose", 0.02 + 0.88 * min(max(f, 0.0), 1.0), m)
+        )
     timings["decompose"] = time.perf_counter() - t
     report("decompose", 0.05, f"{len(part_jobs)} Teil(e)")
 
     t = time.perf_counter()
-    plans: list[PartPlan] = []
+    todo = [j for j in part_jobs if j.plan is None]  # Teile aus der Zerlegung sind schon geplant
+    done: dict[str, PartPlan] = {}
     n_cpu = os.cpu_count() or 1
-    jobs = min(n_cpu if jobs <= 0 else jobs, len(part_jobs))
+    jobs = min(n_cpu if jobs <= 0 else jobs, max(len(todo), 1))
     if mp.current_process().daemon:  # z. B. API-Job: keine Kindprozesse erlaubt
         jobs = 1
     if jobs > 1:
@@ -344,14 +352,15 @@ def run_scenario(path: Path, out: Path, jobs: int = 1, progress: ProgressCallbac
         _warm_caches(params, root)
         ctx = mp.get_context("fork") if "fork" in mp.get_all_start_methods() else None
         with ProcessPoolExecutor(max_workers=jobs, mp_context=ctx) as ex:
-            futs = [ex.submit(_plan_job, j, params, scn.planner_mode, procs) for j in part_jobs]
-            for i, f in enumerate(futs):
-                plans.append(f.result())
+            futs = [ex.submit(_plan_job, j, params, scn.planner_mode, procs) for j in todo]
+            for i, (j, f) in enumerate(zip(todo, futs, strict=True)):
+                done[j.part_id] = f.result()
                 report("plan", 0.05 + 0.85 * (i + 1) / len(futs), f"Teil {i + 1}/{len(futs)}")
     else:
-        for i, j in enumerate(part_jobs):
-            report("plan", 0.05 + 0.85 * i / max(len(part_jobs), 1), f"Teil {i + 1}/{len(part_jobs)}")
-            plans.append(_plan_job(j, params, scn.planner_mode, _check_procs()))
+        for i, j in enumerate(todo):
+            report("plan", 0.05 + 0.85 * i / max(len(todo), 1), f"Teil {i + 1}/{len(todo)}")
+            done[j.part_id] = _plan_job(j, params, scn.planner_mode, _check_procs())
+    plans: list[PartPlan] = [j.plan if j.plan is not None else done[j.part_id] for j in part_jobs]
     timings["plan"] = time.perf_counter() - t
     for pp in plans:
         for k, v in pp.timings_s.items():
