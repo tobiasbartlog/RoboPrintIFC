@@ -16,6 +16,7 @@ import trimesh
 
 from roboprint import collision_assets as ca
 from roboprint.collision import LINKS, World, checked_pairs
+from roboprint.frames import T_from_pos_quat
 
 slow = pytest.mark.skipif(not os.environ.get("ROBOPRINT_SLOW"), reason="ausfuehrlich: ROBOPRINT_SLOW=1")
 
@@ -121,7 +122,7 @@ def test_known_distance_tool_body_to_box():
     import json
 
     tj = json.loads((w0.root / "tools" / "30gut.json").read_text())
-    tool.apply_transform(ca.pose_matrix(tj["mesh_transform"]["pos_mm"], tj["mesh_transform"]["quat"]))
+    tool.apply_transform(T_from_pos_quat(tj["mesh_transform"]["pos_mm"], tj["mesh_transform"]["quat"]))
     tool.apply_transform(T_W6)
     v = np.asarray(tool.vertices)
     body = v[np.linalg.norm(v - tcp_W, axis=1) > 40.0]

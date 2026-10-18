@@ -14,7 +14,6 @@ Geprueft werden genau die Paare aus SPEC §5.1 (`checked_pairs`).
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -25,6 +24,8 @@ import numpy as np
 import trimesh
 
 from roboprint import collision_assets as ca
+from roboprint import frames as fm
+from roboprint.assets import load_tool, load_workstation, tool_mesh_path, workstation_mesh_path
 from roboprint.urdf_chain import load_chain
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -115,25 +116,18 @@ class _Static:
     table: list[ca.ConvexPart]
 
 
-def _read_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 @lru_cache(maxsize=4)
 def _static_assets(root: Path, r_free_mm: float) -> _Static:
     """Glieder, Werkzeug und Tisch aus den Default-Assets (einmal je Prozess, Platte gecacht)."""
     chain = load_chain(root)
-    ws_path = root / "workstations" / "doosantisch.json"
-    ws = _read_json(ws_path)
-    tool_path = root / "tools" / "30gut.json"
-    tool = _read_json(tool_path)
-    T_WB = ca.pose_matrix(ws["robot_base_frame"]["pos_mm"], ws["robot_base_frame"]["quat"])  # noqa: N806
-    T_FT = ca.pose_matrix(tool["tcp_frame"]["pos_mm"], tool["tcp_frame"]["quat"])  # noqa: N806
-    T_Fm = ca.pose_matrix(tool["mesh_transform"]["pos_mm"], tool["mesh_transform"]["quat"])  # noqa: N806
-    tool_mesh = trimesh.load(str(tool_path.parent / tool["mesh"]), force="mesh", process=True)
-    tool_mesh.apply_transform(T_Fm)
+    ws = load_workstation(root)
+    tool = load_tool(root)
+    T_WB = fm.T_WB(ws)  # noqa: N806
+    T_FT = fm.T_FT(tool)  # noqa: N806
+    tool_mesh = trimesh.load(str(tool_mesh_path(tool, root)), force="mesh", process=True)
+    tool_mesh.apply_transform(fm.T_F_mesh(tool))
     body, tip = ca.tool_parts(tool_mesh, T_FT[:3, 3], r_free_mm)
-    table_mesh = trimesh.load(str(ws_path.parent / ws["mesh"]), force="mesh", process=True)
+    table_mesh = trimesh.load(str(workstation_mesh_path(ws, root)), force="mesh", process=True)
     return _Static(
         chain=chain,
         T_WB=T_WB,
