@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T01:40:53+02:00 · Session: orchestrator · Phase: P2
+Herzschlag: 2026-10-19T01:47:02+02:00 · Session: orchestrator · Phase: P4
 
 # PROGRESS — Nachtlauf v2
 
@@ -13,7 +13,7 @@ Ablauf und Regeln stehen in `spec/NACHTLAUF.md`, die Gates in `spec/SPEC.md` §1
 | G3 Referenzmodul S1 | grün | d_min 10,83 mm, 62 112 Samples, 0 coll/unreach | P2 A2.1 |
 | G4 Beispiel-IFC S2 + S3 | rot | — | |
 | G5 DRL | grün (nur S1) | fake_drcf v2+v3 S1 | P2 A2.1 |
-| G6 Viewer | rot | — | |
+| G6 Viewer | grün | e2e 8 passed (53 s), Uhr-Invariante 50 t S1+S3 | P3 A3.5 |
 | G7 Laufzeit | rot | — | |
 | G8 Qualität | grün | ruff, pytest 17, web lint/typecheck/test | P0 A0.1 |
 
@@ -239,3 +239,11 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   Druck im Material (1 mm), Start in Home (0,5°), Teilmaße wie Szenario/Zerlegung. Verletzung → `nicht machbar`.
 - `params.py` ist die eine Quelle für Geschwindigkeiten; Zeitachse und DRL nutzen jetzt dieselben Werte
   (An-/Abfahrt v_print, Abheben/Absenken v_travel).
+
+### 2026-10-19 01:47 P3/A3.5 G6-Uhr-Invariante → P3 abgeschlossen
+- Ergebnis: **G6 grün** (`verify --gate G6`, 53 s, gegen echte Läufe S1/S3). Kriterium unverändert.
+- Commit: a469800
+- Ursachen: Kontaktlinie übersetzte bei jedem Sample den Shader neu; `seek` wartete auf gestaute Animationsframes.
+  Neu: dauerhaftes Linienmaterial, `seek` wartet auf die Gelenkwinkel im Szenengraphen, `PacedRender`
+  (höchstens ein Frame in der GPU), memoisierte Timeline/Liste, Druckbahn einmal nach Schicht sortiert.
+- Screenshots unter `web/e2e/screenshots/` aus dem Gate-Lauf aktualisiert.
