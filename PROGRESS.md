@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T01:26:26+02:00 · Session: orchestrator · Phase: P2
+Herzschlag: 2026-10-19T01:40:53+02:00 · Session: orchestrator · Phase: P2
 
 # PROGRESS — Nachtlauf v2
 
@@ -231,3 +231,11 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Commit: 6c27a7a
 - Folgeaufgabe A4.2: systemseitige Selbstprüfungen (Schichtreihenfolge, Travel über Druckstand, Teil auf Tisch,
   Druck im Teil) und `timing` aus derselben Geschwindigkeitsquelle wie `drl`.
+
+### 2026-10-19 01:40 P4/A4.2 Selbstprüfungen + eine Geschwindigkeitsquelle
+- Ergebnis: `verify --fast` G1, G2, G3, G5, G8 grün. S1 run-scenario 121 s unter Last (andere Agenten), Selbstprüfung 1,8 s.
+- Commit: 85e8cf8
+- `selfcheck.py`: Schichtreihenfolge, Travel über dem Druckstand, Teil auf dem Tisch und frei von der Roboterbasis,
+  Druck im Material (1 mm), Start in Home (0,5°), Teilmaße wie Szenario/Zerlegung. Verletzung → `nicht machbar`.
+- `params.py` ist die eine Quelle für Geschwindigkeiten; Zeitachse und DRL nutzen jetzt dieselben Werte
+  (An-/Abfahrt v_print, Abheben/Absenken v_travel).
