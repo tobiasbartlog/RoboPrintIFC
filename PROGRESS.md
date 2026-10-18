@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-18T23:23:58+02:00 · Session: orchestrator · Phase: P0
+Herzschlag: 2026-10-18T23:31:23+02:00 · Session: orchestrator · Phase: P0
 
 # PROGRESS — Nachtlauf v2
 
@@ -146,3 +146,12 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Annahme (Nutzer prüfen): Im G6-Glückspfad beantwortet der Test nur die beiden Job-Endpunkte per `page.route`
   und verweist auf den Lauf S1 (alles andere echte API). Ein echter Job läuft mit `G6_REAL_JOB=1`.
 - Annahme: Uhr-Invariante (1 mm) nimmt `unreachable`-Samples aus (q dort nur Anzeige); Status an allen 50 t geprüft.
+
+### 2026-10-18 23:31 P1/A1.5 DRL-Emitter (vorgezogen)
+- Ergebnis: v2 und v3 bestehen einen eigenen strengen G5-Prüfer (`core/tests/drl_checker.py`, Pinocchio-FK,
+  eigene ZYZ, ohne roboprint) auf einem FK-konsistenten Mini-Plan; manipulierte Programme werden abgelehnt.
+  Offizielles G5 (`verify/fake_drcf`) steht noch aus (A0.2). pytest 141 passed.
+- Commit: 29f69c9
+- Annahmen A: Orientierungsgeschw./Beschleunigungen (Druck 60 °/s, 500 mm/s², 120 °/s²; Travel 90 °/s,
+  1000 mm/s², 180 °/s²), set_accj = 4 × 30-%-Gelenkgeschw.; v3 druckt standardmäßig wie v2 mit movel.
+- Offen (Gerät): ob `try/finally` in DRL 2.x läuft und ein Stopp am Teach Pendant es auslöst.
