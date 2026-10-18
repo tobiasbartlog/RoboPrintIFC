@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T00:31:52+02:00 · Session: orchestrator · Phase: P2
+Herzschlag: 2026-10-19T00:34:58+02:00 · Session: orchestrator · Phase: P2
 
 # PROGRESS — Nachtlauf v2
 
@@ -189,3 +189,8 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Kaltstart des Geometrie-Caches (~/.cache/roboprint/collision) ~3,5 min; zählt bei leerem Cache gegen G7.
 - Offen (P4): Frame-Übergänge in `collision.py` liest das Modul direkt aus den JSONs – in `frames.py` zusammenführen;
   `robot.py` kann auf `urdf_chain.py` umstellen.
+
+### 2026-10-19 00:34 P4/A4.0 Konsolidierung (vorgezogen)
+- Ergebnis: G1, G2, G8 grün; Kollisionswelt nutzt frames/assets statt eigener JSON-Lesung; URDF wird nur noch in
+  `urdf_chain.py` geparst. `ik_batch` unverändert schnell (20k Posen ~1,9 s).
+- Commit: 929fe77
