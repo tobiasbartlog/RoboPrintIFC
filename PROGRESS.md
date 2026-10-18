@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-18T23:01:51+02:00 · Session: orchestrator · Phase: P0
+Herzschlag: 2026-10-18T23:04:16+02:00 · Session: orchestrator · Phase: P0
 
 # PROGRESS — Nachtlauf v2
 
@@ -113,3 +113,10 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   echte Signatur mit w = 30 mm ersetzt; Rauchtest mit dem Beispiel-IFC: plumbing wall ungeeignet mit Grund.
 - Annahmen: run_id = relativer Pfad unter `--runs` (z. B. `verify/S1`); Jobs in Hintergrundprozessen mit
   Statusdatei; Progress-Callback `progress(stage, fraction, message)`; Upload ohne python-multipart.
+
+### 2026-10-18 23:04 P3/A3.2 App-Shell + Stepper (vorgezogen)
+- Ergebnis: vier Schritte mit Veraltet-Logik; Web lint/typecheck/vitest (22) grün, Shell-E2E mit Fake-Daten grün
+- Commit: 324be60
+- Merge: `web/src/api/realApi.ts` (Adapter ApiPort auf client.ts) und `registerRealApi` in `main.tsx`.
+  Fake-Betrieb über `?fake=1` bzw. `?fake=ok`.
+- Offen: Modulraster in der Wandansicht fehlt; 3D-Auswahl der Wand kommt mit A3.3.
