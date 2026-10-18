@@ -77,21 +77,15 @@ def _wall_attr(wall: Any, *names: str, default: Any = None) -> Any:
     return default
 
 
-def _eligibility(elig: Any, wall: Any) -> tuple[bool, str | None]:
-    """Eignung über `ifc.eligibility(wall, w)`; Ergebnis als (ok, grund), Objekt oder bool."""
-    if elig is None:
-        return True, None
-    try:
-        res = elig(wall, None)
-    except (NotImplementedError, TypeError):
-        return True, None
-    if isinstance(res, tuple):
-        return bool(res[0]), (res[1] if len(res) > 1 else None)
-    if isinstance(res, bool):
-        return res, None
-    return bool(_wall_attr(res, "eligible", "ok", default=True)), _wall_attr(
-        res, "reason", "grund", default=None
-    )
+BEAD_WIDTH_MM = 30.0  # SPEC §10, Strangbreite w
+
+
+def _eligibility(wall: Any, bead_width_mm: float = BEAD_WIDTH_MM) -> tuple[bool, str | None]:
+    """Eignung nach SPEC §5.4/1 über `ifc.eligibility(wall, w)`."""
+    from roboprint import ifc
+
+    ok, reason = ifc.eligibility(wall, bead_width_mm)
+    return bool(ok), reason
 
 
 def _wall_entries(ifc_path: Path) -> list[WallEntry]:
@@ -104,13 +98,12 @@ def _wall_entries(ifc_path: Path) -> list[WallEntry]:
         raise _err(501, "IFC-Import ist noch nicht implementiert") from exc
     except Exception as exc:  # defektes IFC
         raise _err(422, f"IFC konnte nicht gelesen werden: {exc}") from exc
-    elig = getattr(ifc, "eligibility", None)
     entries: list[WallEntry] = []
     for i, w in enumerate(walls):
         length = float(_wall_attr(w, "length_mm", "length", default=0.0))
         thick = float(_wall_attr(w, "thickness_mm", "thickness", default=0.0))
         height = float(_wall_attr(w, "height_mm", "height", default=0.0))
-        eligible, reason = _eligibility(elig, w)
+        eligible, reason = _eligibility(w)
         wid = str(_wall_attr(w, "wall_id", "id", "guid", default=f"W{i + 1:02d}"))
         entries.append(
             WallEntry(
