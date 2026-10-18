@@ -45,6 +45,8 @@ export interface LoadedRun {
 export interface SceneApi {
   /** Gerenderte TCP-Pose in W (mm) aus dem Szenengraphen, oder null solange der Roboter laedt. */
   tcpRendered: () => Pose7 | null;
+  /** Gelenkwinkel, die der Roboter im Szenengraphen gerade zeigt (rad), oder null. */
+  jointValues: () => number[] | null;
   /** True, sobald Roboter, Tisch und Werkzeug geladen sind. */
   ready: () => boolean;
   /** Richtet die Kamera auf einen Punkt in W (mm) aus. */

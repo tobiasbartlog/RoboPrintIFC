@@ -13,6 +13,8 @@ export function DecomposeStep() {
   const start = useAppStore((s) => s.startJob);
   const cancel = useAppStore((s) => s.cancelJob);
   const setStep = useAppStore((s) => s.setStep);
+  const partId = useAppStore((s) => s.partId);
+  const selectPart = useAppStore((s) => s.selectPart);
   const { status, blocked } = useSteps();
 
   const stale = status.decompose === 'veraltet';
@@ -84,9 +86,19 @@ export function DecomposeStep() {
             return (
               <Paper key={p.part_id} withBorder p="xs" data-testid={`part-row-${p.part_id}`}>
                 <Group justify="space-between">
-                  <Text size="sm" fw={500}>
-                    {p.part_id}
-                  </Text>
+                  <Group gap="xs">
+                    <Text size="sm" fw={500}>
+                      {p.part_id}
+                    </Text>
+                    <Button
+                      size="compact-xs"
+                      variant={partId === p.part_id ? 'light' : 'subtle'}
+                      onClick={() => selectPart(p.part_id)}
+                      data-testid={`part-view-${p.part_id}`}
+                    >
+                      {partId === p.part_id ? 'in 3D gezeigt' : 'in 3D zeigen'}
+                    </Button>
+                  </Group>
                   <Badge color={color} variant={stale ? 'outline' : 'filled'} data-testid={`part-status-${p.part_id}`}>
                     {p.status}
                   </Badge>

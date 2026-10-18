@@ -22,4 +22,6 @@ export const realApi: ApiPort = {
     if (!res.ok) throw new client.ApiError(res.status, `Artefakt ${path} nicht ladbar (HTTP ${res.status})`);
     return res.text();
   },
+  runFileUrl: (runId, path) => client.runUrl(runId, path),
+  assetBase: `${client.API_BASE}/assets`,
 };

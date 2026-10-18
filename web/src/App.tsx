@@ -1,16 +1,16 @@
 import { ActionIcon, AppShell, Box, Group, MantineProvider, ScrollArea, Stack, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { DecomposeStep } from './components/DecomposeStep';
 import { ExportStep } from './components/ExportStep';
 import { JobBar } from './components/JobBar';
 import { ModelStep } from './components/ModelStep';
 import { SimulationStep } from './components/SimulationStep';
 import { StepperBar } from './components/StepperBar';
-import { SceneView } from './scene/SceneView';
+import { PlayerScene } from './player/PlayerScene';
 import type { ApiPort } from './state/apiPort';
 import { selectApi } from './state/apiSelect';
 import { createAppStore, type AppStore } from './state/store';
-import { StoreProvider, useAppStore } from './state/storeContext';
+import { StoreProvider, useAppStore, useAppStoreApi } from './state/storeContext';
 
 const theme = createTheme({ primaryColor: 'blue', defaultRadius: 'md' });
 
@@ -43,7 +43,21 @@ function StepPanel() {
   }
 }
 
+/** Direkteinstieg: `/?run=<run_id>&part=<part_id>` öffnet die Simulation eines vorhandenen Laufs. */
+function useDirectEntry() {
+  const store = useAppStoreApi();
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current) return;
+    done.current = true;
+    const q = new URLSearchParams(window.location.search);
+    const runId = q.get('run');
+    if (runId) void store.getState().openRun(runId, q.get('part'));
+  }, [store]);
+}
+
 function Shell() {
+  useDirectEntry();
   return (
     <AppShell header={{ height: 56 }} aside={{ width: { base: 340, lg: 440 }, breakpoint: 'sm' }} padding="md">
       <AppShell.Header>
@@ -61,8 +75,7 @@ function Shell() {
         <Stack gap="md" h="calc(100vh - 56px - 2 * var(--mantine-spacing-md))" style={{ minWidth: 0 }}>
           <StepperBar />
           <Box style={{ flex: 1, minHeight: 0 }}>
-            {/* Verdrahtung mit Store und Player folgt in A3.4. */}
-            <SceneView run={null} partId={null} sample={null} highlightedLinks={[]} obstacleVisible={false} />
+            <PlayerScene />
           </Box>
         </Stack>
       </AppShell.Main>

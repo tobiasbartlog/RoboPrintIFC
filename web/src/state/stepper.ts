@@ -17,6 +17,8 @@ export interface RunBasis {
   projectId: string;
   wallId: string;
   paramsKey: string;
+  /** Lauf über den Direkteinstieg geöffnet: gehört zu keinem Projekt und veraltet nicht. */
+  direct?: boolean;
 }
 
 export interface StepInputs {
@@ -34,6 +36,7 @@ export function makeBasis(projectId: string, wallId: string, params: ParamValues
 export function isRunStale(i: StepInputs): boolean {
   const b = i.runBasis;
   if (!b) return false;
+  if (b.direct) return false;
   return b.projectId !== i.projectId || b.wallId !== i.wallId || b.paramsKey !== paramsKey(i.params);
 }
 
