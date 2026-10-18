@@ -6,6 +6,7 @@
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { Example, JobState, PartArtifact, ProjectInfo, Summary, TrajectorySummary } from '../contracts';
 import type { ApiPort } from './apiPort';
+import { createPlaybackSlice, type PlaybackSlice } from './playback';
 import { DEFAULT_PARAMS, type ParamValue, type ParamValues } from './params';
 import { makeBasis, stepBlockedReason, stepStatuses, type RunBasis, type StepId, type StepInputs, type StepStatus } from './stepper';
 
@@ -25,7 +26,7 @@ export interface JobSlice {
   errorDetail: string | null;
 }
 
-export interface AppState {
+export interface AppState extends PlaybackSlice {
   // step
   step: StepId;
   setStep: (s: StepId) => void;
@@ -54,6 +55,13 @@ export interface AppState {
   run: RunData | null;
   /** Lädt eine Datei des aktuellen Laufs als Text (DRL-Export). */
   loadRunFile: (path: string) => Promise<string>;
+  /**
+   * Direkteinstieg (`/?run=<run_id>&part=<part_id>`): vorhandenen Lauf ohne Projekt und Job öffnen
+   * und in die Simulation springen. Ohne `partId` gilt das erste Teil.
+   */
+  openRun: (runId: string, partId?: string | null) => Promise<void>;
+  runError: string | null;
+  runErrorDetail: string | null;
   // selection
   partId: string | null;
   selectPart: (id: string | null) => void;
@@ -79,6 +87,7 @@ export function createAppStore(api: ApiPort, opts: StoreOptions = {}): AppStore 
   let jobToken = 0;
 
   return createStore<AppState>()((set, get) => {
+    const playback = createPlaybackSlice(set, get, api);
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
     async function openProject(load: () => Promise<ProjectInfo>) {
@@ -94,6 +103,9 @@ export function createAppStore(api: ApiPort, opts: StoreOptions = {}): AppStore 
           partId: null,
           t: 0,
           job: EMPTY_JOB,
+          playback: null,
+          playing: false,
+          highlightedLinks: [],
         });
       } catch (e) {
         set({
@@ -168,7 +180,8 @@ export function createAppStore(api: ApiPort, opts: StoreOptions = {}): AppStore 
               const run = await loadRunData(st.run_id, basis);
               if (token !== jobToken) return;
               const first = run.summary.parts[0]?.part_id ?? null;
-              set({ run, partId: first, t: 0 });
+              set({ run, partId: first, t: 0, playback: null });
+              if (first) void get().loadPlayback(run.runId, first);
               return;
             }
             if (st.state === 'failed') {
@@ -212,11 +225,36 @@ export function createAppStore(api: ApiPort, opts: StoreOptions = {}): AppStore 
         return api.loadRun(run.runId, path);
       },
 
+      openRun: async (runId, partId) => {
+        jobToken++;
+        set({ runError: null, runErrorDetail: null });
+        try {
+          const run = await loadRunData(runId, { projectId: '', wallId: '', paramsKey: '', direct: true });
+          const ids = run.summary.parts.map((p) => p.part_id);
+          const chosen = partId && ids.includes(partId) ? partId : (ids[0] ?? null);
+          set({ run, partId: chosen, t: 0, playback: null, step: 'simulation', job: EMPTY_JOB });
+          if (chosen) await get().loadPlayback(runId, chosen);
+        } catch (e) {
+          set({
+            runError: `Der Lauf „${runId}“ konnte nicht geöffnet werden. Adresse prüfen oder ein Modell öffnen und neu rechnen.`,
+            runErrorDetail: errText(e),
+          });
+        }
+      },
+      runError: null,
+      runErrorDetail: null,
+
       partId: null,
-      selectPart: (partId) => set({ partId, t: 0 }),
+      selectPart: (partId) => {
+        set({ partId, t: 0, playing: false });
+        const run = get().run;
+        if (run && partId) void get().loadPlayback(run.runId, partId);
+      },
 
       t: 0,
       setT: (t) => set({ t }),
+
+      ...playback,
     };
   });
 }

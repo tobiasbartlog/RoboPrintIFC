@@ -122,5 +122,8 @@ export function createFakeApi(opts: FakeOptions = {}): ApiPort {
       }
       return patched(path);
     },
+    // Binärdateien (STL) und Assets liefert der Vite-Dev-Server (Ordner fixtures/, /dev-assets).
+    runFileUrl: (_runId: string, path: string) => `/fixtures/run_demo/${path}`,
+    assetBase: '/dev-assets',
   };
 }

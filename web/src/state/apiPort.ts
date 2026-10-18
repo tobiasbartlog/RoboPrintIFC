@@ -16,4 +16,8 @@ export interface ApiPort {
   cancelJob(jobId: string): Promise<void>;
   /** Lädt ein Artefakt des Laufs als Text (JSON, DRL), z. B. `summary.json` oder `parts/P01/program.v2.drl`. */
   loadRun(runId: string, path: string): Promise<string>;
+  /** URL einer Laufdatei für Lader, die selbst holen (z. B. `parts/P01/part.stl`). */
+  runFileUrl(runId: string, path: string): string;
+  /** Basis-URL der Assets (URDF, Tisch- und Werkzeug-STL), z. B. `/api/assets`. */
+  readonly assetBase: string;
 }

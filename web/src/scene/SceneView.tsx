@@ -14,7 +14,7 @@ import { DEFAULT_ASSET_BASE, assetUrl, packageBase, urdfUrl } from './assets';
 import { mat4FromRows } from './math';
 import { useScenePalette } from './palette';
 import { tcpFromScene } from './tcp';
-import { flangeOf } from './urdf';
+import { JOINT_NAMES, flangeOf } from './urdf';
 import type { Pose7, SceneApi, SceneSample, SceneViewProps } from './types';
 
 /** Home-Pose (0, 0, 90, 0, 90, 0) Grad in Doosan-Konvention, falls noch kein Sample vorliegt. */
@@ -117,6 +117,10 @@ export function SceneView({
         const flange = robotRef.current && flangeOf(robotRef.current);
         const tFt = tFtRef.current;
         return flange && tFt ? tcpFromScene(flange, tFt) : null;
+      },
+      jointValues: () => {
+        const r = robotRef.current;
+        return r ? JOINT_NAMES.map((n) => r.joints[n]?.angle ?? Number.NaN) : null;
       },
       ready: () => readyRef.current,
       focusOn: (p) => focusRef.current(p),

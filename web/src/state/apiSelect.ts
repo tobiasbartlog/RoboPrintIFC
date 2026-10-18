@@ -18,7 +18,17 @@ function unavailable(): ApiPort {
   const fail = async (): Promise<never> => {
     throw new Error('Der Server ist nicht angebunden (kein echter API-Client registriert).');
   };
-  return { listExamples: fail, createProject: fail, getProject: fail, startJob: fail, getJob: fail, cancelJob: fail, loadRun: fail };
+  return {
+    listExamples: fail,
+    createProject: fail,
+    getProject: fail,
+    startJob: fail,
+    getJob: fail,
+    cancelJob: fail,
+    loadRun: fail,
+    runFileUrl: (runId, path) => `/api/runs/${runId}/${path}`,
+    assetBase: '/api/assets',
+  };
 }
 
 export function selectApi(search: string = window.location.search, env: string | undefined = import.meta.env.VITE_API_MODE): ApiPort {
