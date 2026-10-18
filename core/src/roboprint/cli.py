@@ -18,6 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     serve = sub.add_parser("serve", help="API starten")
     serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--runs", type=Path, default=Path("runs"))
 
     exp = sub.add_parser("export-contracts", help="JSON-Schemas der Artefakte schreiben")
@@ -37,7 +38,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         from roboprint.api import create_app
 
-        uvicorn.run(create_app(args.runs), host="127.0.0.1", port=args.port)
+        uvicorn.run(create_app(args.runs), host=args.host, port=args.port)
         return 0
     if args.command == "export-contracts":
         from roboprint.contracts import export_schemas
