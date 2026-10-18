@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-18T23:04:16+02:00 · Session: orchestrator · Phase: P0
+Herzschlag: 2026-10-18T23:07:57+02:00 · Session: orchestrator · Phase: P0
 
 # PROGRESS — Nachtlauf v2
 
@@ -120,3 +120,10 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Merge: `web/src/api/realApi.ts` (Adapter ApiPort auf client.ts) und `registerRealApi` in `main.tsx`.
   Fake-Betrieb über `?fake=1` bzw. `?fake=ok`.
 - Offen: Modulraster in der Wandansicht fehlt; 3D-Auswahl der Wand kommt mit A3.3.
+
+### 2026-10-18 23:07 P3/A3.3 3D-Szene (vorgezogen)
+- Ergebnis: Roboter (urdf-loader), Tisch, Teil mit Schnittebene bei k·h, Werkzeug, Kontaktlinie; Home-TCP aus dem
+  Szenengraphen = Pinocchio-FK auf < 0,01 mm. Web vitest 31, e2e 4 passed.
+- Commit: ab576b1
+- Merge: SceneView von A3.3 übernommen, in App.tsx vorerst ohne Lauf eingebunden; Verdrahtung macht A3.4.
+- Befund: Fixture `run_demo` ist nicht FK-konsistent (tcp passt nicht zu q). Uhr-Invariante nur mit echten Läufen prüfbar.
