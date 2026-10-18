@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-18T22:57:07+02:00 · Session: orchestrator · Phase: P0
+Herzschlag: 2026-10-18T22:57:57+02:00 · Session: orchestrator · Phase: P0
 
 # PROGRESS — Nachtlauf v2
 
@@ -97,3 +97,11 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   drei Wände 200 mm, geeignet. "house left" hat ein Volumen unter dem Quader (schräge/gestufte Oberkante).
 - Annahmen: X_L entlang der langen Seite des kleinsten Grundriss-Rechtecks, Vorzeichen nach IFC-Platzierung;
   Ursprung min-Ecke auch in z; Booleans mit simplify(1e-3 mm) bereinigt.
+
+### 2026-10-18 22:57 P1/A1.6 Tesseract-Spike (Bericht, kein Merge in core)
+- Ergebnis: Ringaufgabe S1-Schicht 20 (73 Wegpunkte, 24 psi-Samples, 10 mm Abstand) gelöst in 4,3 s (2 Threads),
+  unabhängiger Nachcheck 0 Samples unter 10 mm, kein Zweigwechsel. Kantenkollision 137 s.
+- OPW-Parameter passen exakt zur URDF (a1 = 0, b = 34,5, c1..c4 = 152,5/620/559/121 mm, Offsets 0).
+- Fehlend: Abstandskosten, psi-Strafe, Kantenschranke dq_max, d_min/Zeugen je Pose; Binding 0.35 jung.
+- **Empfehlung: nicht hinter der Backend-Naht übernehmen.** Bericht `docs/spikes/tesseract-spike.md`.
+- Commit: 66c467c
