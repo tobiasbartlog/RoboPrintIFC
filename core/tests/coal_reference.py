@@ -17,6 +17,7 @@ import trimesh
 
 from roboprint import collision_assets as ca
 from roboprint.collision import LINKS, checked_pairs
+from roboprint.frames import T_from_pos_quat
 
 
 def _bvh(mesh: trimesh.Trimesh) -> coal.BVHModelOBBRSS:
@@ -44,7 +45,7 @@ def _raw_bodies(root, r_free: float = 40.0):
     bodies = {n: _Raw(ca.link_mesh(chain.collision[n])) for n in LINKS}
     tj = json.loads((root / "tools" / "30gut.json").read_text())
     tool = trimesh.load(str(root / "tools" / "30gut.stl"), force="mesh")
-    tool.apply_transform(ca.pose_matrix(tj["mesh_transform"]["pos_mm"], tj["mesh_transform"]["quat"]))
+    tool.apply_transform(T_from_pos_quat(tj["mesh_transform"]["pos_mm"], tj["mesh_transform"]["quat"]))
     tcp = np.asarray(tj["tcp_frame"]["pos_mm"], dtype=float)
     cen = np.linalg.norm(tool.triangles_center - tcp, axis=1)
     bodies["tool_body"] = _Raw(trimesh.Trimesh(tool.vertices, tool.faces[cen > r_free]))

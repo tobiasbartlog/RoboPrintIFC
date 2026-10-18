@@ -426,21 +426,6 @@ def box_part(lo: np.ndarray, hi: np.ndarray) -> ConvexPart:
 # --------------------------------------------------------------------------- Default-Assets
 
 
-def pose_matrix(pos_mm, quat_wxyz) -> np.ndarray:
-    """(pos in mm, Quaternion w,x,y,z) -> 4x4."""
-    w, x, y, z = (float(v) for v in quat_wxyz)
-    n = np.sqrt(w * w + x * x + y * y + z * z)
-    w, x, y, z = w / n, x / n, y / n, z / n
-    t = np.eye(4)
-    t[:3, :3] = [
-        [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
-        [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
-        [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
-    ]
-    t[:3, 3] = np.asarray(pos_mm, dtype=float)
-    return t
-
-
 def link_mesh(entries) -> trimesh.Trimesh:
     """Kollisionsmeshes eines Glieds (urdf_chain.CollisionEntry) im Gliedframe, mm."""
     meshes = []
