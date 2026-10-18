@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-18T23:20:13+02:00 · Session: orchestrator · Phase: P0
+Herzschlag: 2026-10-18T23:23:58+02:00 · Session: orchestrator · Phase: P0
 
 # PROGRESS — Nachtlauf v2
 
@@ -137,3 +137,12 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Annahme A (Zweig-Bits, geometrisch): Righty = Handgelenkzentrum hinter der J1-Achse; Above = Ellbogen über
   Schulter→Handgelenk; Flip = q5 < 0. Übereinstimmung mit Doosan-`ikin` unbelegt (Nutzer prüfen).
 - Performance: `ik_batch` ~90 µs je Pose (8 Zweige), Einzel-`ik` ~2 ms → Planer nutzt `ik_batch`.
+
+### 2026-10-18 23:23 P3/A3.4 Player + G6-Suite (vorgezogen)
+- Ergebnis: eine Uhr (`sampleAt`), Timeline, Kollisionsliste, Debug-Schnittstelle, Direkteinstieg `/?run=&part=`;
+  vitest 47 grün; G6-Suite schlägt erwartungsgemäß fehl, solange `runs/verify/S1`/`S3` fehlen; mit FK-konsistenten
+  Dev-Läufen waren alle 8 e2e-Tests grün.
+- Commit: 9b16a28
+- Annahme (Nutzer prüfen): Im G6-Glückspfad beantwortet der Test nur die beiden Job-Endpunkte per `page.route`
+  und verweist auf den Lauf S1 (alles andere echte API). Ein echter Job läuft mit `G6_REAL_JOB=1`.
+- Annahme: Uhr-Invariante (1 mm) nimmt `unreachable`-Samples aus (q dort nur Anzeige); Status an allen 50 t geprüft.
