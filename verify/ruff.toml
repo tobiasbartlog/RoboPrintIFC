@@ -1,0 +1,6 @@
+# Lint-Konfiguration fuer verify/ (gleiche Regeln wie core/pyproject.toml).
+line-length = 110
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]
