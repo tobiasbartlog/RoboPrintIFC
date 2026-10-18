@@ -1,6 +1,6 @@
 import { Matrix4, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { clipHeightMm, clipPlaneInW, mat4FromRows, matrixToPose7, pose7ToMatrix, ringSegments } from '../math';
+import { clipHeightMm, clipPlaneInW, layeredRingSegments, mat4FromRows, matrixToPose7, pose7ToMatrix, ringSegments } from '../math';
 
 describe('math', () => {
   it('mat4FromRows liest zeilenweise (Translation in der letzten Spalte)', () => {
@@ -69,5 +69,34 @@ describe('math', () => {
     };
     expect(ringSegments(tp as never, (l) => l === 0).length).toBe(3 * 6);
     expect(ringSegments(tp as never, (l) => l === 1).length).toBe(2 * 6);
+  });
+
+  it('layeredRingSegments: nach Schicht sortiert, splitAt trennt fertig und offen', () => {
+    const wp = (x: number, z: number) => [x, 0, z, 1, 0, 0, 0];
+    const ring = (layer: number, closed: boolean) => ({
+      layer,
+      shell: 0,
+      kind: 'outer',
+      closed,
+      waypoints: [wp(0, layer), wp(1, layer), wp(2, layer)],
+    });
+    // Ringe absichtlich nicht nach Schicht sortiert; Schicht 1 fehlt.
+    const tp = { schema_version: '2', part_id: 'P', layer_height_mm: 10, bead_width_mm: 30, rings: [ring(2, false), ring(0, true), ring(3, true), ring(0, false)] };
+    const { positions, splitAt } = layeredRingSegments(tp as never);
+    // Schicht 0: 3 + 2 Stuecke, Schicht 2: 2, Schicht 3: 3; je Stueck 2 Punkte.
+    expect(positions.length).toBe((3 + 2 + 2 + 3) * 6);
+    expect(splitAt(0)).toBe(0);
+    expect(splitAt(1)).toBe(10);
+    expect(splitAt(2)).toBe(10);
+    expect(splitAt(3)).toBe(14);
+    expect(splitAt(4)).toBe(20);
+    expect(splitAt(99)).toBe(20);
+    // Gleiche Punktmengen wie ringSegments mit Filter: fertig = Schichten < k.
+    for (const k of [0, 1, 2, 3, 4]) {
+      const done = ringSegments(tp as never, (l) => l < k);
+      expect(done.length).toBe(splitAt(k) * 3);
+      const zs = Array.from(positions.slice(0, splitAt(k) * 3)).filter((_, i) => i % 3 === 2);
+      expect(zs.every((z) => z < k)).toBe(true);
+    }
   });
 });

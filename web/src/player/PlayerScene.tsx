@@ -9,9 +9,9 @@ import { debugSnapshot, duration, sampleAt, sceneSample, type DebugSnapshot } fr
 export interface RoboprintDebug {
   /** Genau {t, sampleIndex, tcpRendered[3], tcpArtifact[3], status, highlightedLinks[], obstacleVisible}. */
   debug: () => DebugSnapshot;
-  /** Setzt die Uhr (pausiert) und wartet, bis die Szene das Sample zeigt. */
+  /** Setzt die Uhr (pausiert) und wartet, bis der Szenengraph die Pose des Samples traegt. */
   seek: (t: number) => Promise<DebugSnapshot>;
-  /** Szene geladen, Teil geladen und das aktuelle `t` gerendert. */
+  /** Szene geladen, Teil geladen und der Roboter im Szenengraphen auf q des Samples zu `t`. */
   ready: () => boolean;
 }
 
@@ -21,7 +21,15 @@ declare global {
   }
 }
 
-const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+/**
+ * Naechste Makroaufgabe. `seek` wartet bewusst nicht auf Animationsframes: Der Szenengraph traegt
+ * die Pose schon nach dem React-Commit, das Rastern folgt im naechsten Frame. Mit Software-WebGL
+ * dauert ein Frame der vollen Szene ueber eine Sekunde, und requestAnimationFrame staut sich hinter
+ * der GPU; das hat die Uhr-Invariante (50 Zeiten je Lauf) frueher ueber das Zeitlimit gebracht.
+ */
+const nextTask = () => new Promise<void>((r) => setTimeout(r, 0));
+/** Obergrenze fuer `seek`, bis die Szene die Pose zeigt (ms). */
+const SEEK_BUDGET_MS = 10_000;
 
 /** Wiedergabe-Schleife: setzt `t` pro Animationsframe, solange `playing`. */
 function usePlaybackLoop(store: AppStore) {
@@ -104,7 +112,8 @@ export function PlayerScene() {
       ready,
       seek: async (tq: number) => {
         store.setState({ t: tq, playing: false });
-        for (let k = 0; k < 120 && !ready(); k++) await nextFrame();
+        const deadline = performance.now() + SEEK_BUDGET_MS;
+        while (!ready() && performance.now() < deadline) await nextTask();
         return snapshot();
       },
     };

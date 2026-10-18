@@ -43,6 +43,48 @@ export function clipPlaneInW(zClip: number, T_WP: Matrix4): Plane {
   return new Plane(new Vector3(0, 0, -1), zClip).applyMatrix4(T_WP);
 }
 
+/**
+ * Alle Linienstuecke der Bahn einmal, nach Schicht sortiert. `splitAt(k)` ist die Anzahl der
+ * Punkte (Vertices) aller Schichten < k: fertig ist [0, splitAt(k)), offen der Rest. So genuegt
+ * bei einem Schichtwechsel ein drawRange statt einer neuen Geometrie.
+ */
+export interface LayeredSegments {
+  positions: Float32Array;
+  splitAt: (k: number) => number;
+}
+
+export function layeredRingSegments(tp: Toolpath): LayeredSegments {
+  const byLayer = new Map<number, Toolpath['rings']>();
+  for (const ring of tp.rings) {
+    const list = byLayer.get(ring.layer);
+    if (list) list.push(ring);
+    else byLayer.set(ring.layer, [ring]);
+  }
+  const layers = [...byLayer.keys()].sort((a, b) => a - b);
+  const parts = layers.map((l) => ringSegments({ ...tp, rings: byLayer.get(l) ?? [] }, () => true));
+  const positions = new Float32Array(parts.reduce((a, p) => a + p.length, 0));
+  // ends[j]: Vertex-Ende der Schicht layers[j].
+  const ends: number[] = [];
+  let off = 0;
+  for (const p of parts) {
+    positions.set(p, off);
+    off += p.length;
+    ends.push(off / 3);
+  }
+  const splitAt = (k: number): number => {
+    // Erste Schicht j mit layers[j] >= k (binaere Suche); alles davor ist fertig.
+    let lo = 0;
+    let hi = layers.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if ((layers[mid] ?? Infinity) < k) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo === 0 ? 0 : (ends[lo - 1] ?? 0);
+  };
+  return { positions, splitAt };
+}
+
 /** Linienstuecke (Punktpaare, flach) der Ringe, deren Schicht `keep` besteht. */
 export function ringSegments(tp: Toolpath, keep: (layer: number) => boolean): Float32Array {
   const out: number[] = [];

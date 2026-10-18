@@ -1,7 +1,7 @@
 import { Box, Group, Stack, Text } from '@mantine/core';
-import { useMemo, type MouseEvent } from 'react';
+import { memo, useMemo, type MouseEvent } from 'react';
 import type { Trajectory } from '../contracts';
-import { duration, kindSegments, layerSegments, statusSegments, type Segment } from './clock';
+import { duration, kindSegments, layerSegments, statusSegments, type Kind, type Segment, type Status } from './clock';
 import { KIND_COLOR, KIND_LABEL, STATUS_COLOR, STATUS_LABEL } from './labels';
 
 interface TimelineProps {
@@ -12,7 +12,7 @@ interface TimelineProps {
 
 const TRACK_H = 12;
 
-function Track<V>({
+function TrackImpl<V>({
   label,
   testid,
   segs,
@@ -57,6 +57,18 @@ function Track<V>({
   );
 }
 
+// Die Balken haengen nur an der Trajektorie, nicht an t: memoisiert, damit ein Uhrschritt bei
+// zehntausenden Samples nur den Cursor bewegt.
+const Track = memo(TrackImpl) as typeof TrackImpl;
+
+const range = (s: { t0: number; t1: number }) => `${s.t0.toFixed(1)}–${s.t1.toFixed(1)} s`;
+const kindColor = (v: Segment<Kind>['value']) => KIND_COLOR[v];
+const kindTitle = (s: Segment<Kind>) => `${KIND_LABEL[s.value]} ${range(s)}`;
+const statusColor = (v: Status) => STATUS_COLOR[v];
+const statusTitle = (s: Segment<Status>) => `${STATUS_LABEL[s.value]} ${range(s)}`;
+const layerColor = (v: number) => (v % 2 === 0 ? 'var(--mantine-color-gray-4)' : 'var(--mantine-color-gray-6)');
+const layerTitle = (s: Segment<number>) => `Schicht ${s.value} fertig ${range(s)}`;
+
 /**
  * Timeline mit Bereichs-Balken: Bewegungsart, auffällige Status-Bereiche (warn, collision,
  * unreachable) und eine Spur je Schicht. Ein Klick setzt die Uhr.
@@ -66,7 +78,6 @@ export function Timeline({ trajectory, t, onSeek }: TimelineProps) {
   const kinds = useMemo(() => kindSegments(trajectory), [trajectory]);
   const status = useMemo(() => statusSegments(trajectory), [trajectory]);
   const layers = useMemo(() => layerSegments(trajectory), [trajectory]);
-  const range = (s: { t0: number; t1: number }) => `${s.t0.toFixed(1)}–${s.t1.toFixed(1)} s`;
 
   function click(e: MouseEvent<HTMLDivElement>) {
     const r = e.currentTarget.getBoundingClientRect();
@@ -78,23 +89,9 @@ export function Timeline({ trajectory, t, onSeek }: TimelineProps) {
   return (
     <Stack gap={6} data-testid="timeline">
       <Stack gap={4} onClick={click} style={{ position: 'relative', cursor: 'pointer' }}>
-      <Track label="Art" testid="timeline-kind" segs={kinds} end={end} color={(v) => KIND_COLOR[v]} title={(s) => `${KIND_LABEL[s.value]} ${range(s)}`} />
-      <Track
-        label="Status"
-        testid="timeline-status"
-        segs={status}
-        end={end}
-        color={(v) => STATUS_COLOR[v]}
-        title={(s) => `${STATUS_LABEL[s.value]} ${range(s)}`}
-      />
-      <Track
-        label="Schicht"
-        testid="timeline-layer"
-        segs={layers}
-        end={end}
-        color={(v) => (v % 2 === 0 ? 'var(--mantine-color-gray-4)' : 'var(--mantine-color-gray-6)')}
-        title={(s) => `Schicht ${s.value} fertig ${range(s)}`}
-      />
+      <Track label="Art" testid="timeline-kind" segs={kinds} end={end} color={kindColor} title={kindTitle} />
+      <Track label="Status" testid="timeline-status" segs={status} end={end} color={statusColor} title={statusTitle} />
+      <Track label="Schicht" testid="timeline-layer" segs={layers} end={end} color={layerColor} title={layerTitle} />
       <div
         aria-hidden
         data-testid="timeline-cursor"
