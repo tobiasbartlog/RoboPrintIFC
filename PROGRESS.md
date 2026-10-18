@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-18T22:56:15+02:00 · Session: orchestrator · Phase: P0
+Herzschlag: 2026-10-18T22:57:07+02:00 · Session: orchestrator · Phase: P0
 
 # PROGRESS — Nachtlauf v2
 
@@ -89,3 +89,11 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Annahmen: Naht an der Ecke nächst (x_min, y_min), jede Schicht gleich; außen CCW, Löcher CW;
   bei psi = 0 zeigt X_T entlang X_W (Quaternion (0,1,0,0)). `slice_part` liefert `SlicedPart`, `to_toolpath` den Vertrag.
 - Offen: An-/Abfahrt nur in `SlicedRing` (Schema hat nur Wegpunkte), Umstellung auf `geometry.slice_section` optional.
+
+### 2026-10-18 22:57 P1/A1.2 ifc, frames, geometry (vorgezogen)
+- Ergebnis: Unit-Tests grün (83 passed gesamt); Rasterschnitt erhält Volumen auf 0,1 %
+- Commit: b0c9fbe
+- Befund Beispiel-IFC: 4 Wände, **keine Öffnungen**. "plumbing wall" 24 mm, ungeeignet ("24.0 mm < 60.0 mm");
+  drei Wände 200 mm, geeignet. "house left" hat ein Volumen unter dem Quader (schräge/gestufte Oberkante).
+- Annahmen: X_L entlang der langen Seite des kleinsten Grundriss-Rechtecks, Vorzeichen nach IFC-Platzierung;
+  Ursprung min-Ecke auch in z; Booleans mit simplify(1e-3 mm) bereinigt.
