@@ -58,6 +58,18 @@ Diagnose von v1 durch sechs Review-Agenten, Kurzfassung:
   Die geprüfte Trajektorie modelliert kein Blending (movel bis zum Punkt), am Gerät weicht die Bahn an Ecken also bis
   ~0,8 mm ab. Kein Gate-Fehler, aber eine Lücke zwischen Prüfung und Gerät.
 
+- **Aus der Gegenprüfung A2.4 (`docs/gegenpruefung-a2-4.md`), Prüfer seit LOCKED nicht änderbar:**
+  - Schichtreihenfolge prüft kein Gate (M4: Schicht 1 vor Schicht 0 besteht beide Prüfer).
+  - Freizone Düsenspitze ↔ Druckstand gilt auch im Travel (M7: TCP 5 mm im Material besteht). S1 hält ≥ 29,9 mm.
+  - SPEC §5.1 prüft Düsenspitze ↔ Glieder nicht (Pose (0,0,90,0,−145,150)°: Düse 6,4 mm in link_4, Status `warn`).
+    In S1 ≥ 165 mm.
+  - Im S1-Modus fehlen Abgleich Teil ↔ Szenario, Tischfläche, Druck außerhalb des Teils (M1, M5, M6);
+    fake_drcf übergeht fehlendes `movej(home)` (M3); erfundene `d_mm`/`pair` bestehen (M2).
+  - Zwischen Samples wird nicht geprüft (theoretisch bis 2,6 mm Abfall je Schritt; in S1 gemessen ≤ 0,001 mm).
+  - Reserve Schicht 0 = h + 1,85 mm (Düsenmesh endet 1,85 mm vor dem TCP): bei h < 8,15 mm ist jedes Teil unmachbar.
+  Vorschlag: Prüfer nach Nutzerfreigabe härten und M1–M7 als Selbsttests aufnehmen. Systemseitig prüft A4.2 diese
+  Punkte zusätzlich selbst.
+
 ## Annahmen, die der Nutzer bestätigen muss
 
 Siehe SPEC §10 (mit „A“ markiert) und §13.
@@ -212,3 +224,10 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Ergebnis: S3 erzeugt, check_run bestätigt (BESTANDEN). e2e: 7 passed, 1 failed – G6-Uhr-Invariante läuft in den
   Test-Timeout (120 s) bei `seek` auf den 62k-Sample-Läufen. Glückspfad und Kollisionspfad S3 grün.
 - Offen: A3.5 (opus) behebt die Laufzeit von `seek`, ohne das Kriterium zu lockern.
+
+### 2026-10-19 01:21 P2/A2.4 Gegenprüfung
+- Ergebnis: kein falscher Systemstatus gefunden; S1 auch zwischen den Samples frei (1464 kritische Schritte,
+  min 11,85 mm). Prüferlücken und SPEC-Lücken unter „Gate-Einwände“ eingetragen.
+- Commit: 6c27a7a
+- Folgeaufgabe A4.2: systemseitige Selbstprüfungen (Schichtreihenfolge, Travel über Druckstand, Teil auf Tisch,
+  Druck im Teil) und `timing` aus derselben Geschwindigkeitsquelle wie `drl`.
