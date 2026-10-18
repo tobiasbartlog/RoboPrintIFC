@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-18T22:51:18+02:00 · Session: orchestrator · Phase: P0
+Herzschlag: 2026-10-18T22:53:16+02:00 · Session: orchestrator · Phase: P0
 
 # PROGRESS — Nachtlauf v2
 
@@ -73,3 +73,12 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Vorab (Orchestrator): `spec/ARTEFAKTE.md` legt die in SPEC §6 offenen Feldnamen, die Schicht-/k-Semantik
   von `layer[i]`, die Prüfschnittstellen für G1/G2 und die Zweig-Bits (Annahme A nach `sol_space`) fest.
 - Offen: `export_schemas` kommt mit A0.3.
+
+### 2026-10-18 22:53 P0/A0.3 Verträge
+- Ergebnis: Schema-Export + TS-Generierung laufen, Aktualitätstest grün; pytest core 46 passed, G8 grün
+- Commit: 008a51b (Merge a1f13b1)
+- Merge: `contracts/__init__.py` von A0.3 übernommen, `web/scripts/gen-contracts.mjs` auf A0.3-Aufruf
+  (`compile`, Banner, sortiert) angeglichen; Regenerierung ergibt keinen Diff. Zwei ruff-Funde behoben.
+- Annahmen (A0.3): Modelle verbieten unbekannte Felder und NaN; Szenario-`schema_version` "1"; Fixture
+  `web/fixtures/run_demo` (420 Samples, 2 collision, 2 unreachable) ist nicht physikalisch geprüft.
+- Vorgezogen (unabhängig von verify/): A1.1 robot, A1.2 ifc/frames/geometry, A1.6 Tesseract-Spike laufen.
