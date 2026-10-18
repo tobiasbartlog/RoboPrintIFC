@@ -1,9 +1,16 @@
 /// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react';
+import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
+import { devAssets } from './vite-dev-assets';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), devAssets()],
+  build: {
+    rollupOptions: {
+      input: { main: resolve(__dirname, 'index.html'), 'scene-test': resolve(__dirname, 'scene-test.html') },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

@@ -61,7 +61,8 @@ function Shell() {
         <Stack gap="md" h="calc(100vh - 56px - 2 * var(--mantine-spacing-md))" style={{ minWidth: 0 }}>
           <StepperBar />
           <Box style={{ flex: 1, minHeight: 0 }}>
-            <SceneView />
+            {/* Verdrahtung mit Store und Player folgt in A3.4. */}
+            <SceneView run={null} partId={null} sample={null} highlightedLinks={[]} obstacleVisible={false} />
           </Box>
         </Stack>
       </AppShell.Main>
