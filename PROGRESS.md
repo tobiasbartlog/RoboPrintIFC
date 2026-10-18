@@ -1,4 +1,4 @@
-Herzschlag: — · Session: — · Phase: vor P0
+Herzschlag: 2026-10-18T22:43:38+02:00 · Session: orchestrator · Phase: P0
 
 # PROGRESS — Nachtlauf v2
 
@@ -57,3 +57,12 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Branch `v2-nachtlauf` angelegt. v1 nach `legacy/` verschoben, Assets bleiben.
 - SPEC, NACHTLAUF, Szenarien S1–S3, Gate-Runner `verify/run.py`, Hooks, Cloud-Setup.
 - Offen: alles ab P0.
+
+### 2026-10-18 22:43 Start (orchestrator)
+- Umgebung: Python 3.12.3 (/opt/fgc-venv), ifcopenshell/trimesh/fcl/pinocchio/coal/manifold3d ok,
+  tesseract_robotics ok (optional), Node v22.22.0, Playwright 1.56.1, 4 vCPU.
+- Session startete auf dem Default-Branch; der Guard-Hook greift trotzdem. Die Regeln
+  (Push nur auf v2-nachtlauf und v2/*, kein Force-Push, kein Merge, Sperre spec/ + verify/ nach P0)
+  hält der Orchestrator zusätzlich selbst ein und gibt sie an jeden Agenten weiter.
+- Ausgangslage `verify.py` (voll): G1–G8 rot (alle Schritte "fehlt"), wie erwartet.
+- Ohne ultracode-Freigabe: Agent-Tool mit Hintergrund-Subagenten in Worktrees, max. 6 parallel.
