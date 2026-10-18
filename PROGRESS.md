@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-18T23:39:27+02:00 · Session: orchestrator · Phase: P0
+Herzschlag: 2026-10-18T23:53:30+02:00 · Session: orchestrator · Phase: P1
 
 # PROGRESS — Nachtlauf v2
 
@@ -8,7 +8,7 @@ Ablauf und Regeln stehen in `spec/NACHTLAUF.md`, die Gates in `spec/SPEC.md` §1
 
 | Gate | Status | Kennzahl | Stand |
 |---|---|---|---|
-| G1 Kinematik | rot | — | 2026-10-18 Vorbereitung |
+| G1 Kinematik | grün | 2000 FK + 2000 IK gegen Pinocchio | P0 Ende |
 | G2 Kollision | rot | — | |
 | G3 Referenzmodul S1 | rot | — | |
 | G4 Beispiel-IFC S2 + S3 | rot | — | |
@@ -46,6 +46,17 @@ Diagnose von v1 durch sechs Review-Agenten, Kurzfassung:
 ## Gate-Einwände
 
 (Belege, falls ein Gate nach Ansicht eines Agenten falsch ist. Die Entscheidung trifft der Nutzer.)
+
+- **G2 bei Durchdringung (Orakel A0.2, vor LOCKED übernommen):** Für sich durchdringende nichtkonvexe Meshes ist die
+  Eindringtiefe nicht eindeutig. Das Orakel liefert eine Unterschranke aus Mesh-Ecken im anderen Solid. G2 verlangt
+  dort d_rp ≤ 1 mm (statt d_rp ≤ d_coal + 1 mm) und gleiches Vorzeichen bei |d| > 12 mm. Das ist eine bewusste
+  Lockerung gegenüber dem Wortlaut von SPEC §11 G2 nur für Kollisionsposen; der Nutzer sollte sie bestätigen.
+- **Paar base_link ↔ link_2 (SPEC §5.1, Glied i ↔ j ≥ i+2):** Auf den Roh-Meshes konstant 33,2 mm < d_target 50 mm.
+  Jedes Sample ist damit höchstens `warn`, nie `ok`. G3 (d ≥ d_hard = 10 mm) bleibt erreichbar. Vorschlag: Paar
+  ausnehmen oder d_target nur gegen Umgebungshindernisse anwenden (Nutzerentscheidung).
+- **Blending vs. Bahntreue:** r_blend = 2 mm schneidet eine 90°-Ecke um ~0,83 mm; G3 erlaubt 0,5 mm Bahnabweichung.
+  Die geprüfte Trajektorie modelliert kein Blending (movel bis zum Punkt), am Gerät weicht die Bahn an Ecken also bis
+  ~0,8 mm ab. Kein Gate-Fehler, aber eine Lücke zwischen Prüfung und Gerät.
 
 ## Annahmen, die der Nutzer bestätigen muss
 
@@ -155,3 +166,13 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Annahmen A: Orientierungsgeschw./Beschleunigungen (Druck 60 °/s, 500 mm/s², 120 °/s²; Travel 90 °/s,
   1000 mm/s², 180 °/s²), set_accj = 4 × 30-%-Gelenkgeschw.; v3 druckt standardmäßig wie v2 mit movel.
 - Offen (Gerät): ob `try/finally` in DRL 2.x läuft und ein Stopp am Teach Pendant es auslöst.
+
+### 2026-10-18 23:53 P0/A0.2 Orakel → P0 abgeschlossen, spec/LOCKED
+- Ergebnis: Orakel-Selbsttests 40 passed (~18 s), ruff grün. **G1 grün** gegen das echte `roboprint.robot`.
+- Vorabprobe G5: `verify.fake_drcf` akzeptiert die vom Emitter (A1.5) erzeugten v2/v3-Programme des
+  handgebauten Mini-Plans (0 Fehler).
+- Unabhängigkeit: `grep roboprint verify/` zeigt Imports nur in `test_g1_*`/`test_g2_*` (sonst Kommentare).
+- Commit: c96b675; LOCKED auf 69f416d
+- Annahmen A0.2 (verify/README.md): fake_drcf lehnt moveb/movejx/ori_type ab, Kartesisch ≤ 1000 mm/s (Datenblatt),
+  Programm endet auf dem letzten Trajektorien-Sample; Zweig-Bits als 1:1-Zuordnung zu eigenen Konfigurationsklassen
+  mit Singularitätsabstand. G2-Szene: Quader bei S = (0, −50), Gier 0, k = 20, Seed 20261018.
