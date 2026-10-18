@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T00:05:58+02:00 · Session: orchestrator · Phase: P1
+Herzschlag: 2026-10-19T00:26:44+02:00 · Session: orchestrator · Phase: P2
 
 # PROGRESS — Nachtlauf v2
 
@@ -9,7 +9,7 @@ Ablauf und Regeln stehen in `spec/NACHTLAUF.md`, die Gates in `spec/SPEC.md` §1
 | Gate | Status | Kennzahl | Stand |
 |---|---|---|---|
 | G1 Kinematik | grün | 2000 FK + 2000 IK gegen Pinocchio | P0 Ende |
-| G2 Kollision | rot | — | |
+| G2 Kollision | grün | 500 Posen; d_rp ≥ 0,5 mm unter d_coal, |Δ| ≤ 4,3 mm (beide ≥ 0) | P1 A1.4 |
 | G3 Referenzmodul S1 | rot | — | |
 | G4 Beispiel-IFC S2 + S3 | rot | — | |
 | G5 DRL | rot | — | |
@@ -176,3 +176,16 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Annahmen A0.2 (verify/README.md): fake_drcf lehnt moveb/movejx/ori_type ab, Kartesisch ≤ 1000 mm/s (Datenblatt),
   Programm endet auf dem letzten Trajektorien-Sample; Zweig-Bits als 1:1-Zuordnung zu eigenen Konfigurationsklassen
   mit Singularitätsabstand. G2-Szene: Quader bei S = (0, −50), Gier 0, k = 20, Seed 20261018.
+
+### 2026-10-19 00:26 P1/A1.4 Kollisionswelt → P1 abgeschlossen
+- Ergebnis: **G2 grün** (500 Posen; konservativ, Abweichung bei freien Posen ≤ 4,3 mm, Ø 2,1 mm). G8 grün,
+  pytest core 153 passed. 1,8 ms je Pose (1,7 ms mit upper = 50 mm).
+- Commit: c9938a6
+- Home-Pose frei über dem Tisch, d_min 30,7 mm (base_link ↔ link_2).
+- **Abweichung von SPEC §5.1 (Nutzer prüfen):** keine VHACD-Zerlegung. VHACD lieferte auf diesen Meshes hohle
+  Schalen (link_1: 1,1e6 statt 4,6e6 mm³), tiefe Durchdringungen blieben unentdeckt. Stattdessen eigene
+  Hüllen-Bisektion mit 5 mm Toleranz und Aufblasen, sodass jeder Roh-Oberflächenpunkt abgedeckt ist (konservativ).
+  Tisch: je Komponente eine konvexe Hülle (Toleranz 25 mm, ignoriert die Nuten der Profile).
+- Kaltstart des Geometrie-Caches (~/.cache/roboprint/collision) ~3,5 min; zählt bei leerem Cache gegen G7.
+- Offen (P4): Frame-Übergänge in `collision.py` liest das Modul direkt aus den JSONs – in `frames.py` zusammenführen;
+  `robot.py` kann auf `urdf_chain.py` umstellen.
