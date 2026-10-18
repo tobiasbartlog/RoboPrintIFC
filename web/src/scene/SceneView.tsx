@@ -5,6 +5,7 @@ import { Color, Vector3, type PerspectiveCamera } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import type { URDFRobot } from 'urdf-loader';
 import { ContactOverlay } from './ContactOverlay';
+import { PacedRender } from './PacedRender';
 import { Part } from './Part';
 import { Robot } from './Robot';
 import { Tool } from './Tool';
@@ -208,6 +209,7 @@ export function SceneView({
         <ContactOverlay sample={sample as SceneSample | null} color={contactColor} />
         <OrbitControls makeDefault target={START_TARGET.toArray()} maxPolarAngle={Math.PI * 0.55} />
         <CameraRig onFocus={onFocus} />
+        <PacedRender />
       </Canvas>
       {error && (
         <div role="alert" style={{ position: 'absolute', left: 12, bottom: 12, right: 12, color: palette.danger }}>
