@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-18T22:43:38+02:00 · Session: orchestrator · Phase: P0
+Herzschlag: 2026-10-18T22:51:18+02:00 · Session: orchestrator · Phase: P0
 
 # PROGRESS — Nachtlauf v2
 
@@ -15,7 +15,7 @@ Ablauf und Regeln stehen in `spec/NACHTLAUF.md`, die Gates in `spec/SPEC.md` §1
 | G5 DRL | rot | — | |
 | G6 Viewer | rot | — | |
 | G7 Laufzeit | rot | — | |
-| G8 Qualität | rot | — | |
+| G8 Qualität | grün | ruff, pytest 17, web lint/typecheck/test | P0 A0.1 |
 
 ## Ausgangslage (Vorbereitung 2026-10-18)
 
@@ -66,3 +66,10 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   hält der Orchestrator zusätzlich selbst ein und gibt sie an jeden Agenten weiter.
 - Ausgangslage `verify.py` (voll): G1–G8 rot (alle Schritte "fehlt"), wie erwartet.
 - Ohne ultracode-Freigabe: Agent-Tool mit Hintergrund-Subagenten in Worktrees, max. 6 parallel.
+
+### 2026-10-18 22:51 P0/A0.1 Gerüst
+- Ergebnis: G8 grün (ruff, pytest core 17 passed, web lint/typecheck/test; e2e-Platzhalter grün)
+- Commit: 28b3b79
+- Vorab (Orchestrator): `spec/ARTEFAKTE.md` legt die in SPEC §6 offenen Feldnamen, die Schicht-/k-Semantik
+  von `layer[i]`, die Prüfschnittstellen für G1/G2 und die Zweig-Bits (Annahme A nach `sol_space`) fest.
+- Offen: `export_schemas` kommt mit A0.3.
