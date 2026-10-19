@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T03:13:06+02:00 · Session: orchestrator · Phase: P4
+Herzschlag: 2026-10-19T03:18:39+02:00 · Session: orchestrator · Phase: P4
 
 # PROGRESS — Nachtlauf v2
 
@@ -269,3 +269,10 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Commit: 4903d27
 - `World.distance_batch` blockweise mit engerer Vorauswahl (~3× schneller); bei Durchdringung jetzt das echte
   Minimum (vorher bis 59 mm zu flach). Ring-Graphen und dichte Prüfung in einem fork-Pool; `--jobs 0` = vCPU.
+
+### 2026-10-19 03:18 P2/A2.2 Zerlegung (nach Container-Neustart übernommen)
+- Der Container wurde gegen 03:10 neu gestartet; der Agent A2.2 und sein S2-Lauf gingen verloren. Sein Commit
+  (rebased auf den Stand mit A4.3) war vollständig und wurde gemerged. pytest core 188 passed, ruff grün.
+- Commit: d5b0bc1
+- Vorlauf des Agenten (vor dem Rebase, alter Planer): S2 mit 172 Modulen, alle machbar; plumbing wall ungeeignet
+  mit Grund; Zerlegung 1100 s. Gate G4/G7 läuft jetzt mit dem aktuellen Stand.
