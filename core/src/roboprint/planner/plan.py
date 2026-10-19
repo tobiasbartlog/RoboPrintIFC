@@ -17,6 +17,7 @@ import numpy as np
 
 from roboprint.collision import status_of
 from roboprint.robot import HOME_Q
+from roboprint.selfcheck import TOL_LIFT_MM
 
 from .backend import can_fork_pool, contacts_batch, contacts_parallel
 from .densify import Dense, movej, movel, movel_chain
@@ -133,6 +134,10 @@ class PartPlanner:
         self.z0 = float(self.T_WP[2, 3])
         n_layers = 1 + max((r.layer for r in rings), default=0)
         self.height = part_height_mm if part_height_mm is not None else n_layers * params.layer_height_mm
+        # xy-Box des Teils in W: Darueber haelt der Transfer die Mindesthoehe der Selbstpruefung (b).
+        pts = np.vstack([r.p_W[:, :2] for r in rings]) if rings else np.zeros((1, 2))
+        self._xy_lo = pts.min(axis=0) - 0.5 * params.bead_width_mm
+        self._xy_hi = pts.max(axis=0) + 0.5 * params.bead_width_mm
         self.s = Samples()
         self.timings = {"graph": 0.0, "dense": 0.0, "check": 0.0}
         self._graphs: dict[int, RingGraph] = {}
@@ -168,6 +173,15 @@ class PartPlanner:
     def _bad(self, contacts: list[Any], d: Dense) -> np.ndarray:
         dd = np.array([c.d_mm if c is not None else np.inf for c in contacts])
         return (dd < self.p.d_hard_mm) | ~d.ok
+
+    def _sags(self, d: Dense, k: int) -> bool:
+        """Sackt ein Transfer (movej) ueber dem Teil unter z_lift - TOL_LIFT_MM ueber den Druckstand?
+        Dann ist er nicht frei: Die Selbstpruefung (b) wuerde das Teil sonst verwerfen."""
+        if k <= 0:
+            return False
+        over = np.all((d.p_W[:, :2] >= self._xy_lo) & (d.p_W[:, :2] <= self._xy_hi), axis=1)
+        floor = self.stand_top_W(k) + self.p.z_lift_mm - TOL_LIFT_MM
+        return bool(np.any(over & (d.p_W[:, 2] < floor)))
 
     def _ik_branch(self, p_W: np.ndarray, psi: float, branch: int, q_ref: np.ndarray):  # noqa: N803
         Q, ok = self.kin.ik(p_W[None], np.array([psi]))
@@ -253,7 +267,7 @@ class PartPlanner:
         d = movej(self.kin, q_a, q_b, self.p)
         self.timings["dense"] += time.perf_counter() - t
         c = self._check(d, k, force=True)
-        if not self.aware or not self._bad(c, d).any():
+        if not self.aware or not (self._bad(c, d).any() or self._sags(d, k)):
             return [(d, c)], True
         best = [(d, c)]
         mid = 0.5 * (p_a + p_b)
@@ -271,11 +285,11 @@ class PartPlanner:
             for _, qv in cands[:4]:
                 d1 = movej(self.kin, q_a, qv, self.p)
                 c1 = self._check(d1, k, force=True)
-                if self._bad(c1, d1).any():
+                if self._bad(c1, d1).any() or self._sags(d1, k):
                     continue
                 d2 = movej(self.kin, qv, q_b, self.p)
                 c2 = self._check(d2, k, force=True)
-                if not self._bad(c2, d2).any():
+                if not (self._bad(c2, d2).any() or self._sags(d2, k)):
                     return [(d1, c1), (d2, c2)], True
         return best, False
 

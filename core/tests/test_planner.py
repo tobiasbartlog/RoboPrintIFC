@@ -136,6 +136,30 @@ def test_movej_dicht(kin: Kin) -> None:
     assert np.allclose(d.q[-1], q_b)
 
 
+def test_transfer_sackt_unter_mindesthoehe() -> None:
+    """Selbstpruefung (b): Ueber dem Teil bleibt der Transfer >= z_lift - TOL_LIFT_MM ueber dem
+    Druckstand. Sackt die movej tiefer, gilt er als unfrei und bekommt den Zwischenpunkt (SPEC 5.3)."""
+    from roboprint.planner.densify import Dense
+    from roboprint.planner.plan import PartPlanner, RingTask
+    from roboprint.selfcheck import TOL_LIFT_MM
+
+    p = PlannerParams()
+    ring = np.array([[0.0, 0.0, 10.0], [600.0, 0.0, 10.0], [600.0, 200.0, 10.0], [0.0, 200.0, 10.0]])
+    T_WP = np.eye(4)  # noqa: N806
+    pp = PartPlanner(None, [RingTask(0, 0, ring), RingTask(1, 5, ring + [0, 0, 50])], T_WP, p, None, None)
+    k = 3  # Druckstand-Oberkante 30 mm
+    floor = pp.stand_top_W(k) + p.z_lift_mm - TOL_LIFT_MM
+
+    def dense(z: float, x: float = 300.0) -> Dense:
+        pts = np.array([[x, 100.0, z]])
+        return Dense(np.zeros((1, 6)), np.ones(1, bool), pts, np.zeros(1), np.ones(1))
+
+    assert not pp._sags(dense(floor + 0.1), k)
+    assert pp._sags(dense(floor - 0.1), k)
+    assert not pp._sags(dense(floor - 0.1, x=900.0), k)  # neben dem Teil egal
+    assert not pp._sags(dense(0.0), 0)  # vor dem ersten Ring gibt es keinen Druckstand
+
+
 def test_unerreichbar_ist_eigener_status(kin: Kin) -> None:
     p_a = np.array([780.0, 600.0, 1200.0])
     p_b = np.array([780.0, -1500.0, 1200.0])  # weit ausserhalb der Reichweite
