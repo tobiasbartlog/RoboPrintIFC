@@ -432,6 +432,13 @@ def make_world(part_mesh_P: Any, T_WP: np.ndarray, layer_height_mm: float, root:
 _POOL_BACKEND: Any = None
 
 
+def can_fork_pool() -> bool:
+    """Prozess-Pools (fork) moeglich? Nicht in daemonischen Prozessen (z. B. API-Job)."""
+    import multiprocessing as mp
+
+    return "fork" in mp.get_all_start_methods() and not mp.current_process().daemon
+
+
 def _pool_worker(args: tuple[np.ndarray, np.ndarray]) -> list[Contact]:
     Q, layers = args  # noqa: N806
     return contacts_batch(_POOL_BACKEND, Q, layers)
@@ -445,7 +452,7 @@ def contacts_parallel(backend: Any, Q: np.ndarray, layers: np.ndarray, procs: in
     global _POOL_BACKEND
     Q = np.asarray(Q, float).reshape(-1, 6)  # noqa: N806
     layers = np.broadcast_to(np.asarray(layers, int), (len(Q),))
-    if procs <= 1 or len(Q) < 4000 or "fork" not in mp.get_all_start_methods():
+    if procs <= 1 or len(Q) < 4000 or not can_fork_pool():
         return contacts_batch(backend, Q, layers)
     for k in np.unique(layers):  # Druckstand-Szenen vor dem fork bauen
         i = int(np.argmax(layers == k))

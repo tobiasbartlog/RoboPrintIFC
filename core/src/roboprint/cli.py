@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import os
 from collections.abc import Sequence
 from pathlib import Path
+
+# Parallel wird ueber Prozesse gerechnet (Pools je Teil, --jobs); BLAS-Threads je Prozess wuerden
+# sich nur um die vCPU streiten. Muss vor dem ersten numpy-Import gesetzt sein; die Ergebnisse
+# haengen nicht davon ab.
+for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_var, "1")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -14,7 +21,9 @@ def build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run-scenario", help="Szenario ausfuehren und Laufordner schreiben")
     run.add_argument("scenario", type=Path, help="Szenario-JSON")
     run.add_argument("--out", type=Path, required=True, help="Ausgabeordner")
-    run.add_argument("--jobs", type=int, default=1, help="parallele Prozesse")
+    run.add_argument(
+        "--jobs", type=int, default=0, help="Teile parallel in so vielen Prozessen (0 = Anzahl vCPU)"
+    )
 
     serve = sub.add_parser("serve", help="API starten")
     serve.add_argument("--port", type=int, default=8765)

@@ -527,7 +527,12 @@ def emit(planned_part: PlannedPart, dialect: Dialect, *, allow_infeasible: bool 
     """
     if dialect not in DIALECTS:
         raise ValueError(f"Dialekt {dialect!r} unbekannt, erlaubt {DIALECTS}")
-    pp = planned_part
+    steps, T_BT = _checked_steps(planned_part, allow_infeasible)  # noqa: N806
+    return _render(planned_part, dialect, steps, T_BT)
+
+
+def _checked_steps(pp: PlannedPart, allow_infeasible: bool) -> tuple[list[Step], np.ndarray]:
+    """Parameter und Machbarkeit pruefen, dann den (dialektunabhaengigen) Ablaufplan bauen."""
     pp.params.validate()
     tr = pp.trajectory
     if not allow_infeasible:
@@ -535,8 +540,7 @@ def emit(planned_part: PlannedPart, dialect: Dialect, *, allow_infeasible: bool 
             raise ValueError(f"Teil {pp.part.part_id} ist {pp.part.status}: kein Programm")
         if tr.summary.n_collision or tr.summary.n_unreachable:
             raise ValueError(f"Teil {pp.part.part_id}: Trajektorie hat collision/unreachable-Samples")
-    steps, T_BT = build_steps(pp)  # noqa: N806
-    return _render(pp, dialect, steps, T_BT)
+    return build_steps(pp)
 
 
 # --------------------------------------------------------------------------- Laufordner
@@ -563,10 +567,11 @@ def load_planned_part(part_dir: str | Path, params: DrlParams | None = None) -> 
 def write_programs(part_dir: str | Path, params: DrlParams | None = None) -> list[Path]:
     """Schreibt `program.v2.drl` und `program.v3.drl` in den Teilordner."""
     pp = load_planned_part(part_dir, params)
+    steps, T_BT = _checked_steps(pp, allow_infeasible=False)  # noqa: N806 - einmal fuer beide Dialekte
     paths = []
     for d in DIALECTS:
         p = Path(part_dir) / f"program.{d}.drl"
-        p.write_text(emit(pp, d), encoding="ascii", newline="\n")  # type: ignore[arg-type]
+        p.write_text(_render(pp, d, steps, T_BT), encoding="ascii", newline="\n")
         paths.append(p)
     return paths
 

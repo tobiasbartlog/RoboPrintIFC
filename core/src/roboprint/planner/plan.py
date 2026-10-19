@@ -10,20 +10,36 @@ transfer/lower vor einem Ring: k = (Schicht des vorigen Rings) + 1, vor dem erst
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import numpy as np
 
 from roboprint.robot import HOME_Q
 
-from .backend import contacts_batch, contacts_parallel
+from .backend import can_fork_pool, contacts_batch, contacts_parallel
 from .densify import Dense, movej, movel, movel_chain
-from .graph import N_BRANCH, RingPath, build_graph, mark_hard, solve_ring
+from .graph import N_BRANCH, RingGraph, RingPath, build_graph, mark_hard, solve_ring
 from .kin import Kin, nearest_variant
 from .params import PlannerParams
 
 _RING_RETRIES = 2
+#: Planer, dessen Ring-Graphen die Pool-Prozesse bauen (fork erbt ihn, siehe `_graph_worker`)
+_POOL_PLANNER: Any = None
+
+
+#: Abschlusspruefung waehrend der Planung: Samples blockweise an den Pool, sobald so viele da sind
+_CHECK_BLOCK = 2000
+
+
+def _graph_worker(i: int) -> tuple[int, RingGraph]:
+    pp = _POOL_PLANNER
+    task = pp.rings[i]
+    return task.index, build_graph(pp.kin, task.p_W, task.layer, pp.p, pp.screen if pp.aware else None)
+
+
+def _check_worker(args: tuple[np.ndarray, np.ndarray]) -> list[Any]:
+    return contacts_batch(_POOL_PLANNER.final, *args)
 
 
 @dataclass
@@ -120,6 +136,13 @@ class PartPlanner:
         self.height = part_height_mm if part_height_mm is not None else n_layers * params.layer_height_mm
         self.s = Samples()
         self.timings = {"graph": 0.0, "dense": 0.0, "check": 0.0}
+        self._graphs: dict[int, RingGraph] = {}
+        self._graph_iter: Any = None
+        # Abschlusspruefung im Pool, waehrend der Hauptprozess weiterplant (nur mit Double-Planung)
+        self._pool: Any = None
+        self._pending: list[tuple[int, int, Any]] = []  # (erstes Sample, Anzahl, AsyncResult)
+        self._sent = 0  # Samples bis hierher an den Pool gegeben
+        self._final_done = np.zeros(0, bool)
 
     # -------------------------------------------------------------- Hilfen
     def stand_top_W(self, k: int) -> float:  # noqa: N802
@@ -154,9 +177,27 @@ class PartPlanner:
         return None
 
     # -------------------------------------------------------------- Ring
+    def _graph(self, task: RingTask) -> RingGraph:
+        """Ring-Graph (IK, Vorauswahl, Kanten) haengt nicht vom Vorgaenger ab: aus dem Pool, falls
+        vorausgebaut, sonst hier. Jede Suche bekommt frische Pruefwerte `d_real`."""
+        while task.index not in self._graphs and self._graph_iter is not None:
+            try:
+                i, g = next(self._graph_iter)
+            except StopIteration:
+                self._graph_iter = None
+                break
+            self._graphs[i] = g
+        g = self._graphs.get(task.index)
+        if g is None:
+            g = build_graph(self.kin, task.p_W, task.layer, self.p, self.screen if self.aware else None)
+            self._graphs[task.index] = g
+        for k in [k for k in self._graphs if k < task.index]:
+            del self._graphs[k]
+        return replace(g, d_real=np.full_like(g.d_real, np.nan))
+
     def _plan_ring(self, task: RingTask, q_prev, b_prev, force_branch=None):
         t = time.perf_counter()
-        g = build_graph(self.kin, task.p_W, task.layer, self.p, self.screen if self.aware else None)
+        g = self._graph(task)
         path = solve_ring(g, self.p, self.real if self.aware else None, q_prev, b_prev, force_branch)
         self.timings["graph"] += time.perf_counter() - t
         return g, path
@@ -241,6 +282,58 @@ class PartPlanner:
 
     # -------------------------------------------------------------- Hauptablauf
     def run(self) -> PlannedPath:
+        """Plant alle Ringe; mit `procs` > 1 bauen Pool-Prozesse die Ring-Graphen voraus."""
+        import multiprocessing as mp
+
+        global _POOL_PLANNER
+        if self.procs <= 1 or len(self.rings) < 2 or not can_fork_pool():
+            self._run()
+            return self._finish()
+        _POOL_PLANNER = self
+        try:
+            with mp.get_context("fork").Pool(self.procs) as pool:
+                self._graph_iter = pool.imap(_graph_worker, range(len(self.rings)))
+                if self.final is not self.real:
+                    self._pool = pool
+                self._run()
+                self._collect_checks()
+        finally:
+            _POOL_PLANNER = None
+            self._graph_iter = self._pool = None
+            self._graphs = {}
+        return self._finish()
+
+    def _submit_checks(self, flush: bool = False) -> None:
+        """Neue erreichbare Samples (ab `_sent`) blockweise an den Pool zur Abschlusspruefung."""
+        n = self.s.n
+        if self._pool is None or n - self._sent < (1 if flush else _CHECK_BLOCK):
+            return
+        q = np.vstack(self.s.q)[self._sent :]
+        ok = np.concatenate(self.s.ok)[self._sent :]
+        lay = np.asarray(self.s.layer[self._sent :])
+        idx = np.flatnonzero(ok)
+        for a in range(0, len(idx), _CHECK_BLOCK):
+            ix = idx[a : a + _CHECK_BLOCK]
+            res = self._pool.apply_async(_check_worker, ((q[ix], lay[ix]),))
+            self._pending.append((self._sent, ix, res))
+        self._sent = n
+
+    def _collect_checks(self) -> None:
+        """Rest abschicken, auf alle Pool-Pruefungen warten, Kontakte eintragen."""
+        if self._pool is None:
+            return
+        t = time.perf_counter()
+        self._submit_checks(flush=True)
+        done = np.zeros(self.s.n, bool)
+        for start, ix, res in self._pending:
+            for i, c in zip(ix, res.get(), strict=True):
+                self.s.contacts[start + int(i)] = c
+            done[start + ix] = True
+        self._pending = []
+        self._final_done = done
+        self.timings["final_check"] = time.perf_counter() - t
+
+    def _run(self) -> None:
         p, s = self.p, self.s
         up = np.array([0.0, 0.0, p.approach_mm])
         q_cur = HOME_Q.copy()
@@ -320,7 +413,7 @@ class PartPlanner:
             p_cur = dlift.p_W[-1]
             psi_cur = psi_r
             b_prev = _branch_q(q_cur)
-        return self._finish()
+            self._submit_checks()
 
     def _ring_motion(self, task: RingTask, path: RingPath, p_ls, appr, L):
         """lower, approach, print, retract fuer einen Ringpfad; None, wenn Ringstart unerreichbar."""
@@ -372,15 +465,17 @@ class PartPlanner:
         q = np.vstack(s.q)
         ok = np.concatenate(s.ok)
         t = time.perf_counter()
+        done = np.zeros(len(q), bool)
+        done[: len(self._final_done)] = self._final_done  # schon im Pool geprueft
         if self.final is not self.real:
-            todo = [i for i in range(len(q)) if ok[i]]
+            todo = [i for i in range(len(q)) if ok[i] and not done[i]]
         else:
             todo = [i for i, c in enumerate(s.contacts) if c is None and ok[i]]
         if todo:
             cs = contacts_parallel(self.final, q[todo], np.array([s.layer[i] for i in todo]), self.procs)
             for i, c in zip(todo, cs, strict=True):
                 s.contacts[i] = c
-        self.timings["final_check"] = time.perf_counter() - t
+        self.timings["final_check"] = self.timings.get("final_check", 0.0) + time.perf_counter() - t
         status = [_status(c, o, p) for c, o in zip(s.contacts, ok, strict=True)]
         from roboprint.robot import branch_of
 

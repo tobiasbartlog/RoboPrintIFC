@@ -134,6 +134,40 @@ def test_unerreichbar_ist_eigener_status(kin: Kin) -> None:
     assert _status(C, True, P) == "ok"
 
 
+# --------------------------------------------------------------------------- Prozess-Pools
+
+
+def test_pools_aendern_das_ergebnis_nicht() -> None:
+    """Graphen-Vorausbau und Abschlusspruefung im Pool liefern dasselbe wie seriell."""
+    from roboprint import frames
+    from roboprint.geometry import make_box
+    from roboprint.planner import plan_part
+
+    mesh = make_box([200, 100, 40], origin=[-100, -50, 0.0])
+    pl = frames.Placement(-500.0, -325.0, 0.0)
+    a = plan_part(mesh, "a", P, placement=pl, procs=1).path
+    b = plan_part(mesh, "b", P, placement=pl, procs=2).path
+    assert np.array_equal(a.q, b.q) and a.status == b.status and a.feasible
+    assert [c and (c.d_mm, c.pair) for c in a.contacts] == [c and (c.d_mm, c.pair) for c in b.contacts]
+
+
+def test_platzierung_parallel_wie_seriell(kin: Kin) -> None:
+    from roboprint import frames
+    from roboprint.geometry import make_box
+    from roboprint.planner import SphereWorld
+    from roboprint.planner.placement import _scores, _scores_parallel, probe_points
+
+    mesh = make_box([300, 200, 60], origin=[-150, -100, 0.0])
+    world = SphereWorld(mesh, np.eye(4), P.layer_height_mm)
+    world.skip_tip = True
+    ws = load_workstation()
+    T = [frames.T_WP(ws, frames.Placement(x, y, 0.0)) for x in (-600, -500, -400, -300) for y in (-350, -250)]
+    probes, psi = probe_points(mesh, P.layer_height_mm, False), P.psi_grid[::6]
+    assert np.array_equal(
+        _scores(kin, world, T, probes, psi, False), _scores_parallel(kin, world, T, probes, psi, False, 2)
+    )
+
+
 # --------------------------------------------------------------------------- Zeit
 
 
