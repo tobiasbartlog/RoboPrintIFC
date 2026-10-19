@@ -3,7 +3,9 @@ import { clock, linkLabel, obstacleLabel } from '../player/labels';
 import { isJobRunning } from '../state/store';
 import { useAppStore, useSteps } from '../state/storeContext';
 import { ErrorNote, Reason, StaleBanner } from './common';
+import { ModuleProgress, ModuleRaster, RunStats } from './ModuleRaster';
 import { ParamsPanel } from './ParamsPanel';
+import { stageLabel } from '../state/moduleView';
 
 const num = (n: number) => n.toLocaleString('de-DE');
 
@@ -52,13 +54,14 @@ export function DecomposeStep() {
         <Paper withBorder p="sm" data-testid="job-progress" data-state={job.state.state}>
           <Group justify="space-between">
             <Text size="sm" fw={600} data-testid="job-stage">
-              {cancelled ? 'Abgebrochen' : (job.state.stage ?? 'Wartet auf Start')}
+              {cancelled ? 'Abgebrochen' : stageLabel(job.state.stage)}
             </Text>
             <Text size="sm" data-testid="job-percent">
               {pct} %
             </Text>
           </Group>
           <Progress value={pct} my="xs" animated={running} />
+          {running ? <ModuleProgress stage={job.state.stage} message={job.state.message} /> : null}
           {job.state.message ? (
             <Text size="xs" c="dimmed" data-testid="job-message">
               {job.state.message}
@@ -83,6 +86,8 @@ export function DecomposeStep() {
               {num(Object.values(run.trajectory).reduce((a, t) => a + t.n, 0))} Bahnpunkte geprüft
             </Text>
           </Group>
+          <RunStats run={run} />
+          <ModuleRaster run={run} stale={stale} partId={partId} onSelect={selectPart} />
           {run.summary.parts.map((p) => {
             const art = run.parts[p.part_id];
             const ok = p.status === 'machbar';

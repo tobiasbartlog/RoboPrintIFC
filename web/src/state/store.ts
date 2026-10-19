@@ -41,6 +41,8 @@ export interface AppState extends PlaybackSlice {
   openFile: (file: File) => Promise<void>;
   // wall
   wallId: string | null;
+  /** URL des Wandmeshes (STL, Frame L) im aktuellen Projekt. */
+  wallMeshUrl: (wallId: string) => string;
   selectWall: (id: string) => void;
   // params
   params: ParamValues;
@@ -152,6 +154,7 @@ export function createAppStore(api: ApiPort, opts: StoreOptions = {}): AppStore 
 
       wallId: null,
       selectWall: (wallId) => set({ wallId }),
+      wallMeshUrl: (wallId) => api.wallMeshUrl(get().project?.project_id ?? '', wallId),
 
       params: { ...DEFAULT_PARAMS },
       setParam: (key, value) => set((s) => ({ params: { ...s.params, [key]: value } })),

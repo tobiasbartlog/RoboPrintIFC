@@ -51,7 +51,7 @@ def eligibility(wall: Wall, bead_width_mm: float) -> tuple[bool, str | None]:
     if wall.thickness_mm + 1e-6 >= need:
         return True, None
     return False, (
-        f"Wand zu duenn: {wall.thickness_mm:.1f} mm < {need:.1f} mm (2 x Strangbreite {bead_width_mm:g} mm)"
+        f"Wand zu dünn: {wall.thickness_mm:.1f} mm < {need:.1f} mm (2 × Strangbreite {bead_width_mm:g} mm)"
     )
 
 

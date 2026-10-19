@@ -18,9 +18,9 @@ Neulings, **niedrig** = Feinschliff. Status: **behoben** in diesem Commit oder *
 | 5 | Export: zwei gleich gefüllte Download-Knöpfe je Teil (v2 und v3), auch bei nicht machbarem Teil | Genau eine hervorgehobene Hauptaktion | `g6-4-export.png` (alt) | mittel | behoben |
 | 6 | Ursache „nicht machbar“ als Rohlog („Sample 336 (transfer, Ring 0, k=0): d = 8.4 mm < d_hard …“) | Kein Rohfehler ohne Klartext | eigene Aufnahme `decompose-direct` (S3) | mittel | behoben |
 | 7 | Interne Begriffe und schwer lesbare Zahlen: „d_min“, „Samples“, „IK-Zweig“, „62112 Samples“, Zeit „1.309,0 / 1.442,0 s“, „1 Bereiche“, „Standard 0.3 rad“ | Klartext auf Deutsch | `g6-2-zerlegen.png`, `g6-3-wiedergabe.png` (alt) | mittel | behoben |
-| 8 | 3D-Ansicht in Schritt 1 und 2 leer (nur Gitter); die gewählte Wand erscheint nicht in 3D, kein Hinweis | Neuling kommt ohne Handbuch durch; Wandliste synchron zur 3D-Auswahl | `g6-1-modell.png`, `g6-2-zerlegen.png` | hoch | teilweise: Leerhinweis ergänzt, Wandvorschau offen |
-| 9 | Zerlegen zeigt nur eine Teileliste: kein Raster der Module in Wandansicht, keine Kennzahlen Druckzeit, kein Fortschritt je Modul | Ablauf Schritt 2 (Leitbild) | `g6-2-zerlegen.png` | mittel | offen |
-| 10 | Texte aus dem Kern ohne Umlaute („Wand zu duenn“, „Schichthoehe“, „Duese“, „ueber“, „Waende“), Beispielnamen als Kennungen („S1_modul_referenz“); Bericht zum Export fehlt | Klartext auf Deutsch; Export „dazu ein Bericht“ | `g6-1-modell.png`, `g6-4-export.png` | niedrig | offen |
+| 8 | 3D-Ansicht in Schritt 1 und 2 leer (nur Gitter); die gewählte Wand erscheint nicht in 3D, kein Hinweis | Neuling kommt ohne Handbuch durch; Wandliste synchron zur 3D-Auswahl | `g6-1-modell.png`, `g6-2-zerlegen.png` | hoch | behoben (A4.4) |
+| 9 | Zerlegen zeigt nur eine Teileliste: kein Raster der Module in Wandansicht, keine Kennzahlen Druckzeit, kein Fortschritt je Modul | Ablauf Schritt 2 (Leitbild) | `g6-2-zerlegen.png` | mittel | behoben (A4.4) |
+| 10 | Texte aus dem Kern ohne Umlaute („Wand zu duenn“, „Schichthoehe“, „Duese“, „ueber“, „Waende“), Beispielnamen als Kennungen („S1_modul_referenz“); Bericht zum Export fehlt | Klartext auf Deutsch; Export „dazu ein Bericht“ | `g6-1-modell.png`, `g6-4-export.png` | niedrig | teilweise (A4.4): Eignungsgrund, Beispielnamen; Annahmenliste und Bericht offen |
 
 ## Aufgaben im Einzelnen
 
@@ -58,19 +58,19 @@ Ungeeignete Wände enden mit der Handlung „Andere Wand wählen.“
 „Bahnpunkt 62.188 von 68.933“, Spielzeit als `m:ss,s min`, Singular/Plural bei „Bereich(e)“,
 Timeline-Spur „Bewegung“ statt „Art“, Teil-Abzeichen ohne Großschreibung (`box_01` statt `BOX_01`).
 
-### 8 Wand in 3D zeigen (offen, größer)
+### 8 Wand in 3D zeigen (behoben in A4.4: `GET /api/projects/{id}/walls/{wall_id}.stl`, `WallPreview`)
 Leerhinweis in der 3D-Ansicht ist ergänzt („Hier erscheinen nach ‚Zerlegen & prüfen‘ …“).
 Offen: Die API liefert unter `/api/projects/{id}` nur Maße, keine Geometrie. Nötig ist ein
 Wandmesh (z. B. `walls/{wall_id}.stl` im Frame L) und eine Szene „Modell“, die alle Wände zeigt,
 die gewählte hervorhebt und per Klick auswählt (synchron zur Liste).
 
-### 9 Modulraster und Kennzahlen (offen, größer)
+### 9 Modulraster und Kennzahlen (behoben in A4.4: `ModuleRaster`, Fortschritt je Modul aus „Teil i/n“)
 Schritt 2 braucht ein Raster der Module in Wandansicht (2D, gefärbt nach Status) und Kennzahlen
 Anzahl, Druckzeit (aus `t_s` je Teil), kleinster Abstand; dazu Fortschritt je Modul während des
 Jobs (`stage`/`message` liefern heute nur Text). Kann der Viewer aus `summary.json` und
 `part.json` (BBox in L) ohne Fachlogik zeichnen; die Druckzeit sollte `summary.json` liefern.
 
-### 10 Texte aus dem Kern, Bericht (offen)
+### 10 Texte aus dem Kern, Bericht (teilweise in A4.4; Annahmenliste in `drl.py`/`pipeline.py` und Bericht offen)
 Die Eignungsgründe (`core`), die Annahmenliste in `summary.json` und die Szenario-Beschreibungen
 schreiben ASCII-Umschrift. Im Kern auf UTF-8 mit Umlauten umstellen (DRL-Kopf darf ASCII bleiben).
 Beispiele bräuchten einen Anzeigenamen („Referenzmodul 600 × 200 × 400 mm“). Für den Export fehlt
