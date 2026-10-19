@@ -244,6 +244,8 @@ class _LayerScene:
         self.k_const = const[self.pid] if self.pid.size else np.zeros(0, dtype=bool)
         printed = np.array([n[1] == PRINTED for n in self.pair_names], dtype=bool)
         self.k_printed = printed[self.pid] if self.pid.size else np.zeros(0, dtype=bool)
+        self.pair_other = ~printed  # Koerperpaare ausser Druckstand
+        self.pair_const = const  # i <-> i+2-Gliedpaare: taugen nicht als Saat (zaehlen meist nicht)
         # Statische Hindernisteile (Frame W): achsparallele Box (mit Aufmass) als engere Schranke.
         w = frame_index["W"]
         lo = np.vstack([p.vertices.min(axis=0) for b in bodies for p in b.parts])
@@ -479,27 +481,43 @@ class World:
             for m, k in zip(*bb.seeds(2), strict=True):
                 if k != warm:
                     evaluate(m, k)
-            # Suchgrenzen: Druckstand-Paare nur unter dem Gesamtminimum (d_mm); die uebrigen Paare
-            # zusaetzlich bis d_hint, weil sie die Warnung ausloesen koennen, auch wenn ein
-            # Druckstand-Paar naeher liegt. Bei Kollision am Druckstand zaehlt nur noch d_mm.
-            def cut_other(m: int) -> float:
-                bp = best_p[m]
-                return min(best_o[m], lim, bp if bp < 0.0 else max(bp, d_hint))
-
-            cand_m, cand_k, cand_lb = bb.candidates(
-                np.maximum(np.minimum(best, lim), [cut_other(m) for m in range(M)])
-            )
+            # Durchgang 1: alle Paare unter dem Gesamtminimum (d_mm, Grenze min(best, lim)).
+            cand_m, cand_k, cand_lb = bb.candidates(np.minimum(best, lim))
             if cand_m.size:
                 order = np.lexsort((cand_lb, cand_m))
                 starts = np.searchsorted(cand_m[order], np.arange(M + 1))
                 ks, lbs = cand_k[order].tolist(), cand_lb[order].tolist()
                 for m in range(M):
                     for i in range(int(starts[m]), int(starts[m + 1])):
-                        if lbs[i] >= (min(best[m], lim) if k_printed[ks[i]] else cut_other(m)):
-                            continue
+                        if lbs[i] >= min(best[m], lim):
+                            break
                         if k_const[ks[i]] and lbs[i] >= d_hard:
                             continue
                         if ks[i] != warm:
+                            evaluate(m, ks[i])
+
+            # Durchgang 2 (Statusregel): Liegt das Minimum am Druckstand (Warnschwelle d_target_printed),
+            # koennen die uebrigen Paare noch unter d_target liegen und warn ausloesen. Nur diese Paare
+            # (nicht-Druckstand) werden bis min(best_o, d_hint) gesucht, und nur in den betroffenen Posen.
+            def cut_other(m: int) -> float:
+                bp = best_p[m]
+                return min(best_o[m], lim, bp if bp < 0.0 else max(bp, d_hint))
+
+            lo = np.minimum(best, lim)
+            cut = np.array([cut_other(m) for m in range(M)])
+            todo = cut > lo + 1e-9
+            if todo.any():
+                cand_m, cand_k, cand_lb = bb.candidates(np.where(todo, cut, -np.inf), sc.pair_other)
+                if cand_m.size:
+                    order = np.lexsort((cand_lb, cand_m))
+                    starts = np.searchsorted(cand_m[order], np.arange(M + 1))
+                    ks, lbs = cand_k[order].tolist(), cand_lb[order].tolist()
+                    for m in np.flatnonzero(todo).tolist():
+                        for i in range(int(starts[m]), int(starts[m + 1])):
+                            if lbs[i] >= cut_other(m):
+                                break
+                            if lbs[i] < lo[m] or (k_const[ks[i]] and lbs[i] >= d_hard):
+                                continue  # schon in Durchgang 1 entschieden bzw. zaehlt nicht
                             evaluate(m, ks[i])
             last = best_k[best_k >= 0]
             if last.size:
@@ -571,7 +589,7 @@ class _BlockBounds:
     def seeds(self, n: int) -> tuple[list[int], list[int]]:
         """Je Pose fuer die n Koerperpaare mit kleinster Schranke das Teilpaar der jeweils
         naechsten Teile: (Pose, Paarindex) zum Vorab-Auswerten (obere Schranke)."""
-        top = np.argsort(self.blb, axis=1)[:, :n]
+        top = np.argsort(np.where(self.sc.pair_const[None], np.inf, self.blb), axis=1)[:, :n]
         out_m, out_k = [], []
         for p in np.unique(top):
             mm = np.flatnonzero((top == p).any(axis=1))
@@ -598,11 +616,14 @@ class _BlockBounds:
         gap = np.abs(np.einsum("ci,cik->ck", dc, axes)) - ra - rb
         return gap.max(axis=1) - sc.margins[a] - sc.margins[b]
 
-    def candidates(self, bound: np.ndarray):
-        """Teilpaare mit unterer Schranke < bound je Pose: (Pose, Paarindex, Schranke)."""
+    def candidates(self, bound: np.ndarray, pair_mask: np.ndarray | None = None):
+        """Teilpaare mit unterer Schranke < bound je Pose: (Pose, Paarindex, Schranke).
+        pair_mask: nur diese Koerperpaare (Default alle)."""
         sc, cw, rad = self.sc, self.cw, self.sc.radii
         out_m, out_k, out_lb = [], [], []
         for p in range(len(sc.pair_bodies)):
+            if pair_mask is not None and not pair_mask[p]:
+                continue
             mm = np.flatnonzero(self.blb[:, p] < bound)
             if not mm.size:
                 continue
