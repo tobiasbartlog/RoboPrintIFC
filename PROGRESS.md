@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T08:25:56+02:00 · Session: orchestrator · Phase: P6 (Nacharbeit)
+Herzschlag: 2026-10-19T09:11:37+02:00 · Session: orchestrator · Phase: P6 (Nacharbeit)
 
 # PROGRESS — Nachtlauf v2
 
@@ -321,3 +321,12 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   collision und d_hard, aber nicht mehr für die d_target-Schwelle (warn). G2-Lockerung bei Durchdringung erklärt.
 - Aufgaben: A6.1 Prüfer Teil für Teil + Cache (verify/, SPEC-Nachtrag), A6.2 Statusregel base_link ↔ link_2 (core),
   A6.3 Laufzeit Zerlegen/Export (core).
+
+### 2026-10-19 09:11 P6/A6.3 Zerlegen und Export schneller
+- Ergebnis: S2 run-scenario **1131 s → 266 s** (decompose 486 → 246 s, export 645 → 19,5 s), Ergebnisse unverändert
+  (172/172 machbar, gleiche Teile und d_min). S1 55 → 38 s. G3 grün, pytest 195 passed, fake_drcf auf S1 + neuem S2 bestanden.
+- Commit: 32570b0
+- Ursache: Der bestbewertete Platzierungskandidat des Hauptmoduls war nicht machbar und löste eine teure
+  Nachplanung (~385 s) aus, bevor der zweite Kandidat geprüft wurde. Jetzt erst alle Kandidaten mit dem schnellen
+  Double, Nachplanung nur, wenn keiner machbar ist. Export: Teile mit gleichem Plan (gleiche Geometrie und
+  Platzierung) einmal aufbereiten, Kopien nur mit neuer part_id. Neues Feld `summary.parts[].same_as`.
