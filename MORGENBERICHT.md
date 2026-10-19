@@ -8,7 +8,10 @@ Einzelheiten zu jedem Schritt stehen im Protokoll von `PROGRESS.md`.
 Nach den Nutzerentscheidungen (Prüfer Teil für Teil, Statusregel base_link ↔ link_2) ist der volle Lauf von
 `python scripts/verify.py` **vollständig grün (G1–G8)**. Kennzahlen: S1 33,7 s; S2 195 s (vorher 1131 s); check_run S2
 556 s mit ~3 GB statt OOM; fake_drcf 34 s statt 954 s; S3 bestätigt. Die folgenden Abschnitte beschreiben den
-Stand am Morgen. In Arbeit: Statusregel für alle Gliedpaare i ↔ i+2 und Warnschwelle 20 mm gegen den Druckstand.
+Stand am Morgen. Danach umgesetzt (Nutzerentscheidungen): Gliedpaare i ↔ i+2 zählen nur noch für collision und d_hard,
+Warnschwelle gegen den Druckstand 20 mm. S1 jetzt 90,2 % `ok` / 9,8 % `warn` (nur Düsenspitze ↔ Tisch in Schicht 0).
+Identische Module werden einmal geplant und einmal geprüft (S2: 4 von 172). Letzter voller Lauf: G1–G8 grün,
+S1 36 s, S2 226 s, check_run S2 55 s, fake_drcf 29 s.
 
 ## Ergebnis in einem Satz (Stand Morgen)
 

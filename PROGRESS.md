@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T10:00:09+02:00 · Session: orchestrator · Phase: P6 (Nacharbeit)
+Herzschlag: 2026-10-19T11:35:24+02:00 · Session: orchestrator · Phase: P6 abgeschlossen
 
 # PROGRESS — Nachtlauf v2
 
@@ -10,11 +10,11 @@ Ablauf und Regeln stehen in `spec/NACHTLAUF.md`, die Gates in `spec/SPEC.md` §1
 |---|---|---|---|
 | G1 Kinematik | grün | 2000 FK + 2000 IK gegen Pinocchio | P0 Ende |
 | G2 Kollision | grün | 500 Posen; d_rp ≥ 0,5 mm unter d_coal, |Δ| ≤ 4,3 mm (beide ≥ 0) | P1 A1.4 |
-| G3 Referenzmodul S1 | grün | d_min 10,83 mm, 62 112 Samples, 0 coll/unreach | P2 A2.1 |
-| G4 Beispiel-IFC S2 + S3 | grün | S2 172 Module machbar, check_run 556 s; S3 bestätigt | P6 voller Lauf |
-| G5 DRL | grün | fake_drcf S1 + S2 (33,6 s mit Inhalts-Cache) | P6 voller Lauf |
+| G3 Referenzmodul S1 | grün | d_min 10,83 mm; 90,2 % ok / 9,8 % warn; 0 coll/unreach | P6 |
+| G4 Beispiel-IFC S2 + S3 | grün | S2 172 Module (4 geprüft), check_run 55 s; S3 bestätigt | P6 |
+| G5 DRL | grün | fake_drcf S1 + S2 28,7 s | P6 |
 | G6 Viewer | grün | e2e 8 passed (53 s), Uhr-Invariante 50 t S1+S3 | P3 A3.5 |
-| G7 Laufzeit | grün | S1 33,7 s, S2 195,0 s | P6 voller Lauf |
+| G7 Laufzeit | grün | S1 36,2 s, S2 225,8 s | P6 |
 | G8 Qualität | grün | ruff, pytest core, web lint/typecheck/test | P4 voller Lauf |
 
 ## Ausgangslage (Vorbereitung 2026-10-18)
@@ -337,3 +337,12 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Commit: aad5ffd
 - Offen (A6.4, in Arbeit): Gliedpaare i ↔ i+2 nur gegen collision/d_hard; Warnschwelle 20 mm gegen den Druckstand
   (beide Nutzerentscheidungen 19.10.2026).
+
+### 2026-10-19 11:35 P6 Abschluss: voller verify-Lauf
+- Ergebnis: **G1–G8 grün.** S1 36,2 s (90,2 % ok, 9,8 % warn, d_min 10,83 mm), S2 225,8 s, check_run S2 55,4 s
+  (4 von 172 Modulen geprüft, Rest byteidentische Kopien), S3 bestätigt, fake_drcf 28,7 s, e2e 42,2 s.
+- Commit: 83be8ac
+- A6.4: Gliedpaare i ↔ i+2 nur gegen collision/d_hard, d_target_printed 20 mm (Nutzerentscheidungen 19.10.2026).
+  Im Prüfer sind am Druckstand zwischen 20 und 50 mm `ok` und `warn` zulässig; collision und d_hard bleiben streng.
+- A6.5: Kopien schreiben part.stl/part.json byteidentisch zum Repräsentanten (Geometrie-Toleranz 0,01 mm).
+- A6.6: Leistungseinbruch durch A6.4 behoben (S1 426 s → 36 s, Ergebnis identisch).
