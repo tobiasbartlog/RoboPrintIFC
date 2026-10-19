@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T01:53:06+02:00 · Session: orchestrator · Phase: P4
+Herzschlag: 2026-10-19T02:04:01+02:00 · Session: orchestrator · Phase: P4
 
 # PROGRESS — Nachtlauf v2
 
@@ -247,3 +247,11 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   Neu: dauerhaftes Linienmaterial, `seek` wartet auf die Gelenkwinkel im Szenengraphen, `PacedRender`
   (höchstens ein Frame in der GPU), memoisierte Timeline/Liste, Druckbahn einmal nach Schicht sortiert.
 - Screenshots unter `web/e2e/screenshots/` aus dem Gate-Lauf aktualisiert.
+
+### 2026-10-19 02:04 P4/A4.1 UX-Prüfer
+- Ergebnis: Befund `docs/ux-befund-a4-1.md` (Top 10); 7 behoben (Kontrast Kontaktzahl, gesperrter Schritt grün,
+  seitlicher Überlauf, Zurücksetzen-Knöpfe, Export-Hervorhebung, Klartext-Ursache, Begriffe/Zahlenformat).
+  G6 und G8 nach dem Merge grün; Screenshots neu.
+- Commit: 54bb407
+- Offen: Wandvorschau in 3D (API liefert keine Wandgeometrie), Modulraster/Druckzeit/Fortschritt je Modul in
+  Schritt 2, Kerntexte ohne Umlaute, Export-Bericht; „Weiter“ bei 1280 × 800 unter dem Falz.
