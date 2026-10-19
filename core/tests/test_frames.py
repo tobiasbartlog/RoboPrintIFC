@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from roboprint import frames
-from roboprint.assets import load_tool, load_workstation
+from roboprint.assets import REPO_ROOT, load_tool, load_workstation
 
 
 @pytest.fixture(scope="module")
@@ -56,11 +56,28 @@ def test_workstation_known_values(ws):
     assert frames.T_WB(ws)[:3, 3] == pytest.approx([780.0, 1090.0, 901.0])
     assert frames.T_WS(ws)[:3, 3] == pytest.approx([780.0, 605.0, 901.0])  # Tischoberkante z = 901
     assert frames.T_WS(ws)[2, 3] == 901.0
-    assert np.allclose(frames.T_WB(ws)[:3, :3], np.eye(3))
+    assert np.allclose(frames.T_WB(ws)[:3, :3], np.diag([-1.0, -1.0, 1.0]))  # 180 Grad um Z
     assert np.allclose(frames.T_BW(ws) @ frames.T_WB(ws), np.eye(4), atol=1e-9)
-    # S liegt in B 485 mm vor der Basis (in -Y_B) und 0 mm hoeher
-    assert frames.T_BS(ws)[:3, 3] == pytest.approx([0.0, -485.0, 0.0])
+    # S liegt in B 485 mm vor der Basis (in +Y_B) und 0 mm hoeher
+    assert frames.T_BS(ws)[:3, 3] == pytest.approx([0.0, 485.0, 0.0])
     assert frames.T_SW(ws) @ frames.T_WS(ws) == pytest.approx(np.eye(4), abs=1e-9)
+
+
+def test_cable_hangs_off_the_table(ws):
+    """Das Kabel tritt bei -Y_B aus der Basis (base_link-Mesh) und hängt über die nahe hintere
+    Tischkante nach unten (Aufbau am Doosantisch), nicht über die Arbeitsfläche."""
+    import trimesh
+
+    from roboprint.planner.backend import _urdf_collision_meshes, table_box
+
+    (path,) = _urdf_collision_meshes(REPO_ROOT)["base_link"]
+    v = trimesh.load(path, force="mesh").vertices
+    cable_end_B = v[np.argmax(np.hypot(v[:, 0], v[:, 1]))]  # noqa: N806
+    assert cable_end_B[1] < -300.0
+    cable_end_W = frames.transform_points(frames.T_WB(ws), cable_end_B[None])[0]  # noqa: N806
+    lo, hi = table_box(REPO_ROOT)
+    assert cable_end_W[1] > hi[1], "Kabel liegt auf dem Tisch statt über der Kante"
+    assert lo[0] < cable_end_W[0] < hi[0]
 
 
 def test_tool_frames(tool):
