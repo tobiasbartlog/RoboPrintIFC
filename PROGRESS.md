@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T04:30:09+02:00 · Session: orchestrator · Phase: P4
+Herzschlag: 2026-10-19T04:32:20+02:00 · Session: orchestrator · Phase: P4
 
 # PROGRESS — Nachtlauf v2
 
@@ -296,3 +296,9 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   Fix: bis zu 3 geschlossene Zusatzringe mit kleinerem Versatz, wenn die Abdeckung < 97 %. Giebelmodul r9_c0 jetzt
   ≥ 98,4 % je Schicht. Unit-Tests + G3 (S1) grün. S2-Neulauf steht aus.
 - Commit: f6974a4
+
+### 2026-10-19 04:32 P4/A4.6 adaptive Verdichtung
+- Ergebnis: S1 62 112 → 52 124 Samples (−16 %); bindend ist max|Δq| ≤ 0,005 rad (Untergrenze ~44 400 Druck-Samples),
+  nicht der 5-mm-Schritt. G3 grün, Prüfer-Untergrenze d 10,014 mm. Speicherspitze check_run S1 642 → 623 MB:
+  der Speicherbedarf je Teil im Prüfer hängt kaum an der Samplezahl. Das S2-OOM ist systemseitig nicht lösbar.
+- Commit: 59b01d0
