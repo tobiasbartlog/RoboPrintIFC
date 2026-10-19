@@ -15,7 +15,6 @@ from typing import Any
 
 import numpy as np
 
-from roboprint.collision import status_of
 from roboprint.robot import HOME_Q
 from roboprint.selfcheck import TOL_LIFT_MM
 
@@ -24,6 +23,7 @@ from .densify import Dense, movej, movel, movel_chain
 from .graph import N_BRANCH, RingGraph, RingPath, build_graph, mark_hard, solve_ring
 from .kin import Kin, nearest_variant
 from .params import PlannerParams
+from .result import _IN_RING, PlannedPath, summarize, truncate
 
 _RING_RETRIES = 2
 #: Planer, dessen Ring-Graphen die Pool-Prozesse bauen (fork erbt ihn, siehe `_graph_worker`)
@@ -80,33 +80,6 @@ class Samples:
         return r
 
 
-@dataclass
-class PlannedPath:
-    """Ergebnis des Planers fuer ein Teil (vor der Zeitparametrierung)."""
-
-    q: np.ndarray  # (N,6)
-    reachable: np.ndarray  # (N,)
-    p_W: np.ndarray  # (N,3) Soll-TCP  # noqa: N815
-    psi: np.ndarray  # (N,)
-    kind: list[str]
-    ring: list[int]
-    layer: list[int]
-    branch: np.ndarray  # (N,)
-    contacts: list[Any]  # Contact | None (unreachable)
-    status: list[str]
-    feasible: bool
-    cause: dict[str, Any] | None
-    d_min_mm: float | None
-    branch_switches_in_rings: int
-    timings_s: dict[str, float] = field(default_factory=dict)
-
-
-def _status(c: Any, ok: bool, p: PlannerParams) -> str:
-    if not ok:
-        return "unreachable"
-    return status_of(c, p.d_target_mm, p.d_target_printed_mm)
-
-
 class PartPlanner:
     """Plant ein Teil an einer festen Platzierung (T_WP)."""
 
@@ -122,6 +95,7 @@ class PartPlanner:
         part_height_mm: float | None = None,
         final: Any | None = None,
         procs: int = 1,
+        stop_at_bad: bool = False,
     ) -> None:
         self.kin, self.rings, self.p = kin, rings, params
         self.T_WP = np.asarray(T_WP, float)
@@ -129,6 +103,11 @@ class PartPlanner:
         # `final`: Backend der Abschlusspruefung aller Samples (echte Welt); `real` prueft waehrend
         # der Planung (Travel-Entscheidungen, Ring-Nachplanung) und darf ein schnelles Double sein.
         self.final = final if final is not None else real
+        # Hoehensuche: Jeder Ring wird sofort mit der echten Welt geprueft (`checker`), die Planung
+        # stoppt an der ersten Schicht, die nicht geht; `layers_ok` zaehlt die Schichten darunter.
+        self.stop_at_bad = stop_at_bad
+        self.checker = self.final if stop_at_bad else self.real
+        self.layers_ok: int | None = None
         self.procs = procs
         self.aware = collision_aware
         self.z0 = float(self.T_WP[2, 3])
@@ -160,11 +139,11 @@ class PartPlanner:
         """
         t = time.perf_counter()
         out: list[Any] = [None] * len(d.q)
-        if not force and self.final is not self.real:
+        if not force and self.final is not self.checker:
             return out
         idx = np.nonzero(d.ok)[0]
         if idx.size:
-            cs = contacts_batch(self.real, d.q[idx], np.full(len(idx), layer))
+            cs = contacts_batch(self.checker, d.q[idx], np.full(len(idx), layer))
             for i, c in zip(idx, cs, strict=True):
                 out[i] = c
         self.timings["check"] += time.perf_counter() - t
@@ -182,6 +161,22 @@ class PartPlanner:
         over = np.all((d.p_W[:, :2] >= self._xy_lo) & (d.p_W[:, :2] <= self._xy_hi), axis=1)
         floor = self.stand_top_W(k) + self.p.z_lift_mm - TOL_LIFT_MM
         return bool(np.any(over & (d.p_W[:, 2] < floor)))
+
+    def _ring_bad(self, n0: int, i0: int, free: bool) -> bool:
+        """Hoehensuche: Geht der Ring ab Sample `n0` (Transfer bis Abheben) nicht? Unerreichbar,
+        unter d_hard (mit der echten Welt geprueft), Zweigwechsel im Ring oder unfreier Transfer."""
+        if self.aware and not free:
+            return True
+        s = self.s
+        ok = np.concatenate(s.ok[i0:])
+        d = np.array([c.d_mm if c is not None else np.inf for c in s.contacts[n0:]])
+        if not ok.all() or bool((d < self.p.d_hard_mm).any()):
+            return True
+        from roboprint.robot import branch_of
+
+        br = np.asarray(branch_of(np.vstack(s.q[i0:])), int).reshape(-1)
+        inr = np.array([k in _IN_RING for k in s.kind[n0:]])
+        return bool(np.any(inr[1:] & inr[:-1] & (br[1:] != br[:-1])))
 
     def _ik_branch(self, p_W: np.ndarray, psi: float, branch: int, q_ref: np.ndarray):  # noqa: N803
         Q, ok = self.kin.ik(p_W[None], np.array([psi]))
@@ -306,7 +301,7 @@ class PartPlanner:
         try:
             with mp.get_context("fork").Pool(self.procs) as pool:
                 self._graph_iter = pool.imap(_graph_worker, range(len(self.rings)))
-                if self.final is not self.real:
+                if self.final is not self.checker:
                     self._pool = pool
                 self._run()
                 self._collect_checks()
@@ -338,6 +333,7 @@ class PartPlanner:
         t = time.perf_counter()
         self._submit_checks(flush=True)
         done = np.zeros(self.s.n, bool)
+        done[: len(self._final_done)] = self._final_done
         for start, ix, res in self._pending:
             for i, c in zip(ix, res.get(), strict=True):
                 self.s.contacts[start + int(i)] = c
@@ -364,6 +360,7 @@ class PartPlanner:
         psi_cur = float(s.psi[0][0])
         for task in self.rings:
             L = task.layer
+            n0, i0 = s.n, len(s.q)
             start = task.p_W[0]
             self._k_lower = k_travel
             appr = start + up
@@ -390,18 +387,21 @@ class PartPlanner:
                 q_ls = res[0]
                 legs, free = self._transfer(q_cur, q_ls, p_cur, p_ls, k_travel)
                 if free or not self.aware:
-                    chosen = (path, res, legs)
+                    chosen = (path, res, legs, free)
                     break
                 if chosen is None:
-                    chosen = (path, res, legs)
+                    chosen = (path, res, legs, free)
                 if force is None:
                     b0 = int(path.branch[0])
                     order += [b for b in _branch_order(g) if b != b0]
             if chosen is None:  # Ring gar nicht erreichbar
                 d = Dense(q_cur[None], np.zeros(1, bool), start[None], np.array([psi_cur]), np.ones(1))
                 s.add(d, "print", task.index, L, [None])
+                if self.stop_at_bad:
+                    self.layers_ok = L
+                    break
                 continue
-            path, res, legs = chosen
+            path, res, legs, free = chosen
             q_ls, dl, cl, da, ca, dp, cp, dr, cr, _bad = res
             for d, c in legs:
                 s.add(d, "transfer", task.index, k_travel, c)
@@ -426,7 +426,12 @@ class PartPlanner:
             p_cur = dlift.p_W[-1]
             psi_cur = psi_r
             b_prev = _branch_q(q_cur)
+            if self.stop_at_bad and self._ring_bad(n0, i0, free):
+                self.layers_ok = L
+                break
             self._submit_checks()
+        if self.stop_at_bad and self.layers_ok is None:
+            self.layers_ok = 1 + max((r.layer for r in self.rings), default=-1)
 
     def _ring_motion(self, task: RingTask, path: RingPath, p_ls, appr, L):
         """lower, approach, print, retract fuer einen Ringpfad; None, wenn Ringstart unerreichbar."""
@@ -480,7 +485,7 @@ class PartPlanner:
         t = time.perf_counter()
         done = np.zeros(len(q), bool)
         done[: len(self._final_done)] = self._final_done  # schon im Pool geprueft
-        if self.final is not self.real:
+        if self.final is not self.checker:
             todo = [i for i in range(len(q)) if ok[i] and not done[i]]
         else:
             todo = [i for i, c in enumerate(s.contacts) if c is None and ok[i]]
@@ -489,68 +494,12 @@ class PartPlanner:
             for i, c in zip(todo, cs, strict=True):
                 s.contacts[i] = c
         self.timings["final_check"] = self.timings.get("final_check", 0.0) + time.perf_counter() - t
-        status = [_status(c, o, p) for c, o in zip(s.contacts, ok, strict=True)]
-        from roboprint.robot import branch_of
-
-        branch = np.asarray(branch_of(q), int).reshape(-1)
-        d = np.array([c.d_mm if c is not None else np.inf for c in s.contacts])
-        d_min = float(d[np.isfinite(d)].min()) if np.isfinite(d).any() else None
-        switches = 0
-        in_ring = {"approach", "print", "retract"}
-        for i in range(1, len(q)):
-            if s.kind[i] in in_ring and s.kind[i - 1] in in_ring and s.ring[i] == s.ring[i - 1]:
-                if branch[i] != branch[i - 1] and ok[i] and ok[i - 1]:
-                    switches += 1
-        cause = None
-        for i, st in enumerate(status):
-            c = s.contacts[i]
-            if st in ("collision", "unreachable") or (c is not None and c.d_mm < p.d_hard_mm):
-                if st == "unreachable":
-                    cause = {
-                        "sample": i,
-                        "link": "-",
-                        "obstacle": "-",
-                        "message": f"Sample {i} ({s.kind[i]}, Ring {s.ring[i]}): keine Gelenkloesung",
-                    }
-                else:
-                    cause = {
-                        "sample": i,
-                        "link": c.pair[0],
-                        "obstacle": c.pair[1],
-                        "message": f"Sample {i} ({s.kind[i]}, Ring {s.ring[i]}, k={s.layer[i]}): "
-                        f"d = {c.d_mm:.1f} mm < d_hard = {p.d_hard_mm:.0f} mm "
-                        f"({c.pair[0]} / {c.pair[1]})",
-                    }
-                break
-        if cause is None and switches:
-            i = next(
-                i
-                for i in range(1, len(q))
-                if s.kind[i] in in_ring and branch[i] != branch[i - 1] and s.ring[i] == s.ring[i - 1]
-            )
-            cause = {
-                "sample": i,
-                "link": "-",
-                "obstacle": "-",
-                "message": f"Zweigwechsel im Ring {s.ring[i]}",
-            }
-        return PlannedPath(
-            q=q,
-            reachable=ok,
-            p_W=np.vstack(s.p_W),
-            psi=np.concatenate(s.psi),
-            kind=s.kind,
-            ring=s.ring,
-            layer=s.layer,
-            branch=branch,
-            contacts=s.contacts,
-            status=status,
-            feasible=cause is None,
-            cause=cause,
-            d_min_mm=d_min,
-            branch_switches_in_rings=switches,
-            timings_s=dict(self.timings),
-        )
+        path = summarize(
+            q, ok, np.vstack(s.p_W), np.concatenate(s.psi), s.kind, s.ring, s.layer, s.contacts, p,
+            dict(self.timings),
+        )  # fmt: skip
+        path.layers_ok = self.layers_ok
+        return path
 
 
 def _cat(parts: list[Dense]) -> Dense:
@@ -595,4 +544,4 @@ def _branch_order(g) -> list[int]:
     return [int(b) for b in np.argsort(-v) if v[b] > 0]
 
 
-__all__ = ["PartPlanner", "PlannedPath", "RingTask"]
+__all__ = ["PartPlanner", "PlannedPath", "RingTask", "summarize", "truncate"]

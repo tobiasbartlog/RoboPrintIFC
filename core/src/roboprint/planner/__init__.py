@@ -4,17 +4,19 @@ Schnittstelle::
 
     plan_part(part_mesh_P, part_id, params, mode=..., placement=None, root=...) -> PartPlan
     find_placement(part_mesh_P, params) -> [Candidate]             # Platzierungssuche (5.4/3)
+    scan_height(part_mesh_P, part_id, params) -> PartPlan          # Hoehensuche, `path.layers_ok`
+    truncate_plan(plan, n_layers, params) -> PartPlan              # Plan der unteren Schichten
 
-Module: `graph` (Knoten, Kanten, Viterbi), `plan` (Ringe, Travel, Pruefung), `densify`
-(movel/movej-Abtastung), `placement` (Suche), `backend` (Kollisions-Naht, Kugel-Double),
-`kin` (Posen mit psi), `params` (SPEC §10).
+Module: `graph` (Knoten, Kanten, Viterbi), `plan` (Ringe, Travel, Pruefung), `result` (Status,
+Ursache, Praefix), `densify` (movel/movej-Abtastung), `placement` (Suche), `backend`
+(Kollisions-Naht, Kugel-Double), `kin` (Posen mit psi), `params` (SPEC §10).
 """
 
 from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +30,7 @@ from .backend import CollisionBackend, SphereWorld, make_world
 from .kin import Kin
 from .params import PlannerParams, from_overrides
 from .placement import Candidate, distinct, find_placement, rank_placements
-from .plan import PartPlanner, PlannedPath, RingTask
+from .plan import PartPlanner, PlannedPath, RingTask, truncate
 
 Progress = Callable[[float, str], None]
 
@@ -43,6 +45,12 @@ class PartPlan:
     candidates: list[Candidate] = field(default_factory=list)
     tried: list[dict[str, Any]] = field(default_factory=list)
     timings_s: dict[str, float] = field(default_factory=dict)
+
+
+def slice_params(params: PlannerParams) -> SliceParams:
+    return SliceParams(
+        params.layer_height_mm, params.bead_width_mm, params.shells, params.step_mm, params.approach_mm
+    )
 
 
 def ring_tasks(sliced: SlicedPart, T_WP: np.ndarray) -> list[RingTask]:  # noqa: N803
@@ -138,12 +146,7 @@ def plan_part(
     """
     t0 = time.perf_counter()
     timings: dict[str, float] = {}
-    sliced = slice_part(
-        part_mesh_P,
-        SliceParams(
-            params.layer_height_mm, params.bead_width_mm, params.shells, params.step_mm, params.approach_mm
-        ),
-    )
+    sliced = slice_part(part_mesh_P, slice_params(params))
     timings["slice"] = time.perf_counter() - t0
     aware = mode == "collision_aware"
     cands: list[Candidate] = []
@@ -209,6 +212,73 @@ def plan_part(
     return PartPlan(part_id, pl, T_WP, sliced, path, cands, tried, timings)
 
 
+def scan_height(
+    part_mesh_P: Any,  # noqa: N803
+    part_id: str,
+    params: PlannerParams,
+    root: Path = REPO_ROOT,
+    world_factory: Callable[..., Any] = make_world,
+    max_candidates: int = 3,
+    procs: int = 1,
+) -> PartPlan:
+    """Hoehensuche: Wie viele Schichten des Teils gehen von unten gezaehlt?
+
+    Ob Schicht k geht, haengt nur von den Schichten darunter ab, und ein niedrigeres Prisma besteht
+    aus den unteren Schichten des hoeheren (gleiche Ringe, gleicher Druckstand). Deshalb plant jeder
+    der besten `max_candidates` Platzierungskandidaten einmal von unten, prueft jeden Ring sofort
+    mit der echten Welt und stoppt an der ersten Schicht, die nicht geht. Gewaehlt wird der
+    Kandidat mit den meisten Schichten (`path.layers_ok`), dann mit dem groessten d_min.
+    `truncate_plan` liefert daraus exakt den Plan jedes niedrigeren Teils.
+    """
+    t0 = time.perf_counter()
+    sliced = slice_part(part_mesh_P, slice_params(params))
+    kin = Kin(load_workstation(root), load_tool(root))
+    cands = rank_placements(part_mesh_P, kin, params, root, procs=procs)
+    todo = [c.placement for c in distinct(cands, max_candidates)]
+    if not todo:
+        raise ValueError(f"Teil {part_id}: keine zulaessige Platzierung auf der Arbeitsflaeche")
+    best: tuple[tuple[int, float], frames.Placement, np.ndarray, PlannedPath] | None = None
+    tried: list[dict[str, Any]] = []
+    for pl in todo:
+        T_WP, final, screen, height, kin, tasks = _setup(  # noqa: N806
+            part_mesh_P, sliced, pl, params, root, world_factory
+        )
+        path = PartPlanner(
+            kin, tasks, T_WP, params, screen, screen, True, height, final, procs, stop_at_bad=True
+        ).run()
+        n = int(path.layers_ok or 0)
+        cut = truncate(path, _prefix_len(path, sliced, n), params) if n else None
+        d = cut.d_min_mm if cut is not None and cut.d_min_mm is not None else -np.inf
+        tried.append(
+            {"x_mm": pl.x_mm, "y_mm": pl.y_mm, "yaw_deg": float(np.degrees(pl.yaw_rad)), "layers_ok": n,
+             "d_min_mm": None if cut is None else cut.d_min_mm}
+        )  # fmt: skip
+        if best is None or (n, d) > best[0]:
+            best = ((n, d), pl, T_WP, path)
+        if n >= sliced.n_layers:
+            break
+    assert best is not None
+    _, pl, T_WP, path = best  # noqa: N806
+    timings = {"scan": time.perf_counter() - t0}
+    return PartPlan(part_id, pl, T_WP, sliced, path, cands, tried, timings)
+
+
+def _prefix_len(path: PlannedPath, sliced: SlicedPart, n_layers: int) -> int:
+    """Anzahl Samples bis einschliesslich des Abhebens nach Schicht `n_layers` - 1."""
+    r_cut = sum(1 for r in sliced.rings if r.layer < n_layers)
+    if any(r.layer >= n_layers for r in sliced.rings[:r_cut]):
+        raise ValueError("Ringe sind nicht nach Schichten geordnet")
+    return int(np.searchsorted(np.asarray(path.ring), r_cut))
+
+
+def truncate_plan(pp: PartPlan, n_layers: int, params: PlannerParams) -> PartPlan:
+    """Plan der unteren `n_layers` Schichten eines Plans aus `scan_height` (gleiche Platzierung)."""
+    r_cut = sum(1 for r in pp.sliced.rings if r.layer < n_layers)
+    sliced = SlicedPart(pp.sliced.layer_height_mm, pp.sliced.bead_width_mm, n_layers, pp.sliced.rings[:r_cut])
+    path = truncate(pp.path, _prefix_len(pp.path, pp.sliced, n_layers), params)
+    return replace(pp, sliced=sliced, path=path)
+
+
 __all__ = [
     "Candidate",
     "CollisionBackend",
@@ -223,4 +293,7 @@ __all__ = [
     "plan_part",
     "replan_at",
     "rank_placements",
+    "scan_height",
+    "slice_params",
+    "truncate_plan",
 ]

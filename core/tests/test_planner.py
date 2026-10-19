@@ -15,7 +15,7 @@ from roboprint.planner import PlannerParams
 from roboprint.planner.densify import movej, movel, movel_chain
 from roboprint.planner.graph import HARD, N_BRANCH, RingGraph, _edge_costs, node_costs, viterbi
 from roboprint.planner.kin import Kin
-from roboprint.planner.plan import _status
+from roboprint.planner.result import _status
 from roboprint.robot import HOME_Q, fk_batch
 from roboprint.timing import time_parametrize, trapezoid_times
 
@@ -197,6 +197,93 @@ def test_pools_aendern_das_ergebnis_nicht() -> None:
     b = plan_part(mesh, "b", P, placement=pl, procs=2).path
     assert np.array_equal(a.q, b.q) and a.status == b.status and a.feasible
     assert [c and (c.d_mm, c.pair) for c in a.contacts] == [c and (c.d_mm, c.pair) for c in b.contacts]
+
+
+# --------------------------------------------------------------------------- Hoehensuche
+
+PL_SMALL = (-500.0, -325.0, 0.0)
+
+
+def test_niedrigeres_prisma_ist_praefix_des_hoeheren() -> None:
+    """Grundlage der Hoehensuche: Der Plan eines 30 mm hohen Quaders ist exakt der untere Teil
+    des Plans eines 60 mm hohen an derselben Platzierung (gleiche Ringe, gleicher Druckstand)."""
+    from roboprint import frames
+    from roboprint.geometry import make_box
+    from roboprint.planner import plan_part, truncate_plan
+
+    pl = frames.Placement(*PL_SMALL)
+    tall = plan_part(make_box([200, 100, 60], origin=[-100, -50, 0.0]), "a", P, placement=pl)
+    low = plan_part(make_box([200, 100, 30], origin=[-100, -50, 0.0]), "b", P, placement=pl)
+    cut = truncate_plan(tall, 3, P)
+    assert low.path.feasible and cut.path.feasible
+    assert np.array_equal(cut.path.q, low.path.q) and cut.path.status == low.path.status
+    assert [c and c.d_mm for c in cut.path.contacts] == [c and c.d_mm for c in low.path.contacts]
+    assert cut.sliced.n_layers == 3 and len(cut.sliced.rings) == len(low.sliced.rings)
+
+
+def test_hoehensuche_stoppt_an_der_ersten_schicht_die_nicht_geht() -> None:
+    """Ab k = 5 fertigen Schichten ist (kuenstlich) alles Kollision: Das Abheben nach Schicht 4
+    scheitert, also gehen 4 Schichten. Darueber wird nichts mehr geplant."""
+    from dataclasses import replace
+
+    from roboprint import frames
+    from roboprint.assets import REPO_ROOT
+    from roboprint.geometry import make_box
+    from roboprint.planner import _prefix_len, _setup, make_world, slice_params
+    from roboprint.planner.plan import PartPlanner, truncate
+    from roboprint.slicer import slice_part
+
+    mesh = make_box([200, 100, 80], origin=[-100, -50, 0.0])
+    sliced = slice_part(mesh, slice_params(P))
+    T_WP, final, screen, height, kin, tasks = _setup(  # noqa: N806
+        mesh, sliced, frames.Placement(*PL_SMALL), P, REPO_ROOT, make_world
+    )
+
+    class Blocked:
+        def distance(self, q, k):
+            c = final.distance(q, k)
+            return replace(c, d_mm=-1.0) if k >= 5 else c
+
+    path = PartPlanner(kin, tasks, T_WP, P, screen, screen, True, height, Blocked(), stop_at_bad=True).run()
+    assert path.layers_ok == 4
+    first_ring_l4 = next(r.index for r in tasks if r.layer == 4)
+    assert max(path.ring) == first_ring_l4 and not path.feasible
+    cut = truncate(path, _prefix_len(path, sliced, 4), P)
+    assert cut.feasible and max(cut.layer) == 4 and cut.kind[-1] == "lift"
+
+
+def test_quaderzelle_bekommt_den_ausschnitt_der_hoehensuche() -> None:
+    """Eine aus der Wand geschnittene Vollquader-Zelle bekommt den abgeschnittenen Plan der
+    Hoehensuche, identisch mit einer eigenen Planung; Zellen mit Oeffnung werden neu geplant."""
+    from roboprint import decompose as dc
+    from roboprint import frames
+    from roboprint import geometry as geo
+    from roboprint.decompose_plan import _from_scan
+    from roboprint.ifc import Opening, Wall
+    from roboprint.planner import plan_part
+
+    pl = frames.Placement(*PL_SMALL)
+    scan = plan_part(make_box_P(200, 100, 60), "scan", P, placement=pl)
+    scan.path.layers_ok = 6
+    hole = geo.make_box((100, 200, 20), origin=(250, -50, 0))
+    mesh = geo._from_manifold(geo._to_manifold(geo.make_box((400, 100, 60))) - geo._to_manifold(hole))
+    wall = Wall("W", "w", mesh, 400.0, 100.0, 60.0, geo.volume(mesh), np.eye(4), [Opening(250, 350, 0, 20)])
+    cell, _ = dc._cut_part(wall, np.array([0.0, 0.0, 0.0]), np.array([200.0, 100.0, 30.0]))
+    got = _from_scan(cell, [scan], P)
+    assert got is not None and got.feasible
+    own = plan_part(cell, "own", P, placement=pl).path
+    assert np.array_equal(got.planned.path.q, own.q) and got.planned.path.status == own.status
+    with_hole, _ = dc._cut_part(wall, np.array([200.0, 0.0, 0.0]), np.array([400.0, 100.0, 30.0]))
+    assert _from_scan(with_hole, [scan], P) is None
+    too_high, _ = dc._cut_part(wall, np.array([0.0, 0.0, 0.0]), np.array([200.0, 100.0, 60.0]))
+    scan.path.layers_ok = 5
+    assert _from_scan(too_high, [scan], P) is None
+
+
+def make_box_P(b: float, t: float, h: float):  # noqa: N802
+    from roboprint.geometry import make_box
+
+    return make_box([b, t, h], origin=[-b / 2, -t / 2, 0.0])
 
 
 def test_platzierung_parallel_wie_seriell(kin: Kin) -> None:

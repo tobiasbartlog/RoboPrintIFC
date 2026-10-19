@@ -3,6 +3,10 @@
 - Vorpruefung fuer die H*-Bisektion: Platzierungssuche `planner.rank_placements` (Kugel-Double,
   wenige Probewegpunkte, ~10 s je Quader, unerreichbare Quader in < 1 s). Machbar heisst: die
   beste Platzierung hat einen Vorauswahl-Abstand >= d_hard + `prefeasible_margin_mm`.
+- Hoehensuche (`scan_fn`): Die Vorpruefung ist optimistisch. `planner.scan_height` plant den
+  Quader b x T x H*_vor einmal von unten und stoppt an der ersten Schicht, die nicht geht; H* ist
+  die Oberkante der Schicht darunter. Quader-Zellen bis zu dieser Hoehe bekommen den Plan als
+  exakten Ausschnitt (`_from_scan`, gleiche Ringe und Platzierung) statt einer neuen Planung.
 - Volle Pruefung je Teil: `planner.plan_part` (Platzierungssuche, Ladder-Graph, Travel, dichte
   Abschlusspruefung). Der Plan wird an die Pipeline durchgereicht und dort nicht wiederholt.
   Gleiche Geometrie wird nur einmal geplant (Cache in `decompose`); unterschiedliche Teile einer
@@ -20,6 +24,7 @@ from typing import Any
 import numpy as np
 import trimesh
 
+from roboprint import geometry as geo
 from roboprint.assets import REPO_ROOT, load_tool, load_workstation
 from roboprint.decompose import (
     DecomposeParams,
@@ -27,6 +32,8 @@ from roboprint.decompose import (
     Feasibility,
     FeasibleFn,
     ProgressCallback,
+    ScanFn,
+    box_mesh_P,
     decompose_walls,
     wall_entry,
 )
@@ -36,12 +43,13 @@ PREFEASIBLE_MARGIN_MM = 0.0
 
 # Annahmen (A) fuer Laufzeit und Planbarkeit:
 # - Die Vorpruefung (Platzierungssuche) ist zu optimistisch: Sie stuft Quader bis ~1000 mm Hoehe
-#   als machbar ein. Deshalb bestaetigt die volle Planung H* (`h_verify`, 50 mm genau).
+#   als machbar ein. Deshalb bestaetigt die Hoehensuche der vollen Planung H* (schichtgenau).
+#   Sie plant mit dem Kugel-Double und prueft jeden Ring mit der echten Welt; die langsame
+#   Nachplanung (`replan_at`) laeuft dabei nicht, H* ist also eher etwas zu niedrig.
 # - Die obere Schranke der H*-Bisektion ist die Nutzergrenze `module_height_max_mm` (Standard
-#   400 mm, Lehm unter Eigengewicht). Mit richtig gedrehter Basis und Transfer-Mindesthoehe sind
-#   600 x 200 x 800 voll geplant machbar (Windows seriell 4-7 min je Quader, 19.10.2026).
+#   400 mm, Lehm unter Eigengewicht).
 # - b_max = 600 mm (SPEC §5.4/4) haelt S2 im Budget von 1800 s. Overrides: `DECOMPOSE_DEFAULTS`.
-DECOMPOSE_DEFAULTS: dict[str, float | bool] = {"b_max_mm": 600.0, "h_verify": True}
+DECOMPOSE_DEFAULTS: dict[str, float | bool] = {"b_max_mm": 600.0}
 
 
 def prefeasible_fn(
@@ -64,6 +72,58 @@ def prefeasible_fn(
         return Feasibility(ok, float(c.score), c.placement, why)
 
     return check
+
+
+def scan_fn(params: Any, scans: list[Any], root: Path = REPO_ROOT, procs: int = 1) -> ScanFn:
+    """Hoehensuche fuer Quader b x t x h; jeder Plan landet in `scans` (fuer `_from_scan`)."""
+    from roboprint.planner import scan_height
+
+    def scan(b: float, t: float, h: float) -> float:
+        try:
+            pp = scan_height(box_mesh_P(b, t, h), "scan", params, root=root, procs=procs)
+        except ValueError:  # keine zulaessige Platzierung
+            return 0.0
+        scans.append(pp)
+        return float(pp.path.layers_ok or 0) * params.layer_height_mm
+
+    return scan
+
+
+def _same_rings(low: list[Any], high: list[Any], n_layers: int) -> bool:
+    """Sind die Ringe `low` exakt die Ringe von `high` unter Schicht `n_layers`?"""
+    if len(low) > len(high) or (len(high) > len(low) and high[len(low)].layer < n_layers):
+        return False
+    return all(
+        a.layer == b.layer and a.shell == b.shell and a.kind == b.kind and a.points.shape == b.points.shape
+        and np.allclose(a.points, b.points, atol=1e-6)
+        for a, b in zip(low, high, strict=False)
+    )  # fmt: skip
+
+
+def _from_scan(mesh_P: trimesh.Trimesh, scans: list[Any], params: Any) -> Feasibility | None:  # noqa: N803
+    """Plan eines Vollquaders als Ausschnitt einer Hoehensuche gleicher Grundflaeche.
+
+    Exakt, wenn die Ringe uebereinstimmen: Die Planung haengt dann nur noch vom Druckstand ab, und
+    der Druckstand des Teils liegt in dem des hoeheren Quaders."""
+    from roboprint.planner import slice_params, truncate_plan
+    from roboprint.slicer import slice_part
+
+    ext = np.asarray(mesh_P.extents, float)
+    if abs(geo.volume(mesh_P) - float(np.prod(ext))) > 1e-6 * float(np.prod(ext)):
+        return None  # kein Vollquader (Oeffnung, schraege Oberkante)
+    n = int(round(ext[2] / params.layer_height_mm))
+    sliced = None
+    for pp in scans:
+        if n < 1 or n > (pp.path.layers_ok or 0):
+            continue
+        if sliced is None:
+            sliced = slice_part(mesh_P, slice_params(params))
+        if not _same_rings(sliced.rings, pp.sliced.rings, n):
+            continue
+        cut = truncate_plan(pp, n, params)
+        if cut.path.feasible:
+            return Feasibility(True, cut.path.d_min_mm, cut.placement, None, cut)
+    return None
 
 
 def _cause_text(path: Any) -> str | None:
@@ -97,15 +157,26 @@ def effective_jobs(jobs: int) -> int:
     return 1 if mp.current_process().daemon else max(1, j)
 
 
-def plan_many_fn(params: Any, mode: str, jobs: int = 1, root: Path = REPO_ROOT):
+def plan_many_fn(
+    params: Any, mode: str, jobs: int = 1, root: Path = REPO_ROOT, scans: list[Any] | None = None
+):
     """Volle Planung einer Liste von Teilen, mit `jobs > 1` parallel (fork, Geometrie einmal im
-    Elternprozess); die uebrigen Kerne gehen als `procs` an die Pools innerhalb eines Teils."""
+    Elternprozess); die uebrigen Kerne gehen als `procs` an die Pools innerhalb eines Teils.
+    Vollquader, die eine Hoehensuche in `scans` schon abdeckt, werden nicht neu geplant."""
     import multiprocessing as mp
 
     cpus = os.cpu_count() or 1
     jobs = effective_jobs(jobs)
 
     def many(meshes: list[trimesh.Trimesh]) -> list[Feasibility]:
+        out = [_from_scan(m, scans, params) if scans else None for m in meshes]
+        todo = [i for i, r in enumerate(out) if r is None]
+        planned = plan_list([meshes[i] for i in todo]) if todo else []
+        for i, r in zip(todo, planned, strict=True):
+            out[i] = r
+        return [r for r in out if r is not None]
+
+    def plan_list(meshes: list[trimesh.Trimesh]) -> list[Feasibility]:
         workers = min(jobs, len(meshes))
         if workers > 1:
             from roboprint.pipeline import _warm_caches
@@ -145,6 +216,8 @@ def scenario_parts(
     from roboprint.pipeline import PartJob
 
     walls = _select(read_walls(_resolve(scenario.source.path, root)), scenario.source.walls)
+    scans: list[Any] = []
+    aware = scenario.planner_mode == "collision_aware"
     dp = DecomposeParams.from_any(
         {
             **DECOMPOSE_DEFAULTS,
@@ -158,8 +231,9 @@ def scenario_parts(
         dp,
         progress=progress,
         prefeasible=prefeasible_fn(params, root, procs=os.cpu_count() or 1),
-        feasible_many=plan_many_fn(params, scenario.planner_mode, jobs, root),
+        feasible_many=plan_many_fn(params, scenario.planner_mode, jobs, root, scans),
         stats=stats,
+        scan=scan_fn(params, scans, root, procs=os.cpu_count() or 1) if aware else None,
     )
     entries = []
     for w in walls:
