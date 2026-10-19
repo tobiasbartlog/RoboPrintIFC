@@ -1,6 +1,8 @@
 """API-Tests (SPEC §8) mit TestClient; Jobs laufen in echten Spawn-Prozessen mit Fake-Pipeline."""
 
+import io
 import json
+import re
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -123,6 +125,78 @@ def test_job_lifecycle(client):
     assert client.get("/api/jobs/unbekannt").status_code == 404
 
 
+def test_job_rejects_unknown_param(client):
+    pid = make_project(client)
+    r = client.post(f"/api/projects/{pid}/jobs", json={"wall_id": "W1", "params": {"pump_voltage_v": 5.0}})
+    assert r.status_code == 422 and "pump_voltage_v" in r.text
+
+
+def test_web_default_params_accepted(client):
+    """Der Viewer schickt bei jedem Job alle Parameter aus `web/src/state/params.ts` mit."""
+    src = (ROOT / "web" / "src" / "state" / "params.ts").read_text(encoding="utf-8")
+    params: dict = {k: float(v) for k, v in re.findall(r"key: '(\w+)'.*?default: ([\d.]+)", src)}
+    params |= dict(re.findall(r"^\s+(tcp_name|dialect): '([^']*)'", src, flags=re.M))
+    assert len(params) == src.count("key: '") + 2
+    pid = make_project(client)
+    r = client.post(f"/api/projects/{pid}/jobs", json={"wall_id": "W1", "params": params})
+    assert r.status_code == 202, r.text
+
+
+@pytest.mark.parametrize("scenario", ["S1_modul_referenz", "S3_kollision_negativ"])
+def test_project_from_box_scenario(client, scenario):
+    """Quader-Szenarien öffnen sich wie ein Modell mit einer Wand `box`; der Job übernimmt das Szenario."""
+    import trimesh
+
+    path = f"spec/scenarios/{scenario}.json"
+    r = client.post("/api/projects", json={"example_path": path})
+    assert r.status_code == 200, r.text
+    pid = r.json()["project_id"]
+    (w,) = client.get(f"/api/projects/{pid}").json()["walls"]
+    assert w["wall_id"] == "box" and w["eligible"] is True
+    assert (w["length_mm"], w["thickness_mm"], w["height_mm"]) == (600, 200, 400)
+    stl = client.get(f"/api/projects/{pid}/walls/box.stl")
+    assert stl.status_code == 200
+    mesh = trimesh.load(io.BytesIO(stl.content), file_type="stl")
+    assert abs(mesh.bounds - [[0, 0, 0], [600, 200, 400]]).max() < 1e-6
+    r = client.post(f"/api/projects/{pid}/jobs", json={"wall_id": "box", "params": {"h": 8.0}})
+    job_id = r.json()["job_id"]
+    assert wait_for(client, job_id, {"done", "failed"})["state"] == "done"
+    scen = json.loads((client.app.state.jobs.job_dir(job_id) / "scenario.json").read_text())
+    orig = json.loads((ROOT / path).read_text(encoding="utf-8"))
+    assert scen["source"] == orig["source"] and scen["params"] == {"h": 8.0}
+    assert scen["planner_mode"] == orig["planner_mode"]
+    assert scen.get("placement_override") == orig.get("placement_override")
+
+
+def test_status_file_concurrent_read_write(tmp_path):
+    """Die API liest `status.json`, während der Jobprozess sie ersetzt (unter Windows ein Sperrkonflikt)."""
+    import threading
+
+    from roboprint.api_jobs import read_status, write_status
+
+    write_status(tmp_path, {"n": 0})
+    stop = threading.Event()
+    errors: list[BaseException] = []
+
+    def reader():
+        while not stop.is_set():
+            try:
+                assert read_status(tmp_path) is not None
+            except BaseException as exc:  # noqa: BLE001
+                errors.append(exc)
+
+    t = threading.Thread(target=reader)
+    t.start()
+    try:
+        for i in range(2000):
+            write_status(tmp_path, {"n": i})
+    finally:
+        stop.set()
+        t.join()
+    assert not errors, errors[:3]
+    assert read_status(tmp_path) == {"n": 1999}
+
+
 def test_job_progress_and_cancel(tmp_path, monkeypatch):
     app = make_client(tmp_path, monkeypatch, f"{FAKE}:slow")
     with TestClient(app) as c:
@@ -239,8 +313,6 @@ def test_assets_whitelist(fixture_client, path):
 
 def test_wall_mesh_stl_real_ifc(tmp_path):
     """Wandmesh im Frame L (mm): STL passt zu den Maßen der Wandliste; Fehlerpfade geben 404."""
-    import io
-
     import trimesh
 
     app = create_app(tmp_path / "runs", tmp_path / "projects", ROOT)

@@ -19,22 +19,38 @@ import json
 import multiprocessing as mp
 import os
 import threading
+import time
 import traceback
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 DEFAULT_PIPELINE = "roboprint.pipeline:run_scenario"
 
 
+def _retry_locked[T](fn: Callable[[], T], attempts: int = 200, delay_s: float = 0.005) -> T:
+    """Windows sperrt Ersetzen und Öffnen, solange die Gegenseite (API bzw. Jobprozess) die Datei
+    offen hat. Der Konflikt dauert nur Mikrosekunden, also kurz warten und wiederholen."""
+    for i in range(attempts):
+        try:
+            return fn()
+        except PermissionError:
+            if i == attempts - 1:
+                raise
+            time.sleep(delay_s)
+    raise AssertionError("unerreichbar")
+
+
 def write_status(job_dir: Path, status: dict[str, Any]) -> None:
-    tmp = job_dir / "status.json.tmp"
+    # Eigene Temp-Datei je Prozess und Thread: API und Jobprozess schreiben beide.
+    tmp = job_dir / f"status.json.{os.getpid()}.{threading.get_ident()}.tmp"
     tmp.write_text(json.dumps(status), encoding="utf-8")
-    os.replace(tmp, job_dir / "status.json")
+    _retry_locked(lambda: os.replace(tmp, job_dir / "status.json"))
 
 
 def read_status(job_dir: Path) -> dict[str, Any] | None:
     try:
-        return json.loads((job_dir / "status.json").read_text(encoding="utf-8"))
+        return json.loads(_retry_locked(lambda: (job_dir / "status.json").read_text(encoding="utf-8")))
     except (OSError, ValueError):
         return None
 

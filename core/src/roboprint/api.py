@@ -129,6 +129,21 @@ def _wall_entries(ifc_path: Path) -> list[WallEntry]:
     return entries
 
 
+def _box_wall(source: dict[str, Any]) -> WallEntry:
+    """Quader-Quelle eines Szenarios als einzige Wand `box`, wie in `pipeline._box_job`."""
+    length, thick, height = (float(v) for v in source["size_mm"])
+    return WallEntry(
+        wall_id="box",
+        name=f"Quader {length:.0f} × {thick:.0f} × {height:.0f} mm",
+        eligible=True,
+        reason=None,
+        length_mm=length,
+        thickness_mm=thick,
+        height_mm=height,
+        volume_mm3=length * thick * height,
+    )
+
+
 def _parse_multipart(content_type: str, body: bytes) -> dict[str, tuple[str | None, bytes]]:
     """Minimaler multipart/form-data-Parser (stdlib), liefert Name -> (Dateiname, Bytes)."""
     msg = BytesParser(policy=HTTP).parsebytes(
@@ -217,15 +232,18 @@ def create_app(
             raise _err(404, "Projekt nicht gefunden")
         return projects_dir / project_id
 
-    def store_project(name: str, ifc_path: Path) -> ProjectCreated:
-        walls = _wall_entries(ifc_path)
+    def store_project(name: str, walls: list[WallEntry], source: dict[str, str]) -> ProjectCreated:
+        """`source` ist `{"ifc": <Pfad>}` oder `{"scenario": <Pfad relativ zu root>}` (Quader-Beispiel)."""
         pid = uuid.uuid4().hex[:12]
         pdir = projects_dir / pid
         pdir.mkdir(parents=True, exist_ok=True)
         info = ProjectInfo(project_id=pid, name=name, walls=walls)
         (pdir / "project.json").write_text(info.model_dump_json(indent=2), encoding="utf-8")
-        (pdir / "source.json").write_text(json.dumps({"ifc": str(ifc_path)}), encoding="utf-8")
+        (pdir / "source.json").write_text(json.dumps(source), encoding="utf-8")
         return ProjectCreated(project_id=pid)
+
+    def project_source(pdir: Path) -> dict[str, str]:
+        return json.loads((pdir / "source.json").read_text(encoding="utf-8"))
 
     @app.post("/api/projects")
     async def create_project(request: Request) -> ProjectCreated:
@@ -241,7 +259,7 @@ def create_app(
             pid_dir.mkdir(parents=True, exist_ok=True)
             dest = pid_dir / f"{uuid.uuid4().hex[:12]}.ifc"
             dest.write_bytes(data)
-            return store_project(Path(fname or "upload.ifc").stem, dest)
+            return store_project(Path(fname or "upload.ifc").stem, _wall_entries(dest), {"ifc": str(dest)})
         try:
             body = ProjectCreate.model_validate(await request.json())
         except Exception as exc:
@@ -253,12 +271,15 @@ def create_app(
             raise _err(404, "Beispiel nicht gefunden")
         if target.suffix == ".json":
             src = json.loads(target.read_text(encoding="utf-8")).get("source", {})
+            if src.get("kind") == "box":
+                name = _EXAMPLE_TEXT.get(target.stem, (target.stem, ""))[0]
+                return store_project(name, [_box_wall(src)], {"scenario": rel_posix})
             if src.get("kind") != "ifc":
-                raise _err(422, "Szenario hat keine IFC-Quelle")
+                raise _err(422, "Szenario hat weder IFC- noch Quader-Quelle")
             target = _safe_join(root, src["path"])
         if target.suffix.lower() != ".ifc" or not target.is_file():
             raise _err(404, "IFC-Datei nicht gefunden")
-        return store_project(target.stem, target)
+        return store_project(target.stem, _wall_entries(target), {"ifc": str(target)})
 
     @app.get("/api/projects/{project_id}")
     def get_project(project_id: str) -> ProjectInfo:
@@ -275,10 +296,18 @@ def create_app(
         info = ProjectInfo.model_validate_json((pdir / "project.json").read_text(encoding="utf-8"))
         if not wall_id or wall_id not in {w.wall_id for w in info.walls}:
             raise _err(404, "Wand nicht gefunden")
+        source = project_source(pdir)
+        if project_id not in wall_stl_cache and "scenario" in source:
+            from roboprint.geometry import make_box
+
+            # Quader im Frame L mit der min-Ecke im Ursprung, wie der Platzhalter im Viewer
+            w = info.walls[0]
+            mesh = make_box([w.length_mm, w.thickness_mm, w.height_mm])
+            wall_stl_cache[project_id] = {w.wall_id: bytes(mesh.export(file_type="stl"))}
         if project_id not in wall_stl_cache:
             from roboprint import ifc
 
-            ifc_path = json.loads((pdir / "source.json").read_text(encoding="utf-8"))["ifc"]
+            ifc_path = source["ifc"]
             try:
                 walls = ifc.read_walls(ifc_path)
             except Exception as exc:  # defektes IFC
@@ -299,24 +328,42 @@ def create_app(
         info = ProjectInfo.model_validate_json((pdir / "project.json").read_text(encoding="utf-8"))
         if body.wall_id not in {w.wall_id for w in info.walls}:
             raise _err(404, "Wand nicht gefunden")
-        ifc_path = json.loads((pdir / "source.json").read_text(encoding="utf-8"))["ifc"]
+        from roboprint.planner.params import from_overrides
+
+        try:  # sofort melden statt erst im Jobprozess scheitern
+            from_overrides(dict(body.params))
+        except ValueError as exc:
+            raise _err(422, str(exc)) from exc
+        source = project_source(pdir)
         job_id = uuid.uuid4().hex[:12]
-        scenario = {
-            "schema_version": "1",
-            "id": f"job_{job_id}",
-            "beschreibung": f"API-Job fuer Wand {body.wall_id} aus {info.name}",
-            "mode": "modul",
-            "source": {"kind": "ifc", "path": ifc_path, "walls": [body.wall_id]},
-            "decompose": True,
-            "robot": "robots/doosan_m1013.json",
-            "urdf": ROBOT_URDF,
-            "tool": "tools/30gut.json",
-            "workstation": "workstations/doosantisch.json",
-            "params": dict(body.params),
-            "planner_mode": body.planner_mode,
-            "expect": {},
-            "limits": {"wall_time_s": 3600},
-        }
+        beschreibung = f"API-Job fuer Wand {body.wall_id} aus {info.name}"
+        if "scenario" in source:
+            # Beispielszenario: Quelle, Planermodus und Platzierung bleiben, sonst zeigt S3 keine Kollision.
+            scenario = json.loads(_safe_join(root, source["scenario"]).read_text(encoding="utf-8"))
+            scenario.update(
+                id=f"job_{job_id}",
+                beschreibung=beschreibung,
+                params=dict(body.params),
+                expect={},
+                limits={"wall_time_s": 3600},
+            )
+        else:
+            scenario = {
+                "schema_version": "1",
+                "id": f"job_{job_id}",
+                "beschreibung": beschreibung,
+                "mode": "modul",
+                "source": {"kind": "ifc", "path": source["ifc"], "walls": [body.wall_id]},
+                "decompose": True,
+                "robot": "robots/doosan_m1013.json",
+                "urdf": ROBOT_URDF,
+                "tool": "tools/30gut.json",
+                "workstation": "workstations/doosantisch.json",
+                "params": dict(body.params),
+                "planner_mode": body.planner_mode,
+                "expect": {},
+                "limits": {"wall_time_s": 3600},
+            }
         jobs.start(job_id, scenario)
         return JobCreated(job_id=job_id)
 

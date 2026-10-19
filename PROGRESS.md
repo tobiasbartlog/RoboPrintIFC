@@ -350,9 +350,28 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 ### 2026-10-19 12:55 Lokaler Start unter Windows
 - Ergebnis: v2 läuft lokal unter Windows 11 mit Python 3.14 (`.venv`, `pip install -e "core[dev]"`, `npm --prefix web ci`).
   S1 machbar, d_min 10,83 mm, 0 collision, 0 unreachable, 208 s (Cloud 36 s). S3 nicht machbar, 61 011 collision, 49 s.
-  API-Job Giebelwand (house right front) über den Viewer-Ablauf: 30/30 Module machbar, 264 s. Viewer rendert Lauf S1.
+  API-Job Giebelwand (house right front) per curl ohne Parameter: 30/30 Module machbar, 264 s. Viewer rendert Lauf S1.
+  (Korrektur 13:20: nicht über den Viewer gestartet; der Viewer schickt alle Parameter, siehe nächster Eintrag.)
 - Neu: `scripts/dev.ps1` (Gegenstück zu `dev.sh`), Windows-Hinweise in der README.
 - Ursache der Laufzeit: Windows kennt kein `fork`, alle Pools fallen auf einen Prozess zurück (`can_fork_pool`).
 - Offen: Die Beispiele „Referenzmodul“ und „Kollisionsbeispiel“ im Schritt Modell schlagen fehl
   (`POST /api/projects` → 422 „Szenario hat keine IFC-Quelle“), weil S1/S3 eine Box als Quelle haben. G6 deckt das
   nicht ab, die e2e-Tests öffnen Läufe direkt über `?run=`.
+
+### 2026-10-19 13:20 Viewer-Jobs repariert (Nutzertest Tobias)
+- **Jeder Job aus dem Viewer scheiterte** mit „Unbekannter Parameter im Szenario: pump_voltage_v“. Der Viewer schickt
+  alle Parameter aus `web/src/state/params.ts` mit, zwei Schlüssel wichen von `PlannerParams` ab
+  (`pump_voltage_v` → `v_pump_v`, `ds_mm` → `step_mm`). Die API prüft Parameter jetzt beim Anlegen (422 mit Klartext)
+  statt erst im Jobprozess. Test `test_web_default_params_accepted` liest `params.ts` und schickt die Standardwerte.
+- **Quader-Beispiele S1/S3 im Schritt Modell**: Projekt mit einer Wand `box`, Wandmesh als Quader im Frame L. Der Job
+  übernimmt das Beispielszenario (Quelle, Planermodus, `placement_override`), nur `params` kommen vom Viewer.
+  Geprüft im Browser (Edge, headless): Kollisionsbeispiel → 61 011 collision, nicht machbar, Kollisionsliste.
+- **Windows: `status.json`-Sperrkonflikt.** `os.replace` scheitert mit PermissionError, solange die API die Datei liest.
+  Folge: erfolgreiche Jobs als failed gemeldet, Abbruch mitten im Lauf über den Fortschritts-Callback, verlorene
+  Fehlermeldungen („Jobprozess beendet (Exit-Code 1)“). Jetzt kurze Wiederholung bei PermissionError und eine
+  Temp-Datei je Prozess/Thread. Test `test_status_file_concurrent_read_write` (2000 Schreibvorgänge gegen Leser).
+- Bekannt, nicht behoben: `test_traversal_symlink` scheitert unter Windows ohne Symlink-Recht (WinError 1314),
+  unabhängig von diesen Änderungen.
+- Zum Beispiel-IFC: Es enthält nur 4 IfcWall (links, rechts vorne, rechts hinten, Installationswand); die Giebelseiten
+  vorne und hinten sind nicht modelliert. Die Wandvorschau legt die Wände als Raster nebeneinander (`layoutWalls`),
+  nicht in Gebäudelage.
