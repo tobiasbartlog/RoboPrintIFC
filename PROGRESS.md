@@ -408,3 +408,9 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - **Offen: Laufzeit bei hoher Grenze.** Jeder Bestätigungsschritt über der Kollisionsgrenze ist eine volle Planung,
   die erst nach allen Platzierungen scheitert. Unter Windows seriell ist das für die App zu langsam. Messung mit
   4 vCPU und fork im Cloud-Lauf.
+
+### 2026-10-19 16:21 Voller verify-Lauf nach gedrehter Roboterbasis (1acdd9d) und Testfix
+- Ergebnis: **G1–G8 grün.** S1 59,0 s (40 718 Samples, 90,5 % ok, 0 collision/unreachable, d_min 10,83 mm),
+  S2 259,9 s (172/172 machbar), check_run S2 47,1 s, S3 bestätigt, fake_drcf 24,0 s, e2e 45,9 s.
+- Testfix b02740f: DRL- und Selbstprüfungstest lasen fest kodierte Werte aus der alten Basisorientierung.
+- Commit: b02740f
