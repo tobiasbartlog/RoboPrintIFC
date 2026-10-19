@@ -35,6 +35,11 @@ TOOL_BODY = "tool_body"
 NOZZLE_TIP = "nozzle_tip"
 FLOOR, TABLE, PRINTED = "floor", "table", "printed"
 R_FREE_MM = 40.0  # SPEC §10
+D_HARD_MM = 10.0  # SPEC §10; ab dieser Schwelle zaehlt das konstruktive Paar CONST_PAIR doch
+#: Konstruktiv konstantes Paar (~31-33 mm): zaehlt fuer `collision` und d_hard, nicht fuer d_target.
+#: Statusregel (Nutzerentscheidung 2026-10-19): d_status = min ueber alle Paare ausser CONST_PAIR;
+#: liegt dessen Abstand unter d_hard, geht er trotzdem ein.
+CONST_PAIR = ("link_2", "base_link")
 _BLOCK = 256  # Posen je vektorisiertem Block in `distance_batch`
 
 _FLOOR_TABLE = ("link_2", "link_3", "link_4", "link_5", "link_6", TOOL_BODY, NOZZLE_TIP)
@@ -203,6 +208,9 @@ class _LayerScene:
         self.pa = np.concatenate(pa) if pa else np.zeros(0, dtype=np.int64)
         self.pb = np.concatenate(pb) if pb else np.zeros(0, dtype=np.int64)
         self.pid = np.concatenate(pid) if pid else np.zeros(0, dtype=np.int64)
+        # Teilpaare des konstruktiv konstanten Paars (zaehlen nur unter d_hard)
+        const = np.array([n == CONST_PAIR for n in self.pair_names], dtype=bool)
+        self.k_const = const[self.pid] if self.pid.size else np.zeros(0, dtype=bool)
         # Statische Hindernisteile (Frame W): achsparallele Box (mit Aufmass) als engere Schranke.
         w = frame_index["W"]
         lo = np.vstack([p.vertices.min(axis=0) for b in bodies for p in b.parts])
@@ -236,8 +244,10 @@ class World:
         layer_height_mm: float = 10.0,
         root: Path = REPO_ROOT,
         r_free_mm: float = R_FREE_MM,
+        d_hard_mm: float = D_HARD_MM,
     ) -> None:
         self.root = Path(root).resolve()
+        self.d_hard_mm = float(d_hard_mm)
         self.h = float(layer_height_mm)
         self.T_WP = np.asarray(T_WP, dtype=float)
         self.part_mesh_P = part_mesh_P
@@ -319,7 +329,7 @@ class World:
             sc = self._scene(int(k))
             for s in range(0, len(idx), _BLOCK):
                 ii = idx[s : s + _BLOCK]
-                for i, c in zip(ii, self._distance_block(F[ii], sc, lim), strict=True):
+                for i, c in zip(ii, self._distance_block(F[ii], sc, lim, self.d_hard_mm), strict=True):
                     out[i] = c
         return out  # type: ignore[return-value]
 
@@ -347,13 +357,22 @@ class World:
             out[name] = float(best)
         return out
 
-    def _distance_block(self, F: np.ndarray, sc: _LayerScene, lim: float) -> list[Contact]:  # noqa: N803
+    def _distance_block(
+        self,
+        F: np.ndarray,  # noqa: N803
+        sc: _LayerScene,
+        lim: float,
+        d_hard: float = D_HARD_MM,
+    ) -> list[Contact]:
         """Branch-and-Bound fuer einen Block von Posen (F: (M, 8, 4, 4) Frames in W).
 
         Exakt: Jedes Teilpaar, dessen untere Schranke kleiner als das Endergebnis ist, wird mit
         fcl ausgewertet. Die Schranken sind Huellkugeln bzw. Boxen (statische Hindernisse) auf
         Koerper- und Teilebene; zusaetzlich faellt ein Teil weg, dessen Schranke gegen die Huelle
         des anderen Koerpers schon >= best ist (spart das volle Teilpaar-Kreuzprodukt).
+
+        Statusregel: Teilpaare von CONST_PAIR gehen nur ein, wenn ihr Abstand < d_hard ist; sonst
+        bleibt d das Minimum der uebrigen Paare (d_status).
         """
         M = len(F)  # noqa: N806
         best = np.full(M, np.inf)
@@ -382,6 +401,7 @@ class World:
         if len(sc.pa):
             objs, pa, pb, mg, pfr = sc.objs, sc.pa, sc.pb, sc.margins, sc.part_frame
             req = self._req
+            k_const = sc.k_const
             tfs: list[dict[int, fcl.Transform]] = [{} for _ in range(M)]
 
             def place(m: int, part: int) -> None:
@@ -398,6 +418,8 @@ class World:
                 place(m, b)
                 res = fcl.DistanceResult()
                 d = fcl.distance(objs[a], objs[b], req, res) - mg[a] - mg[b]
+                if d >= d_hard and k_const[k]:
+                    return
                 if d < best[m]:
                     best[m] = d
                     best_k[m] = k
@@ -423,6 +445,8 @@ class World:
                     for i in range(int(starts[m]), int(starts[m + 1])):
                         if lbs[i] >= min(best[m], lim):
                             break
+                        if k_const[ks[i]] and lbs[i] >= d_hard:
+                            continue
                         if ks[i] != warm:
                             evaluate(m, ks[i])
             last = best_k[best_k >= 0]

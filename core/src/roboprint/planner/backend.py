@@ -62,9 +62,9 @@ def d_batch(backend: Any, Q: np.ndarray, layers: np.ndarray, self_collision: boo
 
 _CULL_MM = 50.0  # weiter weg reicht die Huellkugel als (konservative) Schranke
 #: base_link <-> link_2: nahezu konstanter Abstand (Orakel/Coal 33,15 mm, `collision.World` 30,7 mm,
-#: link_2 dreht um die J2-Achse, die naechsten Stellen sind rotationssymmetrisch). Im Punkt-Double
-#: als feste Schranke (Wert der echten Welt) statt grober Punktwolken.
-BASE_LINK2_MM = 30.7
+#: link_2 dreht um die J2-Achse, die naechsten Stellen sind rotationssymmetrisch). Statusregel
+#: (collision.CONST_PAIR): zaehlt nur unter d_hard, was konstruktiv nie eintritt; das Punkt-Double
+#: laesst das Paar daher ganz weg.
 
 
 @dataclass(frozen=True)
@@ -342,13 +342,6 @@ class SphereWorld:
                 step = max(1, int(3e6 // (len(A.pts_c) * len(C.pts_c))))
                 for c0 in range(0, len(near), step):
                     self._self_chunk(L, near[c0 : c0 + step], A, C, a, c, best, pair, wit, witness)
-        if self_collision:
-            upd = BASE_LINK2_MM < best
-            if upd.any():
-                best[upd] = BASE_LINK2_MM
-                pair[upd] = (self._first[2], -(self._first[0] + 1))
-                wit[upd, 0] = L[upd, 2, :3, 3]
-                wit[upd, 1] = L[upd, 0, :3, 3]
         return best, pair, wit
 
     def _self_chunk(self, L, near, A, C, a, c, best, pair, wit, witness) -> None:  # noqa: N803

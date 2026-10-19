@@ -15,7 +15,7 @@ import pytest
 import trimesh
 
 from roboprint import collision_assets as ca
-from roboprint.collision import LINKS, World, checked_pairs
+from roboprint.collision import CONST_PAIR, LINKS, World, checked_pairs
 from roboprint.frames import T_from_pos_quat
 
 slow = pytest.mark.skipif(not os.environ.get("ROBOPRINT_SLOW"), reason="ausfuehrlich: ROBOPRINT_SLOW=1")
@@ -181,8 +181,34 @@ def test_branch_and_bound_equals_min_over_pairs():
         q[2] = np.clip(q[2], -2.79, 2.79)
         pd = w.pair_distances(q, 20)
         c = w.distance(q, 20)
-        assert c.d_mm == pytest.approx(min(pd.values()), abs=1e-6)
+        # Statusregel: CONST_PAIR zaehlt nur unter d_hard
+        rest = min(v for k, v in pd.items() if k != CONST_PAIR or v < w.d_hard_mm)
+        assert c.d_mm == pytest.approx(rest, abs=1e-6)
         assert pd[c.pair] == pytest.approx(c.d_mm, abs=1e-6)
+
+
+def test_const_pair_below_target_does_not_count():
+    """Home-Pose: base_link <-> link_2 liegt konstruktiv bei ~31 mm < d_target 50 mm, ist aber nicht
+    das Minimum von d_status; d_mm gehoert zu einem anderen Paar."""
+    w = s1_world()
+    pd = w.pair_distances(HOME, 0)
+    assert 20.0 < pd[CONST_PAIR] < 50.0
+    c = w.distance(HOME, 0)
+    assert c.pair != CONST_PAIR
+    assert c.d_mm == pytest.approx(min(v for k, v in pd.items() if k != CONST_PAIR), abs=1e-6)
+    assert c.d_mm > pd[CONST_PAIR]
+
+
+def test_const_pair_below_d_hard_counts():
+    """Unterschreitet das Paar d_hard (hier kuenstlich 100 mm), geht es in d_status ein."""
+    mesh, T_WP = s1_scene()  # noqa: N806
+    w = World(mesh, T_WP, d_hard_mm=100.0)
+    pd = w.pair_distances(HOME, 0)
+    c = w.distance(HOME, 0)
+    assert pd[CONST_PAIR] < 100.0
+    assert c.d_mm == pytest.approx(min(pd.values()), abs=1e-6)
+    if min(pd, key=pd.get) == CONST_PAIR:
+        assert c.pair == CONST_PAIR
 
 
 def test_batch_equals_single():
