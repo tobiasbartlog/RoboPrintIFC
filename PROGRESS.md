@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T02:19:48+02:00 · Session: orchestrator · Phase: P4
+Herzschlag: 2026-10-19T02:45:01+02:00 · Session: orchestrator · Phase: P4
 
 # PROGRESS — Nachtlauf v2
 
@@ -262,3 +262,10 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   G6 und G8 nach dem Merge grün; Screenshots aus dem Gate-Lauf.
 - Commit: 48d047c
 - Offen: Annahmenliste im DRL-Kopf in ASCII-Umschrift, Export-Bericht.
+
+### 2026-10-19 02:45 P4/A4.3 Laufzeit (G7)
+- Ergebnis: S1 137 s → 32,9 s (Agentenmessung), im Gate-Lauf nach Merge 50,1 s unter Last; Trajektorie bitgleich.
+  `verify --fast`: G1, G2, G3, G5, G8 grün. Quader 600×200×600: 138 → 53 s.
+- Commit: 4903d27
+- `World.distance_batch` blockweise mit engerer Vorauswahl (~3× schneller); bei Durchdringung jetzt das echte
+  Minimum (vorher bis 59 mm zu flach). Ring-Graphen und dichte Prüfung in einem fork-Pool; `--jobs 0` = vCPU.
