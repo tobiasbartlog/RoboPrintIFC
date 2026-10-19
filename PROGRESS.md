@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T09:11:37+02:00 · Session: orchestrator · Phase: P6 (Nacharbeit)
+Herzschlag: 2026-10-19T10:00:09+02:00 · Session: orchestrator · Phase: P6 (Nacharbeit)
 
 # PROGRESS — Nachtlauf v2
 
@@ -11,10 +11,10 @@ Ablauf und Regeln stehen in `spec/NACHTLAUF.md`, die Gates in `spec/SPEC.md` §1
 | G1 Kinematik | grün | 2000 FK + 2000 IK gegen Pinocchio | P0 Ende |
 | G2 Kollision | grün | 500 Posen; d_rp ≥ 0,5 mm unter d_coal, |Δ| ≤ 4,3 mm (beide ≥ 0) | P1 A1.4 |
 | G3 Referenzmodul S1 | grün | d_min 10,83 mm, 62 112 Samples, 0 coll/unreach | P2 A2.1 |
-| G4 Beispiel-IFC S2 + S3 | rot (Prüfer OOM) | S2 172 Module machbar; check_run −9 nach 1048 s | P4 voller Lauf |
-| G5 DRL | grün | fake_drcf v2+v3 S1 + S2 (172 Teile, 1071 s) | P4 |
+| G4 Beispiel-IFC S2 + S3 | grün | S2 172 Module machbar, check_run 556 s; S3 bestätigt | P6 voller Lauf |
+| G5 DRL | grün | fake_drcf S1 + S2 (33,6 s mit Inhalts-Cache) | P6 voller Lauf |
 | G6 Viewer | grün | e2e 8 passed (53 s), Uhr-Invariante 50 t S1+S3 | P3 A3.5 |
-| G7 Laufzeit | grün | S1 33,6 s, S2 1132,8 s | P4 voller Lauf |
+| G7 Laufzeit | grün | S1 33,7 s, S2 195,0 s | P6 voller Lauf |
 | G8 Qualität | grün | ruff, pytest core, web lint/typecheck/test | P4 voller Lauf |
 
 ## Ausgangslage (Vorbereitung 2026-10-18)
@@ -330,3 +330,10 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   Nachplanung (~385 s) aus, bevor der zweite Kandidat geprüft wurde. Jetzt erst alle Kandidaten mit dem schnellen
   Double, Nachplanung nur, wenn keiner machbar ist. Export: Teile mit gleichem Plan (gleiche Geometrie und
   Platzierung) einmal aufbereiten, Kopien nur mit neuer part_id. Neues Feld `summary.parts[].same_as`.
+
+### 2026-10-19 10:00 P6 voller verify-Lauf nach A6.1–A6.3
+- Ergebnis: **G1–G8 alle grün.** S1 33,7 s, S2 195,0 s, check_run S2 555,8 s (Teil für Teil, Inhalts-Cache),
+  S3 run 81,8 s + check 175,9 s, fake_drcf 33,6 s, e2e 54,9 s.
+- Commit: aad5ffd
+- Offen (A6.4, in Arbeit): Gliedpaare i ↔ i+2 nur gegen collision/d_hard; Warnschwelle 20 mm gegen den Druckstand
+  (beide Nutzerentscheidungen 19.10.2026).

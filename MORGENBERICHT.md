@@ -3,7 +3,14 @@
 Branch `v2-nachtlauf`, Orchestrator-Session `orchestrator`, Lauf 22:42–07:00 Uhr (Europe/Berlin).
 Einzelheiten zu jedem Schritt stehen im Protokoll von `PROGRESS.md`.
 
-## Ergebnis in einem Satz
+## Nachtrag 19.10.2026 vormittags: alle Gates grün
+
+Nach den Nutzerentscheidungen (Prüfer Teil für Teil, Statusregel base_link ↔ link_2) ist der volle Lauf von
+`python scripts/verify.py` **vollständig grün (G1–G8)**. Kennzahlen: S1 33,7 s; S2 195 s (vorher 1131 s); check_run S2
+556 s mit ~3 GB statt OOM; fake_drcf 34 s statt 954 s; S3 bestätigt. Die folgenden Abschnitte beschreiben den
+Stand am Morgen. In Arbeit: Statusregel für alle Gliedpaare i ↔ i+2 und Warnschwelle 20 mm gegen den Druckstand.
+
+## Ergebnis in einem Satz (Stand Morgen)
 
 Sieben von acht Gates sind im vollen Lauf von `python scripts/verify.py` grün. G4 ist rot, weil der gesperrte
 Prüfer `verify/check_run.py` für die 172 S2-Module mehr Speicher braucht, als die VM hat. Die Zerlegung selbst
