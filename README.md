@@ -36,6 +36,10 @@ pip install -e "core[dev]"
 npm --prefix web ci
 ```
 
+**Windows (PowerShell):** gleiche Schritte, die venv aktiviert man mit `.\.venv\Scripts\Activate.ps1`.
+Geprüft mit Python 3.14 am 2026-10-19. Windows kennt kein `fork`, deshalb rechnen Planer und Export dort in
+einem Prozess und brauchen deutlich länger als auf der Cloud-VM.
+
 ## Beispiellauf: Referenzmodul S1
 
 S1 ist ein Quader 600 × 200 × 400 mm, der als ein Teil (`box_01`) gedruckt wird.
@@ -66,10 +70,12 @@ nicht versioniert.
 ## Viewer
 
 ```bash
-scripts/dev.sh
+scripts/dev.sh            # Linux, macOS
+.\scripts\dev.ps1         # Windows (PowerShell)
 ```
 
-Das Skript startet die API (`127.0.0.1:8765`) und den Vite-Dev-Server. Getrennt geht es so:
+Das Skript startet die API (`127.0.0.1:8765`) und den Vite-Dev-Server (`http://localhost:5173`). Getrennt
+geht es so:
 
 ```bash
 PYTHONPATH=core/src python -m roboprint serve --runs runs     # API

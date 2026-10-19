@@ -346,3 +346,13 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   Im Prüfer sind am Druckstand zwischen 20 und 50 mm `ok` und `warn` zulässig; collision und d_hard bleiben streng.
 - A6.5: Kopien schreiben part.stl/part.json byteidentisch zum Repräsentanten (Geometrie-Toleranz 0,01 mm).
 - A6.6: Leistungseinbruch durch A6.4 behoben (S1 426 s → 36 s, Ergebnis identisch).
+
+### 2026-10-19 12:55 Lokaler Start unter Windows
+- Ergebnis: v2 läuft lokal unter Windows 11 mit Python 3.14 (`.venv`, `pip install -e "core[dev]"`, `npm --prefix web ci`).
+  S1 machbar, d_min 10,83 mm, 0 collision, 0 unreachable, 208 s (Cloud 36 s). S3 nicht machbar, 61 011 collision, 49 s.
+  API-Job Giebelwand (house right front) über den Viewer-Ablauf: 30/30 Module machbar, 264 s. Viewer rendert Lauf S1.
+- Neu: `scripts/dev.ps1` (Gegenstück zu `dev.sh`), Windows-Hinweise in der README.
+- Ursache der Laufzeit: Windows kennt kein `fork`, alle Pools fallen auf einen Prozess zurück (`can_fork_pool`).
+- Offen: Die Beispiele „Referenzmodul“ und „Kollisionsbeispiel“ im Schritt Modell schlagen fehl
+  (`POST /api/projects` → 422 „Szenario hat keine IFC-Quelle“), weil S1/S3 eine Box als Quelle haben. G6 deckt das
+  nicht ab, die e2e-Tests öffnen Läufe direkt über `?run=`.
