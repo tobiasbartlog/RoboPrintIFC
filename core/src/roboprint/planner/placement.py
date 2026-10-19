@@ -21,7 +21,7 @@ from shapely.geometry import MultiPoint, Polygon, box
 from roboprint import frames
 from roboprint.assets import REPO_ROOT, load_workstation
 
-from .backend import SphereWorld, table_box
+from .backend import SphereWorld, can_fork_pool, table_box
 from .kin import Kin
 from .params import PlannerParams
 
@@ -111,6 +111,32 @@ def _scores(
     return np.where(reach, sc, UNREACHABLE_SCORE)
 
 
+_POOL_ARGS: Any = None
+
+
+def _scores_worker(T_WPs: list[np.ndarray]) -> np.ndarray:  # noqa: N803
+    kin, world, probes, psi, self_collision = _POOL_ARGS
+    return _scores(kin, world, T_WPs, probes, psi, self_collision)
+
+
+def _scores_parallel(kin, world, T_WPs, probes, psi, self_collision, procs: int) -> np.ndarray:  # noqa: N803
+    """`_scores` auf `procs` Prozesse verteilt (fork); jede Platzierung wird fuer sich bewertet,
+    das Ergebnis ist dasselbe wie seriell."""
+    import multiprocessing as mp
+
+    global _POOL_ARGS
+    if procs <= 1 or len(T_WPs) < 4 * procs or not can_fork_pool():
+        return _scores(kin, world, T_WPs, probes, psi, self_collision)
+    parts = [[T_WPs[i] for i in ix] for ix in np.array_split(np.arange(len(T_WPs)), 2 * procs)]
+    _POOL_ARGS = (kin, world, probes, psi, self_collision)
+    try:
+        with mp.get_context("fork").Pool(procs) as pool:
+            res = pool.map(_scores_worker, parts)
+    finally:
+        _POOL_ARGS = None
+    return np.concatenate(res)
+
+
 def rank_placements(
     part_mesh_P: Any,  # noqa: N803
     kin: Kin,
@@ -118,8 +144,29 @@ def rank_placements(
     root: Path = REPO_ROOT,
     top: int = 4,
     yaws_deg: tuple[float, ...] = (0.0, 90.0, 180.0, 270.0),
+    procs: int = 1,
 ) -> list[Candidate]:
-    """Kandidaten-Platzierungen, bestes zuerst (Score absteigend)."""
+    """Kandidaten-Platzierungen, bestes zuerst (Score absteigend); `procs` > 1 bewertet die
+    Kandidaten in mehreren Prozessen (gleiches Ergebnis). Ergebnisse werden je Prozess fuer
+    gleiche Geometrie und Parameter gemerkt (Zerlegung: viele gleich grosse Module)."""
+    import hashlib
+
+    h = hashlib.sha1(np.ascontiguousarray(part_mesh_P.vertices, dtype=float).tobytes())
+    h.update(np.ascontiguousarray(part_mesh_P.faces, dtype=np.int64).tobytes())
+    key = (h.hexdigest(), params, str(root), top, tuple(yaws_deg))
+    hit = _RANK_CACHE.get(key)
+    if hit is None:
+        hit = _rank_placements(part_mesh_P, kin, params, root, top, yaws_deg, procs)
+        if len(_RANK_CACHE) >= 64:
+            _RANK_CACHE.pop(next(iter(_RANK_CACHE)))
+        _RANK_CACHE[key] = hit
+    return list(hit)
+
+
+_RANK_CACHE: dict[tuple, list[Candidate]] = {}
+
+
+def _rank_placements(part_mesh_P, kin, params, root, top, yaws_deg, procs) -> list[Candidate]:  # noqa: N803
     ws = load_workstation(root)
     foot = MultiPoint(np.asarray(part_mesh_P.vertices)[:, :2]).convex_hull
     world = SphereWorld(part_mesh_P, np.eye(4), params.layer_height_mm, root, params.r_free_mm)
@@ -138,7 +185,8 @@ def rank_placements(
                 continue
             seen.add(key)
             pls.append(pl)
-        sc = _scores(kin, world, [frames.T_WP(ws, pl) for pl in pls], probes, psi, self_collision)
+        T_WPs = [frames.T_WP(ws, pl) for pl in pls]  # noqa: N806
+        sc = _scores_parallel(kin, world, T_WPs, probes, psi, self_collision, procs)
         return [Candidate(pl, float(v)) for pl, v in zip(pls, sc, strict=True)]
 
     def grid(step: float) -> list[frames.Placement]:

@@ -115,7 +115,7 @@ def plan_part(
     if placement is None:
         t = time.perf_counter()
         kin = Kin(load_workstation(root), load_tool(root))
-        cands = rank_placements(part_mesh_P, kin, params, root)
+        cands = rank_placements(part_mesh_P, kin, params, root, procs=procs)
         timings["placement"] = time.perf_counter() - t
         todo = [c.placement for c in distinct(cands, max_candidates)]
         if not todo:

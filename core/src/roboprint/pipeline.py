@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime as _dt
+import multiprocessing as mp
+import os
 import subprocess
 import sys
 import time
@@ -131,10 +133,22 @@ def _plan_job(job: PartJob, params: PlannerParams, mode: str, procs: int = 1) ->
 
 
 def _check_procs() -> int:
-    """Prozesse fuer die Abschlusspruefung eines Teils (4 vCPU: 3)."""
-    import os
-
+    """Prozesse fuer die Pools innerhalb eines Teils (Graphen, Platzierung, Abschlusspruefung;
+    4 vCPU: 3, der Hauptprozess plant derweil weiter)."""
     return max(1, min(3, (os.cpu_count() or 1) - 1))
+
+
+def _warm_caches(params: PlannerParams, root: Path) -> None:
+    """Statische Kollisionsgeometrie (echte Welt, Kugel-Double) und Arbeitsflaeche einmal im
+    Elternprozess aufbauen, damit Kindprozesse (fork) sie erben statt neu zu bauen."""
+    from roboprint.collision import World
+    from roboprint.planner import SphereWorld
+    from roboprint.planner.placement import base_footprint_S, work_surface_S
+
+    World(None, np.eye(4), params.layer_height_mm, root, params.r_free_mm)
+    SphereWorld(None, np.eye(4), params.layer_height_mm, root, params.r_free_mm)
+    base_footprint_S(root)
+    work_surface_S(root)
 
 
 # --------------------------------------------------------------------------- Artefakte
@@ -295,7 +309,8 @@ def _scene(params: PlannerParams, root: Path) -> Scene:
 
 def run_scenario(path: Path, out: Path, jobs: int = 1, progress: ProgressCallback | None = None) -> int:
     """Fuehrt ein Szenario aus und schreibt die Artefakte (SPEC §6) nach `out`. Exit-Code 0
-    auch bei nicht machbaren Teilen (Ergebnis in summary.json)."""
+    auch bei nicht machbaren Teilen (Ergebnis in summary.json). `jobs`: Teile parallel in so
+    vielen Prozessen, <= 0 = Anzahl vCPU (hoechstens Anzahl Teile)."""
     t_start = time.perf_counter()
     report = progress or (lambda stage, frac, msg: None)
     root = REPO_ROOT
@@ -318,9 +333,18 @@ def run_scenario(path: Path, out: Path, jobs: int = 1, progress: ProgressCallbac
 
     t = time.perf_counter()
     plans: list[PartPlan] = []
-    if jobs > 1 and len(part_jobs) > 1:
-        with ProcessPoolExecutor(max_workers=jobs) as ex:
-            futs = [ex.submit(_plan_job, j, params, scn.planner_mode) for j in part_jobs]
+    n_cpu = os.cpu_count() or 1
+    jobs = min(n_cpu if jobs <= 0 else jobs, len(part_jobs))
+    if mp.current_process().daemon:  # z. B. API-Job: keine Kindprozesse erlaubt
+        jobs = 1
+    if jobs > 1:
+        # Teile parallel; die Prozesse erben die aufgebaute Geometrie (fork) und teilen den
+        # Plattencache, uebrige Kerne gehen an die Pools innerhalb eines Teils.
+        procs = max(1, n_cpu // jobs)
+        _warm_caches(params, root)
+        ctx = mp.get_context("fork") if "fork" in mp.get_all_start_methods() else None
+        with ProcessPoolExecutor(max_workers=jobs, mp_context=ctx) as ex:
+            futs = [ex.submit(_plan_job, j, params, scn.planner_mode, procs) for j in part_jobs]
             for i, f in enumerate(futs):
                 plans.append(f.result())
                 report("plan", 0.05 + 0.85 * (i + 1) / len(futs), f"Teil {i + 1}/{len(futs)}")
