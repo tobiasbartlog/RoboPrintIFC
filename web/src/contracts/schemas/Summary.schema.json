@@ -24,6 +24,17 @@
         "part_id": {
           "type": "string"
         },
+        "same_as": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "status": {
           "enum": [
             "machbar",
@@ -41,7 +52,8 @@
         "status",
         "d_min_mm",
         "n_collision",
-        "n_unreachable"
+        "n_unreachable",
+        "same_as"
       ],
       "title": "PartEntry",
       "type": "object"

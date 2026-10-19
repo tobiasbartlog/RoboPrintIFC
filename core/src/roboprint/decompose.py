@@ -17,7 +17,12 @@ Ablauf (`decompose_wall`):
 5. Jedes Teil = `geometry.cut_box(wall.mesh, Zelle)` wird einzeln voll geprueft (Cache nur bei
    gleicher Geometrie). Schafft die Pruefung ein Teil nicht, wird die Zelle geteilt (erst die
    Hoehe, dann die Breite halbiert), bis sie machbar ist oder die Mindestgroesse erreicht;
-   dann bleibt das Teil `nicht machbar` mit Ursache.
+   dann bleibt das Teil `nicht machbar` mit Ursache. Teile gleicher Geometrie bekommen aus dem
+   Cache denselben Plan und damit dieselbe Platzierung: Ihre Welt (Teil, Arbeitsflaeche,
+   Roboter) ist identisch, also gilt die dichte Simulation und Pruefung des Repraesentanten fuer
+   jede Kopie (SPEC §5.4/5 bei gleicher Geometrie und gleicher Platzierung erfuellt). Die
+   Ausgabe (`roboprint.export`) schreibt jede Kopie und nennt den Repraesentanten in
+   `summary.parts[].same_as`.
 
 Die Machbarkeit ist injiziert: `feasible(part_mesh_P) -> Feasibility` (oder ein Tupel
 (machbar, d_min, placement[, cause[, planned]])). `prefeasible` ist eine optionale schnellere

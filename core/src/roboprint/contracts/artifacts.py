@@ -43,6 +43,9 @@ class PartEntry(ContractModel):
     d_min_mm: float | None
     n_collision: int = Field(ge=0)
     n_unreachable: int = Field(ge=0)
+    # Kopie eines gleichen Teils (gleiche Geometrie und Platzierung): part_id des Repraesentanten,
+    # dessen Planung und dichte Pruefung fuer diese Kopie gilt (SPEC §5.4/5); sonst null.
+    same_as: str | None = None
 
 
 class Provenance(ContractModel):
