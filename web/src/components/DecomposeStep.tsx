@@ -38,7 +38,19 @@ export function DecomposeStep() {
       </Text>
       <ParamsPanel />
 
-      <Stack gap={4}>
+      {/* Bleibt am unteren Rand der Seitenleiste sichtbar, auch wenn die Druckeinstellungen aufgeklappt sind. */}
+      <Stack
+        gap={4}
+        py="xs"
+        data-testid="start-job-bar"
+        style={{
+          position: 'sticky',
+          bottom: 0,
+          zIndex: 3,
+          background: 'var(--mantine-color-body)',
+          borderTop: '1px solid var(--mantine-color-default-border)',
+        }}
+      >
         <Button
           variant={hasFreshRun ? 'default' : 'filled'}
           disabled={reason !== null}

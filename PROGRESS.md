@@ -474,3 +474,37 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Nur gemessen, nichts getunt. Ansatzpunkte für später (Nutzerentscheidung): Nachplanung in der H*-Bestätigung
   weglassen oder auf einen Kandidaten begrenzen, Bisektion bei der Quader-Höhe aus dem Höhenexperiment (800 mm)
   beginnen, Zeitlimit je Bestätigungsschritt.
+
+### 2026-10-19 18:45 Druckeinstellungen nach Kategorien (Variante A, Entwurf freigegeben von Tobias)
+- Branch `v2/params-akkordeon` von `origin/v2-nachtlauf` (b0fa62f), nur `web/` und dieser Eintrag. Nicht gemergt;
+  der Merge folgt nach dem Nutzertest.
+- **Panel „Druckeinstellungen“** wie bei Kunststoff-Slicern: Akkordeon mit acht Kategorien (Schicht & Strang, Module,
+  Geschwindigkeit, Pumpe, Bewegung, Abstände, Bahnplanung, Steuerung & Export), alle zugeklappt mit Kurzfassung
+  („10 mm · 30 mm · 2 Schalen“, „100 · 250 mm/s“, „DRL v2“). Modus „Grundlegend | Alle“: 9 von 21 Parametern
+  grundlegend. Suche über Label und Gruppentitel (ohne Groß-/Kleinschreibung und Umlaute, jedes Wort muss passen)
+  ignoriert den Modus und klappt Gruppen mit Treffern auf. Hinweis „12 weitere Parameter unter „Alle““ mit Badge der
+  versteckten Änderungen; ein Klick schaltet auf „Alle“ und klappt deren Gruppen auf. „Ergibt bis zu ⌊H/h⌋ Schichten
+  je Modul.“ Keine Profil-Auswahl.
+- Geändert = Primärfarbe (Punkt, fettes Label, Rand und Tönung des Felds, Badge „N geändert“ je Gruppe und im Kopf),
+  das Gelb entfällt. Annahme = gelbes „A“ (gefüllt, `autoContrast`) mit Tooltip und zugänglichem Text, bei `t_tot_s`
+  „Annahme, vorläufig“. Reset-Knopf je Zeile nur bei Änderung, Platz reserviert. Icons als Inline-SVG
+  (`ParamIcons.tsx`), Tabler ist keine Abhängigkeit.
+- Logik als reine Funktionen in `web/src/state/params.ts` (`PARAMS`, `PARAM_GROUPS`, `visibleParams`, `groupViews`,
+  `hiddenInfo`, `groupSummary`, `secondaryLine`, `layersPerModule`); `tcp_name` und `dialect` sind Text- bzw.
+  Auswahlparameter im selben Modell. Schlüssel und Defaults unverändert.
+- **Kopplung an den Kern:** `core/tests/test_api.py::test_web_default_params_accepted` liest `params.ts` mit Regex
+  (Schlüssel und Default im selben Objektliteral, Zahl der Schlüssel-Literale = Zahl der Zahlenparameter,
+  `tcp_name`/`dialect` als eigene Zeile). Deshalb stehen die Text- und Auswahlparameter nach Feldnamen und die
+  Defaults in `STRING_DEFAULTS`; ein Vitest prüft dieselben Ausdrücke, damit eine Web-Änderung den Kerntest nicht
+  still bricht.
+- „Zerlegen & prüfen“ samt Grund sitzt `sticky` am unteren Rand der Seitenleiste (Hintergrund `--mantine-color-body`).
+  Geprüft bei 1280 × 800 und 1024 × 800 (Seitenleiste 440/340 px), hell und dunkel: Knopf im Bild, kein
+  horizontaler Überlauf. Unter `lg` sind Feld 100 px und Labels 12 px breit bzw. groß, sonst brachen Labels mitten im
+  Wort. Hinweis im Export auf „Druckeinstellungen → Steuerung & Export“ angepasst.
+- e2e `shell.spec.ts`: `params-toggle` entfällt; der Test klappt Pumpe und Geschwindigkeit auf und erwartet
+  „vorläufig“ am Kennzeichen von `t_tot_s`. Neue Test-IDs: `param-group-<id>`, `param-mode`, `param-search`,
+  `param-hidden-note`.
+- Checks lokal (Windows 11, Node 24): web lint, typecheck und test grün (79 Tests, davon 22 neu in `params.test.ts`
+  und `ParamsPanel.test.tsx`). e2e **8 passed** (29,8 s) gegen lokal erzeugte Läufe `runs/verify/S1` (2 min) und
+  `runs/verify/S3` (57 s), Playwright-Chromium dafür nachinstalliert. `pytest core/tests/test_api.py -k
+  web_default_params` grün. Screenshots `2-zerlegen.png` und `g6-2-zerlegen.png` zeigen das neue Panel.

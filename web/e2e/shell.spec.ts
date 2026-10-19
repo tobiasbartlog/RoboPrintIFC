@@ -24,8 +24,13 @@ test('Glückspfad: Modell, Zerlegen & prüfen, Simulation, Export', async ({ pag
 
   // 2 Zerlegen & prüfen
   await page.getByTestId('to-decompose').click();
-  await page.getByTestId('params-toggle').click();
-  await expect(page.getByTestId('param-assumption-t_tot_s')).toContainText('provisorisch');
+  // Druckeinstellungen: Gruppen Pumpe und Geschwindigkeit aufklappen
+  await page.getByTestId('param-group-pump').click();
+  await expect(page.getByTestId('param-assumption-t_tot_s')).toBeVisible();
+  await expect(page.getByTestId('param-assumption-t_tot_s')).toContainText('vorläufig');
+  await page.getByTestId('param-group-speed').click();
+  await expect(page.getByTestId('param-v_print_mm_s')).toBeVisible();
+  await expect(page.getByTestId('start-job')).toBeInViewport();
   await page.getByTestId('start-job').click();
   await expect(page.getByTestId('job-progress')).toBeVisible();
   await expect(page.getByTestId('part-list')).toBeVisible({ timeout: 15_000 });
