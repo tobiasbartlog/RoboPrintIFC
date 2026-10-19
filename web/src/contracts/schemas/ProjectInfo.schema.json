@@ -59,6 +59,21 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "properties": {
+    "building_mm": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Ausdehnung (x, y, z) der Hausansicht in mm; None ohne IFC-Gebäude (Quader-Beispiel)"
+    },
     "name": {
       "type": "string"
     },
@@ -75,7 +90,8 @@
   "required": [
     "project_id",
     "name",
-    "walls"
+    "walls",
+    "building_mm"
   ],
   "title": "ProjectInfo",
   "type": "object"

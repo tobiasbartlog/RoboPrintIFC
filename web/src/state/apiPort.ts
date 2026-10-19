@@ -5,6 +5,7 @@
 import type { Example, JobCreate, JobState, ProjectInfo } from '../contracts';
 
 export type ProjectSource = { examplePath: string } | { file: File };
+export type WallFrame = 'L' | 'building';
 
 export interface ApiPort {
   listExamples(): Promise<Example[]>;
@@ -18,8 +19,13 @@ export interface ApiPort {
   loadRun(runId: string, path: string): Promise<string>;
   /** URL einer Laufdatei für Lader, die selbst holen (z. B. `parts/P01/part.stl`). */
   runFileUrl(runId: string, path: string): string;
-  /** URL des Wandmeshes (STL, Frame L, mm) einer Wand des Projekts. */
-  wallMeshUrl(projectId: string, wallId: string): string;
+  /**
+   * URL des Wandmeshes (STL, mm) einer Wand des Projekts: `L` im Wand-Frame, `building` in
+   * Gebäudelage relativ zum Ursprung der Hausansicht (nur wenn `building_mm` gesetzt ist).
+   */
+  wallMeshUrl(projectId: string, wallId: string, frame?: WallFrame): string;
+  /** URL der übrigen Bauteile (Decken, Dach, ...) für die Hausansicht (STL, mm). */
+  contextMeshUrl(projectId: string): string;
   /** Basis-URL der Assets (URDF, Tisch- und Werkzeug-STL), z. B. `/api/assets`. */
   readonly assetBase: string;
 }

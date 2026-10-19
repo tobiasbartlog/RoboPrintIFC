@@ -5,7 +5,7 @@
  */
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { Example, JobState, PartArtifact, ProjectInfo, Summary, TrajectorySummary } from '../contracts';
-import type { ApiPort } from './apiPort';
+import type { ApiPort, WallFrame } from './apiPort';
 import { createPlaybackSlice, type PlaybackSlice } from './playback';
 import { DEFAULT_PARAMS, type ParamValue, type ParamValues } from './params';
 import { makeBasis, stepBlockedReason, stepStatuses, type RunBasis, type StepId, type StepInputs, type StepStatus } from './stepper';
@@ -41,9 +41,14 @@ export interface AppState extends PlaybackSlice {
   openFile: (file: File) => Promise<void>;
   // wall
   wallId: string | null;
-  /** URL des Wandmeshes (STL, Frame L) im aktuellen Projekt. */
-  wallMeshUrl: (wallId: string) => string;
+  /** URL des Wandmeshes (STL; Frame L oder Gebäudelage) im aktuellen Projekt. */
+  wallMeshUrl: (wallId: string, frame?: WallFrame) => string;
+  /** URL der übrigen Bauteile für die Hausansicht im aktuellen Projekt. */
+  contextMeshUrl: () => string;
   selectWall: (id: string) => void;
+  /** Wandvorschau in Schritt 1: Wände nebeneinander (`raster`) oder in Gebäudelage (`haus`). */
+  wallView: WallView;
+  setWallView: (view: WallView) => void;
   // params
   params: ParamValues;
   setParam: (key: string, value: ParamValue) => void;
@@ -81,6 +86,8 @@ const EMPTY_JOB: JobSlice = { jobId: null, state: null, error: null, errorDetail
 function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
+
+export type WallView = 'raster' | 'haus';
 
 export type AppStore = StoreApi<AppState>;
 
@@ -154,7 +161,10 @@ export function createAppStore(api: ApiPort, opts: StoreOptions = {}): AppStore 
 
       wallId: null,
       selectWall: (wallId) => set({ wallId }),
-      wallMeshUrl: (wallId) => api.wallMeshUrl(get().project?.project_id ?? '', wallId),
+      wallMeshUrl: (wallId, frame) => api.wallMeshUrl(get().project?.project_id ?? '', wallId, frame),
+      contextMeshUrl: () => api.contextMeshUrl(get().project?.project_id ?? ''),
+      wallView: 'raster',
+      setWallView: (wallView) => set({ wallView }),
 
       params: { ...DEFAULT_PARAMS },
       setParam: (key, value) => set((s) => ({ params: { ...s.params, [key]: value } })),

@@ -23,6 +23,8 @@ export const realApi: ApiPort = {
     return res.text();
   },
   runFileUrl: (runId, path) => client.runUrl(runId, path),
-  wallMeshUrl: (projectId, wallId) => `${client.API_BASE}/projects/${encodeURIComponent(projectId)}/walls/${encodeURIComponent(wallId)}.stl`,
+  wallMeshUrl: (projectId, wallId, frame = 'L') =>
+    `${client.API_BASE}/projects/${encodeURIComponent(projectId)}/walls/${encodeURIComponent(wallId)}.stl${frame === 'L' ? '' : `?frame=${frame}`}`,
+  contextMeshUrl: (projectId) => `${client.API_BASE}/projects/${encodeURIComponent(projectId)}/context.stl`,
   assetBase: `${client.API_BASE}/assets`,
 };

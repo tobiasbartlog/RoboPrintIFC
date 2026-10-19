@@ -55,6 +55,7 @@ export function createFakeApi(opts: FakeOptions = {}): ApiPort {
     project_id: 'fake-project',
     name,
     walls: [...summary.walls, thinWall],
+    building_mm: null,
   });
 
   function patched(path: string): string {
@@ -126,6 +127,7 @@ export function createFakeApi(opts: FakeOptions = {}): ApiPort {
     runFileUrl: (_runId: string, path: string) => `/fixtures/run_demo/${path}`,
     // Das Fixture hat kein Wandmesh; das Teil-STL dient als Platzhalter.
     wallMeshUrl: () => '/fixtures/run_demo/parts/P01/part.stl',
+    contextMeshUrl: () => '/fixtures/run_demo/parts/P01/part.stl',
     assetBase: '/dev-assets',
   };
 }

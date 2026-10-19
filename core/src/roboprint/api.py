@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from email.parser import BytesParser
 from email.policy import HTTP
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response
@@ -97,16 +97,30 @@ def _eligibility(wall: Any, bead_width_mm: float = BEAD_WIDTH_MM) -> tuple[bool,
     return bool(ok), reason
 
 
-def _wall_entries(ifc_path: Path) -> list[WallEntry]:
+def _read_walls(ifc_path: Path) -> list[Any]:
     """Wände über `roboprint.ifc.read_walls` (lazy); Stub -> 501."""
     from roboprint import ifc
 
     try:
-        walls = ifc.read_walls(ifc_path)
+        return ifc.read_walls(ifc_path)
     except NotImplementedError as exc:
         raise _err(501, "IFC-Import ist noch nicht implementiert") from exc
     except Exception as exc:  # defektes IFC
         raise _err(422, f"IFC konnte nicht gelesen werden: {exc}") from exc
+
+
+def _building(ifc_path: Path, walls: list[Any]) -> tuple[list[float], list[float]] | None:
+    """Ursprung und Ausdehnung der Hausansicht (mm); None, wenn sie sich nicht bauen lässt."""
+    from roboprint import ifc
+
+    try:
+        origin, size = ifc.building_extent(walls, ifc.read_context(ifc_path))
+    except Exception:  # noqa: BLE001 - die Hausansicht ist reine Anzeige und darf nie blockieren
+        return None
+    return origin.tolist(), size.tolist()
+
+
+def _wall_entries(walls: list[Any]) -> list[WallEntry]:
     entries: list[WallEntry] = []
     for i, w in enumerate(walls):
         length = float(_wall_attr(w, "length_mm", "length", default=0.0))
@@ -232,17 +246,28 @@ def create_app(
             raise _err(404, "Projekt nicht gefunden")
         return projects_dir / project_id
 
-    def store_project(name: str, walls: list[WallEntry], source: dict[str, str]) -> ProjectCreated:
-        """`source` ist `{"ifc": <Pfad>}` oder `{"scenario": <Pfad relativ zu root>}` (Quader-Beispiel)."""
+    def store_project(
+        name: str, walls: list[WallEntry], source: dict[str, Any], building_mm: list[float] | None = None
+    ) -> ProjectCreated:
+        """`source` ist `{"ifc": <Pfad>, "origin_mm": [...]}` oder `{"scenario": <Pfad relativ zu root>}`
+        (Quader-Beispiel). `origin_mm` ist der Ursprung der Hausansicht in G."""
         pid = uuid.uuid4().hex[:12]
         pdir = projects_dir / pid
         pdir.mkdir(parents=True, exist_ok=True)
-        info = ProjectInfo(project_id=pid, name=name, walls=walls)
+        info = ProjectInfo(project_id=pid, name=name, walls=walls, building_mm=building_mm)
         (pdir / "project.json").write_text(info.model_dump_json(indent=2), encoding="utf-8")
         (pdir / "source.json").write_text(json.dumps(source), encoding="utf-8")
         return ProjectCreated(project_id=pid)
 
-    def project_source(pdir: Path) -> dict[str, str]:
+    def store_ifc_project(name: str, ifc_path: Path) -> ProjectCreated:
+        walls = _read_walls(ifc_path)
+        source: dict[str, Any] = {"ifc": str(ifc_path)}
+        building = _building(ifc_path, walls)
+        if building is not None:
+            source["origin_mm"] = building[0]
+        return store_project(name, _wall_entries(walls), source, building[1] if building else None)
+
+    def project_source(pdir: Path) -> dict[str, Any]:
         return json.loads((pdir / "source.json").read_text(encoding="utf-8"))
 
     @app.post("/api/projects")
@@ -259,7 +284,7 @@ def create_app(
             pid_dir.mkdir(parents=True, exist_ok=True)
             dest = pid_dir / f"{uuid.uuid4().hex[:12]}.ifc"
             dest.write_bytes(data)
-            return store_project(Path(fname or "upload.ifc").stem, _wall_entries(dest), {"ifc": str(dest)})
+            return store_ifc_project(Path(fname or "upload.ifc").stem, dest)
         try:
             body = ProjectCreate.model_validate(await request.json())
         except Exception as exc:
@@ -279,46 +304,83 @@ def create_app(
             target = _safe_join(root, src["path"])
         if target.suffix.lower() != ".ifc" or not target.is_file():
             raise _err(404, "IFC-Datei nicht gefunden")
-        return store_project(target.stem, _wall_entries(target), {"ifc": str(target)})
+        return store_ifc_project(target.stem, target)
 
     @app.get("/api/projects/{project_id}")
     def get_project(project_id: str) -> ProjectInfo:
         pdir = project_dir(project_id)
         return ProjectInfo.model_validate_json((pdir / "project.json").read_text(encoding="utf-8"))
 
-    wall_stl_cache: dict[str, dict[str, bytes]] = {}
+    wall_stl_cache: dict[tuple[str, str], dict[str, bytes]] = {}
+    context_stl_cache: dict[str, bytes | None] = {}
+
+    def building_origin(source: dict[str, Any]) -> Any:
+        import numpy as np
+
+        if "origin_mm" not in source:
+            raise _err(404, "Hausansicht nicht verfügbar")
+        return np.asarray(source["origin_mm"], dtype=float)
 
     @app.get("/api/projects/{project_id}/walls/{wall_file}")
-    def get_wall_mesh(project_id: str, wall_file: str) -> Response:
-        """Wandmesh als binäres STL im Frame L (mm), `wall_file` = `<wall_id>.stl`."""
+    def get_wall_mesh(project_id: str, wall_file: str, frame: Literal["L", "building"] = "L") -> Response:
+        """Wandmesh als binäres STL (mm), `wall_file` = `<wall_id>.stl`. `frame=L`: im Wand-Frame L;
+        `frame=building`: in Gebäudelage, relativ zum Ursprung der Hausansicht."""
+        import trimesh
+
         pdir = project_dir(project_id)
         wall_id = wall_file[:-4] if wall_file.lower().endswith(".stl") else ""
         info = ProjectInfo.model_validate_json((pdir / "project.json").read_text(encoding="utf-8"))
         if not wall_id or wall_id not in {w.wall_id for w in info.walls}:
             raise _err(404, "Wand nicht gefunden")
         source = project_source(pdir)
-        if project_id not in wall_stl_cache and "scenario" in source:
+        origin = building_origin(source) if frame == "building" else None
+        key = (project_id, frame)
+        if key not in wall_stl_cache and "scenario" in source:
             from roboprint.geometry import make_box
 
             # Quader im Frame L mit der min-Ecke im Ursprung, wie der Platzhalter im Viewer
             w = info.walls[0]
             mesh = make_box([w.length_mm, w.thickness_mm, w.height_mm])
-            wall_stl_cache[project_id] = {w.wall_id: bytes(mesh.export(file_type="stl"))}
-        if project_id not in wall_stl_cache:
-            from roboprint import ifc
+            wall_stl_cache[key] = {w.wall_id: bytes(mesh.export(file_type="stl"))}
+        if key not in wall_stl_cache:
+            from roboprint import frames, ifc
 
-            ifc_path = source["ifc"]
             try:
-                walls = ifc.read_walls(ifc_path)
+                walls = ifc.read_walls(source["ifc"])
             except Exception as exc:  # defektes IFC
                 raise _err(422, f"IFC konnte nicht gelesen werden: {exc}") from exc
-            wall_stl_cache[project_id] = {
-                str(_wall_attr(w, "wall_id", "id", "guid", default="")): bytes(w.mesh.export(file_type="stl"))
-                for w in walls
+
+            def stl(w: Any) -> bytes:
+                if origin is None:
+                    return bytes(w.mesh.export(file_type="stl"))
+                v = frames.transform_points(w.T_GL, w.mesh.vertices) - origin
+                return bytes(trimesh.Trimesh(v, w.mesh.faces, process=False).export(file_type="stl"))
+
+            wall_stl_cache[key] = {
+                str(_wall_attr(w, "wall_id", "id", "guid", default="")): stl(w) for w in walls
             }
-        data = wall_stl_cache[project_id].get(wall_id)
+        data = wall_stl_cache[key].get(wall_id)
         if data is None:
             raise _err(404, "Wandgeometrie nicht verfügbar")
+        return Response(data, media_type="model/stl")
+
+    @app.get("/api/projects/{project_id}/context.stl")
+    def get_context_mesh(project_id: str) -> Response:
+        """Übrige Bauteile (Decken, Dach, ...) für die Hausansicht als STL relativ zu deren Ursprung (mm)."""
+        import trimesh
+
+        from roboprint import ifc
+
+        source = project_source(project_dir(project_id))
+        origin = building_origin(source)
+        if project_id not in context_stl_cache:
+            mesh = ifc.read_context(source["ifc"])
+            if mesh is not None:
+                mesh = trimesh.Trimesh(mesh.vertices - origin, mesh.faces, process=False)
+            context_stl_cache[project_id] = None if mesh is None else bytes(mesh.export(file_type="stl"))
+        data = context_stl_cache[project_id]
+        if data is None:
+            raise _err(404, "Keine weiteren Bauteile im Modell")
         return Response(data, media_type="model/stl")
 
     # ------------------------------------------------------------------ jobs

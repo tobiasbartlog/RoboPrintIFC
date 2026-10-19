@@ -72,8 +72,15 @@ function WallPreviewLayer() {
   const hasRun = useAppStore((s) => s.run !== null);
   const selectWall = useAppStore((s) => s.selectWall);
   const meshUrl = useAppStore((s) => s.wallMeshUrl);
+  const contextMeshUrl = useAppStore((s) => s.contextMeshUrl);
+  const wallView = useAppStore((s) => s.wallView);
+  const setWallView = useAppStore((s) => s.setWallView);
+  const size = project?.building_mm;
+  const house = useMemo(() => (size ? { size, contextUrl: contextMeshUrl() } : null), [size, contextMeshUrl]);
   if (!project) return null;
-  if (step === 'model') return <WallPreview walls={project.walls} wallId={wallId} meshUrl={meshUrl} onSelect={selectWall} />;
+  if (step === 'model') {
+    return <WallPreview walls={project.walls} wallId={wallId} meshUrl={meshUrl} onSelect={selectWall} house={house} view={wallView} onViewChange={setWallView} />;
+  }
   if (step === 'decompose' && !hasRun && wallId) return <WallPreview walls={project.walls} wallId={wallId} meshUrl={meshUrl} onSelect={selectWall} onlySelected />;
   return null;
 }

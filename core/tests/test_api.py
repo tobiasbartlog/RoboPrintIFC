@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
@@ -309,6 +310,41 @@ def test_assets(fixture_client):
 )
 def test_assets_whitelist(fixture_client, path):
     assert fixture_client.get(f"/api/assets/{path}").status_code == 404
+
+
+def test_building_view_real_ifc(tmp_path):
+    """Hausansicht: Wände in Gebäudelage und Kontext (Boden, Dach) teilen einen Ursprung nahe 0."""
+    import trimesh
+
+    with TestClient(create_app(tmp_path / "runs", tmp_path / "projects", ROOT)) as c:
+        pid = c.post("/api/projects", json=EXAMPLE).json()["project_id"]
+        info = c.get(f"/api/projects/{pid}").json()
+        size = info["building_mm"]
+        assert size is not None and 5000 < size[0] < 7000 and 5000 < size[1] < 7000
+        boxes = []
+        for w in info["walls"]:
+            r = c.get(f"/api/projects/{pid}/walls/{w['wall_id']}.stl", params={"frame": "building"})
+            assert r.status_code == 200
+            boxes.append(trimesh.load(io.BytesIO(r.content), file_type="stl").bounds)
+        lo = np.min([b[0] for b in boxes], axis=0)
+        assert np.allclose(lo, 0.0, atol=1e-3)  # Ursprung = min-Ecke der Wände
+        # Die Wände stehen nebeneinander im Haus, nicht übereinander im Ursprung
+        assert len({round(b[0][0]) for b in boxes}) == len(boxes)
+        ctx = c.get(f"/api/projects/{pid}/context.stl")
+        assert ctx.status_code == 200
+        cb = trimesh.load(io.BytesIO(ctx.content), file_type="stl").bounds
+        assert cb[1][2] > max(b[1][2] for b in boxes)  # Dach über den Wänden
+        assert np.all(cb[1] <= np.asarray(size) + 1e-3)
+        wid = info["walls"][0]["wall_id"]
+        assert c.get(f"/api/projects/{pid}/walls/{wid}.stl", params={"frame": "G"}).status_code == 422
+
+
+def test_building_view_absent_for_box(client):
+    r = client.post("/api/projects", json={"example_path": "spec/scenarios/S1_modul_referenz.json"})
+    pid = r.json()["project_id"]
+    assert client.get(f"/api/projects/{pid}").json()["building_mm"] is None
+    assert client.get(f"/api/projects/{pid}/context.stl").status_code == 404
+    assert client.get(f"/api/projects/{pid}/walls/box.stl", params={"frame": "building"}).status_code == 404
 
 
 def test_wall_mesh_stl_real_ifc(tmp_path):

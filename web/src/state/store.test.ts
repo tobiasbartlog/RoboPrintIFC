@@ -78,4 +78,11 @@ describe('Store gegen Fake-API', () => {
     expect(store.getState().run).toBeNull();
     expect(store.getState().wallId).toBeNull();
   });
+
+  it('Wandvorschau startet als Raster und lässt sich auf die Hausansicht umstellen', async () => {
+    const store = await ready();
+    expect(store.getState().wallView).toBe('raster');
+    store.getState().setWallView('haus');
+    expect(store.getState().wallView).toBe('haus');
+  });
 });

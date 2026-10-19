@@ -101,6 +101,39 @@ def _openings_in_L(settings, element, T_LG: np.ndarray, length: float, height: f
     return sorted(out, key=lambda o: (o.x0, o.z0))
 
 
+# Übrige Bauteile für die Hausansicht im Viewer (nur Anzeige, keine Fachlogik)
+CONTEXT_TYPES = (
+    "IfcSlab", "IfcRoof", "IfcColumn", "IfcBeam", "IfcStair", "IfcStairFlight", "IfcRamp", "IfcRampFlight",
+    "IfcDoor", "IfcWindow", "IfcRailing", "IfcCovering", "IfcPlate", "IfcMember", "IfcChimney", "IfcFooting",
+    "IfcCurtainWall",
+)  # fmt: skip
+
+
+def read_context(path: Path | str) -> trimesh.Trimesh | None:
+    """Decken, Dach, Stützen usw. (`CONTEXT_TYPES`) als ein Netz in G (mm); None, wenn es keine gibt."""
+    model = ifcopenshell.open(str(path))
+    settings = _settings()
+    meshes = []
+    for t in CONTEXT_TYPES:
+        try:
+            elements = model.by_type(t)
+        except RuntimeError:  # Typ fehlt im Schema (z. B. IfcChimney in IFC2X3)
+            continue
+        meshes += [m for m in (_shape_mesh_mm(settings, el) for el in elements) if m is not None]
+    return trimesh.util.concatenate(meshes) if meshes else None
+
+
+def building_extent(walls: list[Wall], context: trimesh.Trimesh | None) -> tuple[np.ndarray, np.ndarray]:
+    """Ursprung (min-Ecke der Wände in G) und Ausdehnung der Hausansicht (Wände und Kontext), mm.
+    Der Viewer bekommt Netze relativ zum Ursprung, damit STL (float32) auch bei georeferenzierten
+    Modellen genau bleibt."""
+    pts = [frames.transform_points(w.T_GL, w.mesh.vertices) for w in walls]
+    origin = np.vstack(pts).min(axis=0)
+    if context is not None:
+        pts.append(context.vertices)
+    return origin, np.vstack(pts).max(axis=0) - origin
+
+
 def read_walls(path: Path | str) -> list[Wall]:
     """Liest alle IfcWall (inkl. Subtypen) mit Koerpergeometrie als `Wall` im Wand-Frame L."""
     model = ifcopenshell.open(str(path))

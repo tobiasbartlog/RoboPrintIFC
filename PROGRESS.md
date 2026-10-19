@@ -375,3 +375,23 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Zum Beispiel-IFC: Es enthält nur 4 IfcWall (links, rechts vorne, rechts hinten, Installationswand); die Giebelseiten
   vorne und hinten sind nicht modelliert. Die Wandvorschau legt die Wände als Raster nebeneinander (`layoutWalls`),
   nicht in Gebäudelage.
+
+### 2026-10-19 14:30 Roboter gedreht, Transfer-Mindesthöhe, Hausansicht (Nutzertest Tobias)
+- **Roboterbasis stand 180° verdreht.** Das Kabel tritt bei −Y_B aus `base_link` aus (URDF-Mesh, bis −349 mm) und
+  lag mit `quat` (1, 0, 0, 0) auf dem Tisch (Kabelende y_W = 741 mm). Real hängt es über die nahe hintere Kante
+  (y_W = 1230). Jetzt `quat` (0, 0, 0, 1): S liegt bei +485 mm in Y_B statt −485 mm. Folge vorher: Tisch und Teile im
+  Basis-Frame gespiegelt, also DRL-Ziele hinter dem Roboter; die Sperrzone der Platzierung (konvexe Hülle von
+  `base_link` samt Kabel) ragte 349 mm über die Arbeitsfläche. Test `test_cable_hangs_off_the_table`.
+  **Alle Läufe und Gates vor diesem Eintrag gelten für die falsche Ausrichtung; voller verify-Lauf steht aus**
+  (lokal fehlen Pinocchio und Coal, also in der Cloud).
+- **Transfer sackte unter die Mindesthöhe.** Die movej zwischen zwei Ringen sank über dem Teil knapp unter
+  z_lift − TOL_LIFT_MM (25 mm); der Planer hielt sie für frei, die Selbstprüfung (b) verwarf das Teil danach.
+  Jetzt gilt so ein Transfer als unfrei und bekommt den Zwischenpunkt (SPEC §5.3). Test `test_transfer_sackt_unter_mindesthoehe`.
+- **Höhenexperiment** (Quader 600 × 200, gedrehte Basis, mit Transfer-Fix, Windows seriell): 400 mm (S1) machbar
+  θ = 90°; 500/600 mm machbar θ = 0° seitlich; 800 mm machbar θ = 90° (Suche) und θ = 0° direkt vor dem Roboter
+  (lange Seite zum Roboter, d_min 10,00 mm). Laufzeit 4–7 min je Quader. Die Zerlegung begrenzt H* weiterhin auf
+  `h_upper_mm` = 400 (`decompose_plan.DECOMPOSE_DEFAULTS`, Laufzeitannahme aus dem Nachtlauf); Anheben ist eine
+  Nutzerentscheidung (Laufzeit G7, Prozess).
+- **Hausansicht** im Schritt Modell: Umschalter „Wände nebeneinander | Haus“. API: `ProjectInfo.building_mm`,
+  `GET .../walls/{id}.stl?frame=building` (Wand in Gebäudelage, Ursprung = min-Ecke der Wände in G),
+  `GET .../context.stl` (Decken, Dach, Stützen usw. aus `ifc.read_context`). Quader-Projekte haben keine Hausansicht.

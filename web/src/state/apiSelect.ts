@@ -27,7 +27,9 @@ function unavailable(): ApiPort {
     cancelJob: fail,
     loadRun: fail,
     runFileUrl: (runId, path) => `/api/runs/${runId}/${path}`,
-    wallMeshUrl: (projectId, wallId) => `/api/projects/${projectId}/walls/${encodeURIComponent(wallId)}.stl`,
+    wallMeshUrl: (projectId, wallId, frame = 'L') =>
+      `/api/projects/${projectId}/walls/${encodeURIComponent(wallId)}.stl${frame === 'L' ? '' : `?frame=${frame}`}`,
+    contextMeshUrl: (projectId) => `/api/projects/${projectId}/context.stl`,
     assetBase: '/api/assets',
   };
 }

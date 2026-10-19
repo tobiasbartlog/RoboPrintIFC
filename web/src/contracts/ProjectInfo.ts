@@ -4,6 +4,10 @@
  */
 
 export interface ProjectInfo {
+  /**
+   * Ausdehnung (x, y, z) der Hausansicht in mm; None ohne IFC-Gebäude (Quader-Beispiel)
+   */
+  building_mm: number[] | null;
   name: string;
   project_id: string;
   walls: WallEntry[];

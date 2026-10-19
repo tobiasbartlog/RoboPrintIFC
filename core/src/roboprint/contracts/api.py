@@ -38,6 +38,10 @@ class ProjectInfo(ContractModel):
     project_id: str
     name: str
     walls: list[WallEntry]
+    building_mm: list[float] | None = Field(
+        default=None,
+        description="Ausdehnung (x, y, z) der Hausansicht in mm; None ohne IFC-Gebäude (Quader-Beispiel)",
+    )
 
 
 class JobCreate(ContractModel):
