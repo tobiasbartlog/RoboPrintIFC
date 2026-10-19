@@ -135,7 +135,7 @@ def test_job_rejects_unknown_param(client):
 def test_web_default_params_accepted(client):
     """Der Viewer schickt bei jedem Job alle Parameter aus `web/src/state/params.ts` mit."""
     src = (ROOT / "web" / "src" / "state" / "params.ts").read_text(encoding="utf-8")
-    params: dict = {k: float(v) for k, v in re.findall(r"key: '(\w+)'.*?default: ([\d.]+)", src)}
+    params: dict = {k: float(v) for k, v in re.findall(r"key: '(\w+)'[^}]*?default: ([\d.]+)", src)}
     params |= dict(re.findall(r"^\s+(tcp_name|dialect): '([^']*)'", src, flags=re.M))
     assert len(params) == src.count("key: '") + 2
     pid = make_project(client)

@@ -19,6 +19,15 @@ export interface NumParamDef {
 export const NUM_PARAMS: NumParamDef[] = [
   { key: 'layer_height_mm', label: 'Schichthöhe', unit: 'mm', default: 10, step: 1, assumption: true },
   { key: 'bead_width_mm', label: 'Strangbreite', unit: 'mm', default: 30, step: 1, assumption: true, hint: 'Düse 30gut' },
+  {
+    key: 'module_height_max_mm',
+    label: 'Modulhöhe höchstens',
+    unit: 'mm',
+    default: 400,
+    step: 50,
+    assumption: true,
+    hint: 'Lehm unter Eigengewicht; niedriger, wenn der Roboter höher nicht kollisionsfrei druckt',
+  },
   { key: 'shells', label: 'Schalen', unit: '', default: 2, step: 1, assumption: false, hint: 'aus Prozesskarte' },
   { key: 'v_print_mm_s', label: 'Druckgeschwindigkeit', unit: 'mm/s', default: 100, step: 5, assumption: true },
   { key: 'v_travel_mm_s', label: 'Fahrgeschwindigkeit', unit: 'mm/s', default: 250, step: 10, assumption: true },

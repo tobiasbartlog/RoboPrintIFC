@@ -1,7 +1,7 @@
 import { Group, Paper, Stack, Text } from '@mantine/core';
 import { fmt } from '../player/labels';
 import type { RunData } from '../state/store';
-import { formatDuration, minDistance, moduleProgress, partRectInWall, totalPrintTimeS } from '../state/moduleView';
+import { formatDuration, minDistance, moduleProgress, partRectInWall, tallestModuleMm, totalPrintTimeS } from '../state/moduleView';
 
 const v = (c: string) => `var(--mantine-color-${c})`;
 
@@ -18,15 +18,24 @@ function Stat({ label, value, testid }: { label: string; value: string; testid: 
   );
 }
 
-/** Kennzahlen des Laufs: Anzahl Module, Druckzeit, kleinster Abstand. */
+/** Kennzahlen des Laufs: Anzahl Module, Druckzeit, kleinster Abstand, höchstes Modul (mit Nutzergrenze). */
 export function RunStats({ run }: { run: RunData }) {
   const parts = run.summary.parts;
   const dmin = minDistance(parts);
+  const tallest = tallestModuleMm(run.parts);
+  const limit = run.summary.params.module_height_max_mm;
   return (
     <Group gap="lg" data-testid="run-stats">
       <Stat label="Module" value={String(parts.length)} testid="stat-count" />
       <Stat label="Druckzeit" value={formatDuration(totalPrintTimeS(run.trajectory))} testid="stat-time" />
       <Stat label="kleinster Abstand" value={dmin === null ? 'unbekannt' : `${fmt(dmin)} mm`} testid="stat-dmin" />
+      {tallest !== null ? (
+        <Stat
+          label={typeof limit === 'number' ? `höchstes Modul (Grenze ${fmt(limit, 0)} mm)` : 'höchstes Modul'}
+          value={`${fmt(tallest, 0)} mm`}
+          testid="stat-tallest"
+        />
+      ) : null}
     </Group>
   );
 }

@@ -91,6 +91,8 @@ class DecomposeParams:
     h_step_mm: float = 10.0  # Genauigkeit der H*-Bisektion
     h_min_mm: float = 100.0  # kleinste sinnvolle Modulhoehe fuer H*
     h_upper_mm: float | None = None  # obere Schranke fuer H* (None: Wandhoehe)
+    h_verify: bool = False  # H* der Vorpruefung mit der vollen Planung bestaetigen (HStar.verify)
+    h_verify_step_mm: float = 50.0  # Genauigkeit dieser Bestaetigung
     min_cell_width_mm: float = 150.0  # Mindestgroesse beim Verfeinern
     min_cell_height_mm: float = 50.0
     max_refine_depth: int = 4  # hoechstens so oft halbieren
@@ -226,15 +228,32 @@ def box_mesh_P(width: float, thickness: float, height: float) -> trimesh.Trimesh
 
 
 class HStar:
-    """H*(Breite) per Bisektion auf `step` mm mit Cache ueber (Breite, Dicke, Hoehe)."""
+    """H*(Breite) per Bisektion auf `step` mm mit Cache ueber (Breite, Dicke, Hoehe).
 
-    def __init__(self, check: FeasibleFn, step: float = 10.0, h_min: float = 100.0) -> None:
+    Mit `verify` (volle Planung) wird das Ergebnis der schnellen Vorpruefung `check` bestaetigt:
+    Die Vorpruefung ist optimistisch und haelt zu hohe Quader fuer machbar. Scheitert die volle
+    Planung, sucht eine zweite Bisektion auf `verify_step` mm die echte Grenze darunter.
+    """
+
+    def __init__(
+        self,
+        check: FeasibleFn,
+        step: float = 10.0,
+        h_min: float = 100.0,
+        verify: FeasibleFn | None = None,
+        verify_step: float = 50.0,
+        note: Callable[[str], None] | None = None,
+    ) -> None:
         self.check = check
         self.step = float(step)
         self.h_min = float(h_min)
         self.cache: dict[tuple[float, float, float], Feasibility] = {}
         self.calls = 0
         self.hits = 0
+        self.verify = verify
+        self.verify_step = float(verify_step)
+        self.verified: dict[tuple[float, float, float], bool] = {}
+        self.note = note or (lambda msg: None)
 
     @staticmethod
     def _key(b: float, t: float, h: float) -> tuple[float, float, float]:
@@ -275,8 +294,47 @@ class HStar:
         return self.box(b, t, h).feasible
 
     def __call__(self, b: float, t: float, h_upper: float) -> float:
-        """Groesste machbare Hoehe <= h_upper (auf `step` genau); 0, wenn schon h_min scheitert."""
-        h_upper = float(h_upper)
+        """Groesste machbare Hoehe <= h_upper; 0, wenn schon h_min scheitert."""
+        h = self._pre(b, t, float(h_upper))
+        if self.verify is None or h <= _EPS:
+            return h
+        return self._confirm(b, t, h)
+
+    def _verified_ok(self, b: float, t: float, h: float) -> bool:
+        """Volle Planung des Quaders, gecacht und per Monotonie in Breite und Hoehe ergaenzt."""
+        k = kb, kt, kh = self._key(b, t, h)
+        if k in self.verified:
+            return self.verified[k]
+        for (cb, ct, ch), ok in self.verified.items():
+            if ct == kt and ok and cb >= kb and ch >= kh:
+                return True
+            if ct == kt and not ok and cb <= kb and ch <= kh:
+                return False
+        assert self.verify is not None
+        self.note(f"Modulhoehe pruefen: {b:.0f} x {t:.0f} x {h:.0f} mm voll planen")
+        ok = as_feasibility(self.verify(box_mesh_P(b, t, h))).feasible
+        self.verified[k] = ok
+        return ok
+
+    def _confirm(self, b: float, t: float, h_pre: float) -> float:
+        """Groesste von der vollen Planung bestaetigte Hoehe <= h_pre (auf `verify_step` genau)."""
+        if self._verified_ok(b, t, h_pre):
+            return h_pre
+        lo, hi = min(self.h_min, h_pre), h_pre
+        while hi - lo > self.verify_step + _EPS:
+            mid = math.floor((lo + hi) / 2 / self.verify_step) * self.verify_step
+            if mid <= lo + _EPS:
+                mid = lo + self.verify_step
+            if mid >= hi - _EPS:
+                break
+            if self._verified_ok(b, t, mid):
+                lo = mid
+            else:
+                hi = mid
+        return lo  # h_min ungeprueft: Die Zellplanung verfeinert notfalls
+
+    def _pre(self, b: float, t: float, h_upper: float) -> float:
+        """Bisektion mit der Vorpruefung auf `step` genau."""
         if self._ok(b, t, h_upper):
             return h_upper
         h_lo = min(self.h_min, h_upper)
@@ -589,9 +647,16 @@ def decompose_walls(
     prog = progress or (lambda stage, frac, msg: None)
     if feasible is None and feasible_many is None:
         raise ValueError("feasible oder feasible_many angeben (Planer: roboprint.decompose_plan)")
+    checker = _PartChecker(feasible, st, part_cache, feasible_many)
     if hstar is None:
         check = prefeasible or feasible or (lambda m: feasible_many([m])[0])  # type: ignore[misc]
-        hstar = HStar(check, p.h_step_mm, p.h_min_mm)
+        # Bestaetigung nur, wenn die Vorpruefung nicht schon die volle Planung ist; die vollen
+        # Plaene landen im Teile-Cache und gelten fuer gleich grosse Zellen mit.
+        verify = (lambda m: checker.check_all([m])[0]) if p.h_verify and prefeasible is not None else None
+        hstar = HStar(
+            check, p.h_step_mm, p.h_min_mm, verify=verify, verify_step=p.h_verify_step_mm,
+            note=lambda msg: prog("decompose", 0.0, msg),
+        )  # fmt: skip
     cells: list[_Cell] = []
     for i, wall in enumerate(walls):
         short = wall_short_name(wall)
@@ -613,7 +678,6 @@ def decompose_walls(
                 lo = np.array([grid.xs[c], 0.0, z0])
                 hi = np.array([grid.xs[c + 1], wall.thickness_mm, z1])
                 cells.append(_Cell(i, r, c, lo, hi))
-    checker = _PartChecker(feasible, st, part_cache, feasible_many)
     parts = _plan_cells(walls, cells, checker, p, prog)
     prog("decompose", 1.0, f"{len(parts)} Teile")
     return parts

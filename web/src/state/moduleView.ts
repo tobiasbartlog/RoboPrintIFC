@@ -48,6 +48,12 @@ export function formatDuration(s: number): string {
   return `${sec} s`;
 }
 
+/** Höhe des höchsten Moduls (mm) aus den Teil-Bounding-Boxen; null ohne Teile. */
+export function tallestModuleMm(parts: Record<string, Pick<PartArtifact, 'bbox_P'>>): number | null {
+  const hs = Object.values(parts).map((p) => p.bbox_P.max[2] - p.bbox_P.min[2]);
+  return hs.length ? Math.max(...hs) : null;
+}
+
 /** Kleinster Abstand über alle Teile; null, wenn keiner bekannt ist. */
 export function minDistance(parts: readonly { d_min_mm: number | null }[]): number | null {
   const v = parts.map((p) => p.d_min_mm).filter((d): d is number => d !== null);

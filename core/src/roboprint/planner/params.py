@@ -34,6 +34,10 @@ class PlannerParams:
     dq_max_rad: float = 0.3
     tcp_name: str = "FGC_30GUT"
     dialect: str = "v2"
+    # Zerlegung: Nutzergrenze der Modulhoehe (z. B. Lehm unter Eigengewicht, Nutzerentscheidung
+    # 19.10.2026). Die Zerlegung schlaegt H* <= diesem Wert vor, kleiner, wenn der Planer hoeher
+    # nicht machbar ist.
+    module_height_max_mm: float = 400.0
     # Verdichtung (SPEC §5.2/5), mit kleiner Reserve unter den Grenzen 5 mm / 0,005 rad
     dense_tcp_mm: float = 4.9
     dense_dq_rad: float = 0.0049

@@ -34,15 +34,14 @@ from roboprint.ifc import Wall, read_walls
 
 PREFEASIBLE_MARGIN_MM = 0.0
 
-# Annahmen (A) fuer Laufzeit und Planbarkeit, gemessen am 2026-10-19 auf der Cloud-VM:
+# Annahmen (A) fuer Laufzeit und Planbarkeit:
 # - Die Vorpruefung (Platzierungssuche) ist zu optimistisch: Sie stuft Quader bis ~1000 mm Hoehe
-#   als machbar ein (Score ~50 mm), die volle Planung schafft 600 x 200 x 460 nicht mehr
-#   (d = 8,7 mm < d_hard, link_2 / printed) und braucht fuer hohe Teile > 30 min.
-# - 600 x 200 x 400 (S1) ist geprueft machbar (d_min 10,8 mm, ~100 s).
-# Deshalb begrenzt die Zerlegung im Szenariolauf b_max = 600 mm (SPEC §5.4/4) und die obere
-# Schranke der H*-Bisektion auf 400 mm. Ohne diese Grenzen sprengt S2 das Budget von 1800 s um
-# ein Vielfaches. Overrides: `DECOMPOSE_DEFAULTS` anpassen.
-DECOMPOSE_DEFAULTS: dict[str, float] = {"b_max_mm": 600.0, "h_upper_mm": 400.0}
+#   als machbar ein. Deshalb bestaetigt die volle Planung H* (`h_verify`, 50 mm genau).
+# - Die obere Schranke der H*-Bisektion ist die Nutzergrenze `module_height_max_mm` (Standard
+#   400 mm, Lehm unter Eigengewicht). Mit richtig gedrehter Basis und Transfer-Mindesthoehe sind
+#   600 x 200 x 800 voll geplant machbar (Windows seriell 4-7 min je Quader, 19.10.2026).
+# - b_max = 600 mm (SPEC §5.4/4) haelt S2 im Budget von 1800 s. Overrides: `DECOMPOSE_DEFAULTS`.
+DECOMPOSE_DEFAULTS: dict[str, float | bool] = {"b_max_mm": 600.0, "h_verify": True}
 
 
 def prefeasible_fn(
@@ -151,6 +150,7 @@ def scenario_parts(
             **DECOMPOSE_DEFAULTS,
             "bead_width_mm": params.bead_width_mm,
             "layer_height_mm": params.layer_height_mm,
+            "h_upper_mm": params.module_height_max_mm,
         }
     )
     parts = decompose_walls(

@@ -160,6 +160,24 @@ def test_hstar_bisection_10mm_and_cache():
     assert hs3(600, 200, 2000) == 0.0
 
 
+def test_hstar_volle_planung_bestaetigt_die_vorpruefung():
+    """Die Vorpruefung ist optimistisch (hier bis 1000 mm), die volle Planung schafft nur 800 mm:
+    Bei einer Nutzergrenze von 1000 mm wird 800 mm vorgeschlagen, bei 400 mm bleibt es bei 400."""
+    full = []
+
+    def verify(m):
+        full.append(round(m.extents[2]))
+        return m.extents[2] <= 800 + 1e-6, 20.0, PL
+
+    hs = dc.HStar(lambda m: (m.extents[2] <= 1000 + 1e-6, 50.0, PL), step=10, h_min=100, verify=verify)
+    assert hs(600, 200, 1000) == 800
+    assert len(full) <= 6 and all(h % 50 == 0 for h in full)
+    n = len(full)
+    assert hs(600, 200, 400) == 400 and len(full) == n  # aus dem Cache der vollen Planung (Monotonie)
+    hs2 = dc.HStar(lambda m: (True, 50.0, PL), verify=verify)
+    assert hs2(600, 200, 400) == 400 and len(full) == n + 1  # machbare Grenze: ein voller Plan
+
+
 def test_nonbox_top_like_house_left():
     """Schraege Oberkante quer zur Wand (wie 'house left'): Teile oben sind keine Quader."""
     L, T, H0, H1 = 1600.0, 200.0, 900.0, 1100.0  # noqa: N806

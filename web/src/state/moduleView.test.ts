@@ -1,4 +1,4 @@
-import { formatDuration, minDistance, moduleProgress, partRectInWall, stageLabel, totalPrintTimeS } from './moduleView';
+import { formatDuration, minDistance, moduleProgress, partRectInWall, stageLabel, tallestModuleMm, totalPrintTimeS } from './moduleView';
 
 type M4 = [[number, number, number, number], [number, number, number, number], [number, number, number, number], [number, number, number, number]];
 const shift = (tx: number, ty: number, tz: number): M4 => [
@@ -9,6 +9,12 @@ const shift = (tx: number, ty: number, tz: number): M4 => [
 ];
 
 describe('moduleView', () => {
+  it('höchstes Modul aus den Bounding-Boxen', () => {
+    const box = (h: number) => ({ bbox_P: { min: [-300, -100, 0] as [number, number, number], max: [300, 100, h] as [number, number, number] } });
+    expect(tallestModuleMm({ a: box(370), b: box(725), c: box(500) })).toBe(725);
+    expect(tallestModuleMm({})).toBeNull();
+  });
+
   it('projiziert die Teil-BBox mit T_LP in die Wandansicht', () => {
     const r = partRectInWall({ T_LP: shift(300, 100, 0), bbox_P: { min: [-300, -100, 0], max: [300, 100, 400] } });
     expect(r).toEqual({ x0: 0, x1: 600, z0: 0, z1: 400 });
