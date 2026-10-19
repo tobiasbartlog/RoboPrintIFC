@@ -49,17 +49,7 @@ def ring_tasks(sliced: SlicedPart, T_WP: np.ndarray) -> list[RingTask]:  # noqa:
     return [RingTask(i, r.layer, frames.transform_points(T_WP, r.points)) for i, r in enumerate(sliced.rings)]
 
 
-def plan_at(
-    part_mesh_P: Any,  # noqa: N803
-    sliced: SlicedPart,
-    placement: frames.Placement,
-    params: PlannerParams,
-    collision_aware: bool = True,
-    root: Path = REPO_ROOT,
-    world_factory: Callable[..., Any] = make_world,
-    procs: int = 1,
-) -> tuple[np.ndarray, PlannedPath]:
-    """Plant ein Teil an fester Platzierung; liefert T_WP und den geprueften Pfad."""
+def _setup(part_mesh_P, sliced, placement, params, root, world_factory):  # noqa: N803
     ws, tool = load_workstation(root), load_tool(root)
     T_WP = frames.T_WP(ws, placement)  # noqa: N806
     final = world_factory(part_mesh_P, T_WP, params.layer_height_mm, root, params.r_free_mm)
@@ -69,18 +59,59 @@ def plan_at(
         else SphereWorld(part_mesh_P, T_WP, params.layer_height_mm, root, params.r_free_mm)
     )
     height = float(np.asarray(part_mesh_P.bounds)[1][2])
-    kin, tasks = Kin(ws, tool), ring_tasks(sliced, T_WP)
-    # Planung mit dem schnellen Double, Abschlusspruefung jedes Samples mit der echten Welt.
+    return T_WP, final, screen, height, Kin(ws, tool), ring_tasks(sliced, T_WP)
+
+
+def _needs_replan(path: PlannedPath, collision_aware: bool, final: Any, screen: Any) -> bool:
+    return collision_aware and not path.feasible and final is not screen
+
+
+def plan_at(
+    part_mesh_P: Any,  # noqa: N803
+    sliced: SlicedPart,
+    placement: frames.Placement,
+    params: PlannerParams,
+    collision_aware: bool = True,
+    root: Path = REPO_ROOT,
+    world_factory: Callable[..., Any] = make_world,
+    procs: int = 1,
+    replan: bool = True,
+) -> tuple[np.ndarray, PlannedPath]:
+    """Plant ein Teil an fester Platzierung; liefert T_WP und den geprueften Pfad.
+
+    Geplant wird mit dem schnellen Kugel-Double, die Abschlusspruefung jedes Samples nimmt die
+    echte Welt. Scheitert das, plant `replan` mit der echten Welt nach (`replan_at`)."""
+    T_WP, final, screen, height, kin, tasks = _setup(  # noqa: N806
+        part_mesh_P, sliced, placement, params, root, world_factory
+    )
     path = PartPlanner(kin, tasks, T_WP, params, screen, screen, collision_aware, height, final, procs).run()
-    if collision_aware and not path.feasible and final is not screen:
-        # Nachplanung: die echte Welt entscheidet auch waehrend der Planung (langsamer, selten).
-        t = path.timings_s
-        path = PartPlanner(
-            kin, tasks, T_WP, params, final, screen, collision_aware, height, final, procs
-        ).run()
-        path.timings_s = {k: path.timings_s.get(k, 0.0) + t.get(k, 0.0) for k in set(t) | set(path.timings_s)}
-        path.timings_s["replan"] = 1.0
+    if replan and _needs_replan(path, collision_aware, final, screen):
+        path = replan_at(part_mesh_P, sliced, placement, params, path, root, world_factory, procs)
     return T_WP, path
+
+
+def replan_at(
+    part_mesh_P: Any,  # noqa: N803
+    sliced: SlicedPart,
+    placement: frames.Placement,
+    params: PlannerParams,
+    first: PlannedPath,
+    root: Path = REPO_ROOT,
+    world_factory: Callable[..., Any] = make_world,
+    procs: int = 1,
+) -> PlannedPath:
+    """Nachplanung: die echte Welt entscheidet auch waehrend der Planung (langsam, selten).
+    `first` ist der gescheiterte Double-Plan derselben Platzierung (Zeiten werden addiert)."""
+    T_WP, final, screen, height, kin, tasks = _setup(  # noqa: N806
+        part_mesh_P, sliced, placement, params, root, world_factory
+    )
+    if final is screen:
+        return first
+    path = PartPlanner(kin, tasks, T_WP, params, final, screen, True, height, final, procs).run()
+    t = first.timings_s
+    path.timings_s = {k: path.timings_s.get(k, 0.0) + t.get(k, 0.0) for k in set(t) | set(path.timings_s)}
+    path.timings_s["replan"] = 1.0
+    return path
 
 
 def plan_part(
@@ -98,8 +129,12 @@ def plan_part(
     """Schneidet, sucht (ohne `placement`) die Platzierung und plant das Teil.
 
     Ohne feste Platzierung werden die besten `max_candidates` verschiedenen Kandidaten der
-    Suche nacheinander voll geplant, bis einer machbar ist; sonst gilt der mit dem groessten
-    d_min.
+    Suche in zwei Durchgaengen geplant: zuerst jeder mit dem schnellen Double (Abschlusspruefung
+    mit der echten Welt), bis einer machbar ist; erst wenn keiner so machbar ist, plant die
+    teure Nachplanung mit der echten Welt die Kandidaten in derselben Reihenfolge nach. Ein
+    Kandidat, an dem schon das Double klar scheitert (z. B. S2-Modul 600 x 200 x 370 an
+    (475, 450): d_min -34 mm), kostet so nur den schnellen Durchgang (A6.3: 436 s -> ~90 s).
+    Sonst gilt der Plan mit dem groessten d_min.
     """
     t0 = time.perf_counter()
     timings: dict[str, float] = {}
@@ -123,12 +158,11 @@ def plan_part(
     else:
         todo = [placement]
     best: tuple[frames.Placement, np.ndarray, PlannedPath] | None = None
-    tried = []
-    t = time.perf_counter()
-    for i, pl in enumerate(todo):
-        if progress:
-            progress(i / len(todo), f"Platzierung {i + 1}/{len(todo)}")
-        T_WP, path = plan_at(part_mesh_P, sliced, pl, params, aware, root, world_factory, procs)  # noqa: N806
+    tried: list[dict[str, Any]] = []
+    first: list[tuple[frames.Placement, np.ndarray, PlannedPath]] = []
+
+    def consider(pl: frames.Placement, T_WP: np.ndarray, path: PlannedPath) -> None:  # noqa: N803
+        nonlocal best
         tried.append(
             {
                 "x_mm": pl.x_mm,
@@ -145,8 +179,28 @@ def plan_part(
         )
         if better:
             best = (pl, T_WP, path)
+
+    t = time.perf_counter()
+    for i, pl in enumerate(todo):  # Durchgang 1: Double-Planung
+        if progress:
+            progress(i / (2 * len(todo)), f"Platzierung {i + 1}/{len(todo)}")
+        T_WP, path = plan_at(  # noqa: N806
+            part_mesh_P, sliced, pl, params, aware, root, world_factory, procs, replan=False
+        )
+        consider(pl, T_WP, path)
+        first.append((pl, T_WP, path))
         if path.feasible:
             break
+    if aware and not (best and best[2].feasible):  # Durchgang 2: Nachplanung mit der echten Welt
+        for i, (pl, T_WP, path) in enumerate(first):  # noqa: N806
+            if progress:
+                progress(0.5 + i / (2 * len(first)), f"Nachplanung {i + 1}/{len(first)}")
+            path2 = replan_at(part_mesh_P, sliced, pl, params, path, root, world_factory, procs)
+            if path2 is path:
+                continue
+            consider(pl, T_WP, path2)
+            if path2.feasible:
+                break
     timings["plan"] = time.perf_counter() - t
     assert best is not None
     pl, T_WP, path = best  # noqa: N806
@@ -167,5 +221,6 @@ __all__ = [
     "make_world",
     "plan_at",
     "plan_part",
+    "replan_at",
     "rank_placements",
 ]

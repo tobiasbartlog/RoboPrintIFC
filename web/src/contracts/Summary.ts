@@ -23,6 +23,7 @@ export interface PartEntry {
   n_collision: number;
   n_unreachable: number;
   part_id: string;
+  same_as: string | null;
   status: "machbar" | "nicht machbar";
   wall_id: string;
 }

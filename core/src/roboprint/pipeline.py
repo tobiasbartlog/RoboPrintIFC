@@ -16,14 +16,10 @@ from typing import Any
 
 import numpy as np
 
-from roboprint import frames, selfcheck
+from roboprint import export, frames
 from roboprint.assets import REPO_ROOT, load_tool, load_workstation
 from roboprint.contracts import (
-    BBox,
-    Cause,
-    PartArtifact,
     PartEntry,
-    Placement,
     Provenance,
     Scenario,
     Scene,
@@ -32,16 +28,12 @@ from roboprint.contracts import (
     SceneTool,
     SceneWorkstation,
     Summary,
-    Trajectory,
-    TrajectorySummary,
     WallEntry,
     dump_json,
     load_json,
 )
 from roboprint.planner import PartPlan, PlannerParams, from_overrides, plan_part
-from roboprint.planner.kin import Kin, psi_of, rot_down
-from roboprint.slicer import to_toolpath
-from roboprint.timing import TimingParams, time_parametrize
+from roboprint.planner.kin import Kin
 
 # Fortschritts-Callback: progress(stage, fraction 0..1, message), siehe `roboprint.api_jobs`.
 ProgressCallback = Callable[[str, float, str], None]
@@ -159,138 +151,6 @@ def _warm_caches(params: PlannerParams, root: Path) -> None:
 # --------------------------------------------------------------------------- Artefakte
 
 
-def _trajectory(pp: PartPlan, kin: Kin, params: PlannerParams) -> Trajectory:
-    path = pp.path
-    n = len(path.q)
-    T = kin.tcp_W(path.q)  # noqa: N806
-    ok = path.reachable
-    pos = np.where(ok[:, None], T[:, :3, 3], path.p_W)
-    R = np.where(ok[:, None, None], T[:, :3, :3], rot_down(path.psi))  # noqa: N806
-    quat = np.array([frames.matrix_to_quat(r) for r in R])
-    psi = np.where(ok, psi_of(T[:, :3, :3]), path.psi)
-    t_s = time_parametrize(
-        path.q,
-        pos,
-        path.kind,
-        path.ring,
-        TimingParams(
-            v_print_mm_s=params.v_print_mm_s,
-            v_travel_mm_s=params.v_travel_mm_s,
-            joint_speed_fraction=params.joint_speed_fraction,
-            t_tot_s=params.t_tot_s,
-        ),
-    )
-    d_mm, pair, wit = [], [], []
-    for c, o in zip(path.contacts, ok, strict=True):
-        if not o or c is None:
-            d_mm.append(None)
-            pair.append(None)
-            wit.append(None)
-        else:
-            d_mm.append(float(c.d_mm))
-            pair.append([str(c.pair[0]), str(c.pair[1])])
-            wit.append([[float(v) for v in c.witness_W[0]], [float(v) for v in c.witness_W[1]]])
-    status = path.status
-    cnt = {k: status.count(k) for k in ("ok", "warn", "collision", "unreachable")}
-    return Trajectory(
-        part_id=pp.part_id,
-        t_s=[float(v) for v in t_s],
-        q=path.q.tolist(),
-        tcp=np.hstack([pos, quat]).tolist(),
-        layer=[int(v) for v in path.layer],
-        ring=[int(v) for v in path.ring],
-        kind=list(path.kind),
-        branch=[int(v) for v in path.branch],
-        status=list(status),
-        d_mm=d_mm,
-        pair=pair,
-        witness=wit,
-        psi_rad=[float(v) for v in psi],
-        summary=TrajectorySummary(
-            n=n,
-            n_ok=cnt["ok"],
-            n_warn=cnt["warn"],
-            n_collision=cnt["collision"],
-            n_unreachable=cnt["unreachable"],
-            d_min_mm=path.d_min_mm,
-            dauer_s=float(t_s[-1]) if n else 0.0,
-            zweig_wechsel_in_ringen=path.branch_switches_in_rings,
-        ),
-    )
-
-
-def _write_part(
-    out: Path, job: PartJob, pp: PartPlan, kin: Kin, params: PlannerParams, scn: Scenario | None = None
-) -> tuple[PartEntry, Trajectory]:
-    pdir = out / "parts" / job.part_id
-    pdir.mkdir(parents=True, exist_ok=True)
-    job.mesh_P.export(pdir / "part.stl")
-    tp = to_toolpath(pp.sliced, pp.T_WP, job.part_id)
-    dump_json(tp, pdir / "toolpath.json")
-    tr = _trajectory(pp, kin, params)
-    selfcheck.apply(pp, job, tr, tp, params, scn)
-    dump_json(tr, pdir / "trajectory.json")
-    path = pp.path
-    status = "machbar" if path.feasible else "nicht machbar"
-    cause = None
-    if path.cause is not None:
-        c = path.cause
-        cause = Cause(
-            sample=int(c["sample"]),
-            t_s=float(tr.t_s[c["sample"]]),
-            link=str(c["link"]),
-            obstacle=str(c["obstacle"]),
-            message=str(c["message"]),
-        )
-    lo, hi = np.asarray(job.mesh_P.bounds, float)
-    pl = pp.placement
-    part = PartArtifact(
-        part_id=job.part_id,
-        wall_id=job.wall_id,
-        T_LP=np.asarray(job.T_LP).tolist(),
-        T_SP=frames.T_SP(pl).tolist(),
-        T_WP=pp.T_WP.tolist(),
-        placement=Placement(x_mm=pl.x_mm, y_mm=pl.y_mm, yaw_deg=float(np.degrees(pl.yaw_rad))),
-        bbox_P=BBox(min=lo.tolist(), max=hi.tolist()),
-        volume_mm3=float(job.mesh_P.volume),
-        n_layers=int(pp.sliced.n_layers),
-        status=status,
-        cause=cause,
-    )
-    dump_json(part, pdir / "part.json")
-    entry = PartEntry(
-        part_id=job.part_id,
-        wall_id=job.wall_id,
-        status=status,
-        d_min_mm=path.d_min_mm,
-        n_collision=tr.summary.n_collision,
-        n_unreachable=tr.summary.n_unreachable,
-    )
-    return entry, tr
-
-
-def _write_programs(pdir: Path, feasible: bool) -> None:
-    from roboprint import drl
-
-    try:
-        if feasible:
-            drl.write_programs(pdir)
-            return
-        pp = drl.load_planned_part(pdir)
-        for d in drl.DIALECTS:
-            (pdir / f"program.{d}.drl").write_text(
-                drl.emit(pp, d, allow_infeasible=True), encoding="ascii", newline="\n"
-            )
-    except ValueError as exc:
-        for d in ("v2", "v3"):
-            (pdir / f"program.{d}.drl").write_text(
-                f"# Kein Programm: Teil nicht machbar ({exc}).\n",
-                encoding="ascii",
-                errors="replace",
-                newline="\n",
-            )
-
-
 def _scene(params: PlannerParams, root: Path) -> Scene:
     ws, tool = load_workstation(root), load_tool(root)
     return Scene(
@@ -339,6 +199,7 @@ def run_scenario(path: Path, out: Path, jobs: int = 1, progress: ProgressCallbac
     report("decompose", 0.05, f"{len(part_jobs)} Teil(e)")
 
     t = time.perf_counter()
+    jobs_arg = jobs
     todo = [j for j in part_jobs if j.plan is None]  # Teile aus der Zerlegung sind schon geplant
     done: dict[str, PartPlan] = {}
     n_cpu = os.cpu_count() or 1
@@ -362,19 +223,25 @@ def run_scenario(path: Path, out: Path, jobs: int = 1, progress: ProgressCallbac
             done[j.part_id] = _plan_job(j, params, scn.planner_mode, _check_procs())
     plans: list[PartPlan] = [j.plan if j.plan is not None else done[j.part_id] for j in part_jobs]
     timings["plan"] = time.perf_counter() - t
+    seen: set[int] = set()
     for pp in plans:
+        # Kopien aus dem Geometrie-Cache teilen den Plan: Zeiten nur einmal (beim ersten Teil)
+        if id(pp.path) in seen:
+            continue
+        seen.add(id(pp.path))
         for k, v in pp.timings_s.items():
             timings[f"{pp.part_id}.{k}"] = timings.get(f"{pp.part_id}.{k}", 0.0) + v
 
     t = time.perf_counter()
-    kin = Kin(ws, load_tool(root))
-    dump_json(_scene(params, root), out / "scene.json")
-    entries = []
-    for job, pp in zip(part_jobs, plans, strict=True):
-        entry, _ = _write_part(out, job, pp, kin, params, scn)
-        entries.append(entry)
+    scene = _scene(params, root)
+    dump_json(scene, out / "scene.json")
+    provenance = Provenance(
+        git_commit=_git_commit(root),
+        created=_dt.datetime.now(_dt.UTC).isoformat(timespec="seconds"),
+        command=" ".join(sys.argv),
+    )
 
-    def summary() -> Summary:
+    def summary(entries: list[PartEntry]) -> Summary:
         return Summary(
             scenario_id=scn.id,
             scenario_path=str(path),
@@ -383,19 +250,28 @@ def run_scenario(path: Path, out: Path, jobs: int = 1, progress: ProgressCallbac
             walls=walls,
             parts=entries,
             timings_s={k: round(v, 3) for k, v in timings.items()},
-            provenance=Provenance(
-                git_commit=_git_commit(root),
-                created=_dt.datetime.now(_dt.UTC).isoformat(timespec="seconds"),
-                command=" ".join(sys.argv),
-            ),
+            provenance=provenance,
         )
 
-    dump_json(summary(), out / "summary.json", indent=1)
-    report("export", 0.95, "DRL")
-    for job, pp in zip(part_jobs, plans, strict=True):
-        _write_programs(out / "parts" / job.part_id, pp.path.feasible)
+    ctx = export.ExportContext(
+        out=out,
+        part_jobs=part_jobs,
+        plans=plans,
+        kin=Kin(ws, load_tool(root)),
+        params=params,
+        scn=scn,
+        scene=scene,
+        provenance=provenance,
+        run_params=dict(summary([]).params),
+    )
+    report("export", 0.9, "Artefakte und DRL")
+    entries = export.export_parts(
+        ctx,
+        min(n_cpu if jobs_arg <= 0 else jobs_arg, n_cpu),
+        lambda i, n: report("export", 0.9 + 0.09 * i / max(n, 1), f"Export {i}/{n}"),
+    )
     timings["export"] = time.perf_counter() - t
     timings["total"] = time.perf_counter() - t_start
-    dump_json(summary(), out / "summary.json", indent=1)
+    dump_json(summary(entries), out / "summary.json", indent=1)
     report("done", 1.0, "fertig")
     return 0

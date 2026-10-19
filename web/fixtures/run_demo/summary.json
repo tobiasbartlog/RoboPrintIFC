@@ -51,7 +51,8 @@
       "status": "nicht machbar",
       "d_min_mm": -3.5,
       "n_collision": 2,
-      "n_unreachable": 2
+      "n_unreachable": 2,
+      "same_as": null
     }
   ],
   "timings_s": {
