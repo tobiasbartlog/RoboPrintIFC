@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T07:00:49+02:00 · Session: orchestrator · Phase: P5
+Herzschlag: 2026-10-19T08:25:56+02:00 · Session: orchestrator · Phase: P6 (Nacharbeit)
 
 # PROGRESS — Nachtlauf v2
 
@@ -314,3 +314,10 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   bestanden; Blockvolumina summieren sich zum Wandvolumen. S3 separat BESTANDEN (61 010 bestätigte Kollisionen).
 - README v2 und MORGENBERICHT.md committet, Draft-PR v2-nachtlauf → main geöffnet (nicht gemerged).
 - Endstand Gate-Runner: G1, G2, G3, G5, G6, G7, G8 grün; G4 rot (Prüfer-Speicher, siehe Gate-Einwände).
+
+### 2026-10-19 08:25 Nacharbeit nach Nutzerentscheidung
+- **Nutzerfreigabe (Tobias, Chat):** `verify/` darf geändert werden, damit der Prüfer Teil für Teil prüft und
+  allgemein ressourcenschonend wird. Das Paar base_link ↔ link_2 (~33 mm) ist akzeptabel: Es zählt künftig für
+  collision und d_hard, aber nicht mehr für die d_target-Schwelle (warn). G2-Lockerung bei Durchdringung erklärt.
+- Aufgaben: A6.1 Prüfer Teil für Teil + Cache (verify/, SPEC-Nachtrag), A6.2 Statusregel base_link ↔ link_2 (core),
+  A6.3 Laufzeit Zerlegen/Export (core).
