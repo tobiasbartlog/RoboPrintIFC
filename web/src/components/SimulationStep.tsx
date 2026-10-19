@@ -21,17 +21,19 @@ export function SimulationStep() {
       {runError ? <ErrorNote message={runError} detail={runErrorDetail} testid="run-error" /> : null}
       {direct ? (
         <Text size="sm" data-testid="direct-run">
-          Vorhandener Lauf {run?.runId} ({run?.summary.scenario_id}), direkt geöffnet.
+          Gespeicherter Lauf {run?.runId} ({run?.summary.scenario_id}), direkt geöffnet.
         </Text>
       ) : null}
       <Text size="sm" c="dimmed">
-        Modul wählen und abspielen. Der Arm steht am Doosantisch, das Modul wächst Schicht für Schicht.
+        Modul wählen und abspielen. Der Arm steht am Doosantisch, das Modul wächst Schicht für Schicht. Rot heißt
+        Kollision, Gelb Abstand unter dem Sollwert.
       </Text>
       <Group gap="xs" data-testid="sim-part-select">
         {run?.summary.parts.map((p) => (
           <UnstyledButton key={p.part_id} onClick={() => selectPart(p.part_id)} data-testid={`sim-part-${p.part_id}`} data-selected={partId === p.part_id}>
             <Badge
               size="lg"
+              tt="none"
               variant={partId === p.part_id ? 'filled' : 'outline'}
               color={stale ? 'gray' : p.status === 'machbar' ? 'green' : 'red'}
             >

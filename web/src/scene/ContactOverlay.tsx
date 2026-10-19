@@ -67,7 +67,20 @@ export function ContactOverlay({ sample, color }: ContactOverlayProps) {
       ))}
       {typeof d === 'number' && (
         <Html position={mid} center style={{ pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-          <span style={{ color, fontWeight: 600, fontSize: 13 }}>{`${d.toFixed(1)} mm`}</span>
+          {/* Eigener Hintergrund: die Zahl bleibt auf rotem Druckstand und gelbem Tisch lesbar. */}
+          <span
+            style={{
+              color: 'var(--mantine-color-text)',
+              background: 'var(--mantine-color-body)',
+              border: `2px solid ${color}`,
+              borderRadius: 4,
+              padding: '1px 6px',
+              fontWeight: 600,
+              fontSize: 13,
+            }}
+          >
+            {`${d.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mm`}
+          </span>
         </Html>
       )}
     </group>

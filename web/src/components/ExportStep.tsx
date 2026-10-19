@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Code, Group, List, Paper, ScrollArea, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Box, Button, Code, Group, List, Paper, Stack, Text, Title } from '@mantine/core';
 import { useState } from 'react';
 import { useAppStore, useSteps } from '../state/storeContext';
 import { ErrorNote, StaleBanner } from './common';
@@ -22,6 +22,8 @@ export function ExportStep() {
   const loadRun = useAppStore((s) => s.loadRunFile);
   const { status } = useSteps();
   const stale = status.export === 'veraltet';
+  // Hauptaktion ist der Download im gewählten Dialekt (Parameter, Standard v2).
+  const dialect: Dialect = useAppStore((s) => (s.params.dialect === 'v3' ? 'v3' : 'v2'));
   const [preview, setPreview] = useState<{ key: string; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
@@ -57,6 +59,10 @@ export function ExportStep() {
         Trockenlauf mit reduzierter Geschwindigkeit vor dem ersten Druck.
       </Alert>
 
+      <Text size="sm" c="dimmed">
+        Je Modul ein DRL-Programm für den Doosan M1013. Gewählter Dialekt: {dialect} ({dialect === 'v2' ? 'Firmware 2.x' : 'Firmware 3.x'});
+        der Dialekt lässt sich unter „Zerlegen & prüfen“ → Parameter ändern.
+      </Text>
       <Stack gap="xs" data-testid="export-parts">
         {run?.summary.parts.map((p) => {
           const ok = p.status === 'machbar';
@@ -78,11 +84,16 @@ export function ExportStep() {
               <Group gap="xs">
                 {(['v2', 'v3'] as const).map((d) => (
                   <Group key={d} gap={4}>
-                    <Button size="compact-sm" onClick={() => void save(p.part_id, d)} data-testid={`download-${p.part_id}-${d}`}>
+                    <Button
+                      size="compact-sm"
+                      variant={ok && d === dialect ? 'filled' : 'default'}
+                      onClick={() => void save(p.part_id, d)}
+                      data-testid={`download-${p.part_id}-${d}`}
+                    >
                       DRL {d} herunterladen
                     </Button>
-                    <Button size="compact-sm" variant="default" onClick={() => void show(p.part_id, d)} data-testid={`view-${p.part_id}-${d}`}>
-                      anzeigen
+                    <Button size="compact-sm" variant="subtle" onClick={() => void show(p.part_id, d)} data-testid={`view-${p.part_id}-${d}`}>
+                      Vorschau
                     </Button>
                   </Group>
                 ))}
@@ -96,13 +107,14 @@ export function ExportStep() {
       {preview ? (
         <Stack gap={4}>
           <Text size="sm" fw={600}>
-            Programm {preview.key}
+            Vorschau {preview.key.replace(/-(v\d)$/, ' (Dialekt $1)')}
           </Text>
-          <ScrollArea h={200} type="auto">
-            <Code block data-testid="drl-preview">
+          {/* Eigener Scrollkasten in beide Richtungen; das Seitenpanel läuft nicht seitlich über. */}
+          <Box style={{ maxHeight: 240, overflow: 'auto', maxWidth: '100%' }}>
+            <Code block data-testid="drl-preview" style={{ whiteSpace: 'pre', width: 'max-content', minWidth: '100%' }}>
               {preview.text}
             </Code>
-          </ScrollArea>
+          </Box>
           <Text size="xs" c="dimmed" data-testid="drl-header-count">
             Kopfkommentar: {headerLines.length} Zeilen
           </Text>

@@ -1,8 +1,11 @@
 import { Badge, Button, Group, Paper, Progress, Stack, Text, Title } from '@mantine/core';
+import { clock, linkLabel, obstacleLabel } from '../player/labels';
 import { isJobRunning } from '../state/store';
 import { useAppStore, useSteps } from '../state/storeContext';
 import { ErrorNote, Reason, StaleBanner } from './common';
 import { ParamsPanel } from './ParamsPanel';
+
+const num = (n: number) => n.toLocaleString('de-DE');
 
 export function DecomposeStep() {
   const wallId = useAppStore((s) => s.wallId);
@@ -18,7 +21,9 @@ export function DecomposeStep() {
   const { status, blocked } = useSteps();
 
   const stale = status.decompose === 'veraltet';
-  const reason = running ? 'Die Rechnung läuft bereits.' : blocked('decompose');
+  const reason = running
+    ? 'Die Rechnung läuft bereits.'
+    : (blocked('decompose') ?? (wallId === null ? 'Erst im Schritt Modell eine Wand wählen.' : null));
   const pct = Math.round((job.state?.progress ?? 0) * 100);
   const hasFreshRun = status.decompose === 'aktuell';
   const cancelled = job.state?.state === 'cancelled';
@@ -27,14 +32,14 @@ export function DecomposeStep() {
     <Stack gap="md" data-testid="step-decompose-panel">
       <Title order={3}>Zerlegen & prüfen</Title>
       <Text size="sm" data-testid="decompose-wall">
-        Wand: {wallName ?? 'noch keine gewählt'}
+        Wand: {wallName ?? (run?.basis.direct ? 'keine (Lauf direkt geöffnet)' : 'noch keine gewählt')}
       </Text>
       <ParamsPanel />
 
       <Stack gap={4}>
         <Button
           variant={hasFreshRun ? 'default' : 'filled'}
-          disabled={reason !== null || wallId === null}
+          disabled={reason !== null}
           onClick={() => void start()}
           data-testid="start-job"
         >
@@ -75,7 +80,7 @@ export function DecomposeStep() {
           <Group justify="space-between">
             <Text fw={600}>Teile ({run.summary.parts.length})</Text>
             <Text size="xs" c="dimmed" data-testid="samples-count">
-              Samples: {Object.values(run.trajectory).reduce((a, t) => a + t.n, 0).toLocaleString('de-DE')}
+              {num(Object.values(run.trajectory).reduce((a, t) => a + t.n, 0))} Bahnpunkte geprüft
             </Text>
           </Group>
           {run.summary.parts.map((p) => {
@@ -104,18 +109,33 @@ export function DecomposeStep() {
                   </Badge>
                 </Group>
                 <Text size="xs" c="dimmed" data-testid={`part-dmin-${p.part_id}`}>
-                  kleinster Abstand d_min: {p.d_min_mm === null ? 'unbekannt' : `${p.d_min_mm.toLocaleString('de-DE', { maximumFractionDigits: 1 })} mm`}
+                  kleinster Abstand: {p.d_min_mm === null ? 'unbekannt' : `${p.d_min_mm.toLocaleString('de-DE', { maximumFractionDigits: 1 })} mm`}
                   {art ? ` · ${art.n_layers} Schichten` : ''}
                 </Text>
                 {tr ? (
                   <Text size="xs" c="dimmed" data-testid={`part-samples-${p.part_id}`}>
-                    {tr.n} Samples: {tr.n_ok} ok, {tr.n_warn} Warnung, {tr.n_collision} Kollision, {tr.n_unreachable} unerreichbar
+                    {num(tr.n)} Bahnpunkte: {num(tr.n_ok)} frei, {num(tr.n_warn)} unter Sollabstand, {num(tr.n_collision)} Kollision,{' '}
+                    {num(tr.n_unreachable)} unerreichbar
                   </Text>
                 ) : null}
                 {!ok && art?.cause ? (
-                  <Text size="xs" c="red" data-testid={`part-cause-${p.part_id}`}>
-                    {art.cause.message}
-                  </Text>
+                  <Stack gap={0} data-testid={`part-cause-${p.part_id}`}>
+                    <Text size="xs" c="red">
+                      {art.cause.link && art.cause.obstacle
+                        ? `Erstes Problem bei ${clock(art.cause.t_s)} min: ${linkLabel(art.cause.link)} ↔ ${obstacleLabel(art.cause.obstacle)} zu nah. In der Simulation ansehen, dann Parameter oder Wand ändern.`
+                        : art.cause.message}
+                    </Text>
+                    <details>
+                      <summary style={{ cursor: 'pointer' }}>
+                        <Text span size="xs" c="dimmed">
+                          Details
+                        </Text>
+                      </summary>
+                      <Text size="xs" c="dimmed" ff="monospace">
+                        {art.cause.message}
+                      </Text>
+                    </details>
+                  </Stack>
                 ) : null}
               </Paper>
             );

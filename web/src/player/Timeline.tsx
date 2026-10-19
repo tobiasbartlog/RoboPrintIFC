@@ -2,7 +2,7 @@ import { Box, Group, Stack, Text } from '@mantine/core';
 import { memo, useMemo, type MouseEvent } from 'react';
 import type { Trajectory } from '../contracts';
 import { duration, kindSegments, layerSegments, statusSegments, type Kind, type Segment, type Status } from './clock';
-import { KIND_COLOR, KIND_LABEL, STATUS_COLOR, STATUS_LABEL } from './labels';
+import { KIND_COLOR, KIND_LABEL, STATUS_COLOR, STATUS_LABEL, clock } from './labels';
 
 interface TimelineProps {
   trajectory: Trajectory;
@@ -11,6 +11,9 @@ interface TimelineProps {
 }
 
 const TRACK_H = 12;
+/** Breite der Spurbeschriftung; Cursor und Klick rechnen mit LABEL_W + Abstand 6 px. */
+const LABEL_W = 64;
+const OFFSET = LABEL_W + 6;
 
 function TrackImpl<V>({
   label,
@@ -29,7 +32,7 @@ function TrackImpl<V>({
 }) {
   return (
     <Group gap={6} wrap="nowrap" align="center">
-      <Text size="xs" c="dimmed" w={52} style={{ flexShrink: 0 }}>
+      <Text size="xs" c="dimmed" w={LABEL_W} style={{ flexShrink: 0 }}>
         {label}
       </Text>
       <Box
@@ -61,7 +64,7 @@ function TrackImpl<V>({
 // zehntausenden Samples nur den Cursor bewegt.
 const Track = memo(TrackImpl) as typeof TrackImpl;
 
-const range = (s: { t0: number; t1: number }) => `${s.t0.toFixed(1)}–${s.t1.toFixed(1)} s`;
+const range = (s: { t0: number; t1: number }) => `${clock(s.t0)}–${clock(s.t1)} min`;
 const kindColor = (v: Segment<Kind>['value']) => KIND_COLOR[v];
 const kindTitle = (s: Segment<Kind>) => `${KIND_LABEL[s.value]} ${range(s)}`;
 const statusColor = (v: Status) => STATUS_COLOR[v];
@@ -81,7 +84,7 @@ export function Timeline({ trajectory, t, onSeek }: TimelineProps) {
 
   function click(e: MouseEvent<HTMLDivElement>) {
     const r = e.currentTarget.getBoundingClientRect();
-    const labelW = 58;
+    const labelW = OFFSET;
     const x = (e.clientX - r.left - labelW) / Math.max(1, r.width - labelW);
     if (x >= 0 && x <= 1) onSeek(x * end);
   }
@@ -89,7 +92,7 @@ export function Timeline({ trajectory, t, onSeek }: TimelineProps) {
   return (
     <Stack gap={6} data-testid="timeline">
       <Stack gap={4} onClick={click} style={{ position: 'relative', cursor: 'pointer' }}>
-      <Track label="Art" testid="timeline-kind" segs={kinds} end={end} color={kindColor} title={kindTitle} />
+      <Track label="Bewegung" testid="timeline-kind" segs={kinds} end={end} color={kindColor} title={kindTitle} />
       <Track label="Status" testid="timeline-status" segs={status} end={end} color={statusColor} title={statusTitle} />
       <Track label="Schicht" testid="timeline-layer" segs={layers} end={end} color={layerColor} title={layerTitle} />
       <div
@@ -99,14 +102,14 @@ export function Timeline({ trajectory, t, onSeek }: TimelineProps) {
           position: 'absolute',
           top: -2,
           bottom: -2,
-          left: `calc(58px + (100% - 58px) * ${Math.min(1, Math.max(0, t / end))})`,
+          left: `calc(${OFFSET}px + (100% - ${OFFSET}px) * ${Math.min(1, Math.max(0, t / end))})`,
           width: 2,
           background: 'var(--mantine-color-text)',
           pointerEvents: 'none',
         }}
       />
       </Stack>
-      <Group gap="sm" wrap="wrap">
+      <Group gap="sm" style={{ rowGap: 4 }} wrap="wrap">
         {(['print', 'approach', 'lift', 'transfer'] as const).map((k) => (
           <Group key={k} gap={4} wrap="nowrap">
             <Box w={10} h={10} style={{ background: KIND_COLOR[k], borderRadius: 2 }} />
