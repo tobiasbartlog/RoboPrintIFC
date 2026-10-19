@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import trimesh
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
 
 from roboprint.contracts import Toolpath
@@ -108,3 +108,61 @@ def test_toolpath_valid():
     w = tp.rings[0].waypoints
     assert w[0][2] == pytest.approx(810) and w[0][3:] == [0.0, 1.0, 0.0, 0.0]
     assert w[0] == w[-1]
+
+
+# --- A4.5: schmale und kleine Querschnitte (Prüfer-Metrik aus verify/oracle/run_geometry.coverage) ---
+
+
+def _oracle_coverage(sec, rings_xy, shells=2, w=30.0):
+    region = sec.difference(sec.buffer(-shells * w, join_style="mitre"))
+    if region.area <= 0:
+        return 1.0
+    beads = [LineString(p).buffer(w / 2.0) for p in rings_xy if len(p) >= 2]
+    if not beads:
+        return 0.0
+    return unary_union(beads).intersection(region).area / region.area
+
+
+def _assert_layers_covered(mesh, sl):
+    H = float(mesh.bounds[1][2])
+    for L in range(sl.n_layers):
+        z = (L + 0.5) * 10
+        if z >= H:
+            continue
+        sec = _section_poly(mesh, z)
+        rs = [r.points[:, :2] for r in sl.rings if r.layer == L]
+        assert _oracle_coverage(sec, rs) >= 0.95, L
+        grown = sec.buffer(1.0)  # Selbstprüfung (d): Druckpunkt im Material, Toleranz 1 mm
+        for p in rs:
+            assert all(grown.contains(Point(*q)) for q in p), L
+
+
+def _gable():
+    """Giebelteil wie house_right_front_r9: 600 x 200, Oberkante in y abfallend (Dachneigung)."""
+    prof = Polygon([(-100, 0), (100, 0), (100, 180), (-100, 296)])  # (y, z)
+    m = trimesh.creation.extrude_polygon(prof, 600)  # Profil in xy, extrudiert in z
+    perm = np.array([[0, 0, 1, -300], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1.0]])
+    m.apply_transform(perm)  # (y, z, x) -> (x, y, z)
+    return m
+
+
+def test_gable_top_layers_covered():
+    mesh = _gable()
+    assert np.allclose(mesh.bounds, [[-300, -100, 0], [300, 100, 296]], atol=1e-6)
+    sl = slice_part(mesh, P)
+    _assert_layers_covered(mesh, sl)
+    assert any(r.layer == 29 for r in sl.rings)  # Spitze (2 mm breit) wird gedruckt
+
+
+def test_narrow_wedge_covered():
+    wedge = Polygon([(0, -40), (0, 40), (600, 0)])  # Grundriss läuft spitz zu
+    mesh = trimesh.creation.extrude_polygon(wedge, 40)
+    sl = slice_part(mesh, P)
+    _assert_layers_covered(mesh, sl)
+
+
+def test_small_area_gets_path():
+    mesh = _box(12, 8, 30)
+    sl = slice_part(mesh, P)
+    assert {r.layer for r in sl.rings} == {0, 1, 2}
+    _assert_layers_covered(mesh, sl)

@@ -6,6 +6,10 @@ Alles in Frame P (mm). Schicht L belegt z_P in [L*h, (L+1)*h]; geschnitten wird 
 Festlegungen
 - Schale s liegt (s+0,5)*w innerhalb des Materials (Offset mit Mitre-Join, damit Ecken
   erhalten bleiben). Löcher wachsen dabei in die Öffnung, die Ringe liegen im Material.
+- Schmale/kleine Querschnitte (Giebelspitzen, Keile): deckt der Schalenbereich (Querschnitt
+  minus um shells*w nach innen gepuffertes Inneres) mit w/2 gepufferten Ringen weniger als
+  COVER_TARGET ab, kommen geschlossene Zusatzringe auf kleineren Innen-Offsets dazu (bis knapp
+  unter den Inkreisradius = schmaler Ring um die Mittellinie). Sie zählen als nächste Schalen.
 - Umlaufsinn von oben gesehen: Außenkonturen gegen den Uhrzeigersinn, Löcher im Uhrzeigersinn.
 - Ringstart: Eckpunkt, der der Bounding-Box-Ecke (x_min, y_min) des Rings am nächsten liegt
   (Gleichstand: kleinstes x, dann y). Die Naht liegt damit in jeder Schicht an derselben Stelle.
@@ -25,14 +29,18 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
-from shapely.geometry import MultiPolygon, Polygon
+from shapely.geometry import LineString, MultiPolygon, Polygon
 from shapely.geometry.polygon import orient
+from shapely.ops import unary_union
 
 from roboprint.contracts import Ring, Toolpath
 
 #: Düsenachse nach unten, X_T = X_W (psi = 0): Drehung um 180 deg um X_W.
 NOZZLE_DOWN_QUAT = (0.0, 1.0, 0.0, 0.0)
 MITRE_LIMIT = 2.0
+#: Abdeckungsziel je Schicht (Prüfer: >= 95 %), mit Reserve für die Planer-Abtastung.
+COVER_TARGET = 0.97
+MAX_FILL_RINGS = 3
 
 
 @dataclass(frozen=True)
@@ -100,16 +108,88 @@ def _rotate_start(coords: np.ndarray) -> np.ndarray:
     return np.vstack([rot, rot[:1]])
 
 
+def _offset_rings(poly: Polygon, off: float) -> list[tuple[str, np.ndarray]]:
+    """Ringe des um off nach innen versetzten Polygons: ("exterior"|"hole", Koordinaten)."""
+    out: list[tuple[str, np.ndarray]] = []
+    for sub in _polys(poly.buffer(-off, join_style="mitre", mitre_limit=MITRE_LIMIT)):
+        sub = orient(sub, sign=1.0)  # Außen CCW, Löcher CW
+        out.append(("exterior", np.array(sub.exterior.coords)))
+        out.extend(("hole", np.array(h.coords)) for h in sub.interiors)
+    return out
+
+
+def _coverage(region: Any, rings: list[np.ndarray], w: float) -> float:
+    """Anteil des Schalenbereichs, den die mit w/2 gepufferten Ringe abdecken (Prüfer-Metrik)."""
+    if region.area <= 0:
+        return 1.0
+    if not rings:
+        return 0.0
+    beads = unary_union([LineString(c).buffer(w / 2.0) for c in rings])
+    return float(beads.intersection(region).area / region.area)
+
+
+def _inradius(poly: Polygon, hi: float) -> float:
+    """Größter Innen-Offset (Bisektion), bei dem das Polygon nicht verschwindet."""
+    lo = 0.0
+    if not poly.buffer(-hi, join_style="mitre", mitre_limit=MITRE_LIMIT).is_empty:
+        return hi
+    for _ in range(30):
+        mid = 0.5 * (lo + hi)
+        if poly.buffer(-mid, join_style="mitre", mitre_limit=MITRE_LIMIT).is_empty:
+            hi = mid
+        else:
+            lo = mid
+    return lo
+
+
+def _fill_rings(poly: Polygon, done: list[np.ndarray], p: SliceParams) -> list[list[tuple[str, np.ndarray]]]:
+    """Zusatzringe für schmale/kleine Querschnitte, bis der Schalenbereich zu >= COVER_TARGET
+    abgedeckt ist. Kandidaten sind Innen-Offsets zwischen 0 und dem Inkreisradius; ein Ring
+    knapp unter dem Inkreisradius ist ein schmaler geschlossener Ring um die Mittellinie.
+    Gewählt wird der Kandidat mit der größten Abdeckung (bei Gleichstand der äußerste)."""
+    w = p.bead_width_mm
+    region = poly.difference(poly.buffer(-p.shells * w, join_style="mitre"))
+    rings = list(done)
+    cov = _coverage(region, rings, w)
+    if cov >= COVER_TARGET:
+        return []
+    r_max = _inradius(poly, (p.shells + 0.5) * w)
+    if r_max <= 0:
+        return []
+    cands = [r_max * k / 16.0 for k in range(1, 16)] + [0.98 * r_max]
+    extra: list[list[tuple[str, np.ndarray]]] = []
+    for _ in range(MAX_FILL_RINGS):
+        best, best_cov = None, cov
+        for d in cands:
+            rs = _offset_rings(poly, d)
+            c = _coverage(region, rings + [x for _, x in rs], w) if rs else -1.0
+            if c > best_cov + 1e-4:
+                best, best_cov = rs, c
+        if best is None:
+            break
+        extra.append(best)
+        rings += [x for _, x in best]
+        cov = best_cov
+        if cov >= COVER_TARGET:
+            break
+    return extra
+
+
 def _layer_rings(polys: list[Polygon], layer: int, p: SliceParams) -> list[tuple[int, str, np.ndarray]]:
     res: list[tuple[int, str, np.ndarray]] = []
-    for s in range(p.shells):
-        off = (s + 0.5) * p.bead_width_mm
-        for poly in polys:
-            for sub in _polys(poly.buffer(-off, join_style="mitre", mitre_limit=MITRE_LIMIT)):
-                sub = orient(sub, sign=1.0)  # Außen CCW, Löcher CW
-                res.append((s, "outer" if s == 0 else "inner", np.array(sub.exterior.coords)))
-                for h in sub.interiors:
-                    res.append((s, "hole", np.array(h.coords)))
+    for poly in polys:
+        n_shell, done = 0, []
+        for s in range(p.shells):
+            rs = _offset_rings(poly, (s + 0.5) * p.bead_width_mm)
+            if not rs:
+                break
+            n_shell = s + 1
+            for typ, c in rs:
+                res.append((s, "hole" if typ == "hole" else ("outer" if s == 0 else "inner"), c))
+                done.append(c)
+        for k, rs in enumerate(_fill_rings(poly, done, p)):
+            s = n_shell + k
+            res.extend((s, "hole" if typ == "hole" else ("outer" if s == 0 else "inner"), c) for typ, c in rs)
     return res
 
 
@@ -125,7 +205,7 @@ def slice_part(part_mesh_P: Any, params: SliceParams | None = None) -> SlicedPar
         polys = _section_polygons(part_mesh_P, (layer + 0.5) * h)
         raw = _layer_rings(polys, layer, p)
         z = (layer + 1) * h
-        for s in range(p.shells):
+        for s in range(max((sh for sh, _, _ in raw), default=-1) + 1):
             todo = []
             for sh, kind, c in raw:
                 if sh == s:
