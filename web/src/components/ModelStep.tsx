@@ -1,5 +1,5 @@
 import { Badge, Button, FileButton, Group, Loader, Paper, Radio, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { WallEntry } from '../contracts';
 import { useAppStore, useSteps } from '../state/storeContext';
 import { ErrorNote, Reason } from './common';
@@ -22,6 +22,9 @@ export function ModelStep() {
   const selectWall = useAppStore((s) => s.selectWall);
   const setStep = useAppStore((s) => s.setStep);
   const { blocked } = useSteps();
+  // Nach dem Öffnen klappt die Beispielliste ein, damit „Weiter“ ohne Scrollen sichtbar bleibt.
+  const [pickOpen, setPickOpen] = useState(false);
+  const showPicker = project === null || pickOpen;
 
   useEffect(() => {
     void loadExamples();
@@ -32,14 +35,24 @@ export function ModelStep() {
     <Stack gap="md" data-testid="step-model-panel">
       <Title order={3}>Modell</Title>
       <Stack gap="xs">
-        <Text size="sm" fw={600}>
-          Beispiel öffnen oder IFC-Datei hochladen
-        </Text>
-        {examples.map((ex) => (
+        <Group justify="space-between" wrap="nowrap">
+          <Text size="sm" fw={600}>
+            Beispiel öffnen oder IFC-Datei hochladen
+          </Text>
+          {project !== null ? (
+            <Button size="compact-xs" variant="subtle" onClick={() => setPickOpen((o) => !o)} data-testid="examples-toggle">
+              {pickOpen ? 'einklappen' : 'ändern'}
+            </Button>
+          ) : null}
+        </Group>
+        {showPicker && examples.map((ex) => (
           <UnstyledButton
             key={ex.id}
             disabled={busy}
-            onClick={() => void openExample(ex.path)}
+            onClick={() => {
+              setPickOpen(false);
+              void openExample(ex.path);
+            }}
             data-testid={`example-${ex.id}`}
             style={{ opacity: busy ? 0.6 : 1 }}
           >
@@ -56,13 +69,18 @@ export function ModelStep() {
             </Paper>
           </UnstyledButton>
         ))}
-        <FileButton accept=".ifc" onChange={(f) => f && void openFile(f)}>
-          {(props) => (
-            <Button {...props} variant="light" disabled={busy} data-testid="upload-ifc">
-              Eigene IFC-Datei hochladen
-            </Button>
-          )}
-        </FileButton>
+        {showPicker ? (
+          <FileButton accept=".ifc" onChange={(f) => {
+              setPickOpen(false);
+              if (f) void openFile(f);
+            }}>
+            {(props) => (
+              <Button {...props} variant="light" disabled={busy} data-testid="upload-ifc">
+                Eigene IFC-Datei hochladen
+              </Button>
+            )}
+          </FileButton>
+        ) : null}
         {busy ? <Loader size="sm" data-testid="project-loading" /> : null}
         {error ? <ErrorNote message={error} detail={detail} testid="project-error" /> : null}
       </Stack>
@@ -113,7 +131,7 @@ export function ModelStep() {
         </Stack>
       ) : null}
 
-      <Stack gap={4}>
+      <Stack gap={4} style={{ position: 'sticky', bottom: 0, background: 'var(--mantine-color-body)', paddingBlock: 8, zIndex: 1 }}>
         <Button disabled={next !== null} onClick={() => setStep('decompose')} data-testid="to-decompose">
           Weiter zu Zerlegen & prüfen
         </Button>

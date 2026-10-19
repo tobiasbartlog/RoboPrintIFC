@@ -7,6 +7,7 @@ import { ModelStep } from './components/ModelStep';
 import { SimulationStep } from './components/SimulationStep';
 import { StepperBar } from './components/StepperBar';
 import { PlayerScene } from './player/PlayerScene';
+import { WallPreview } from './scene/WallPreview';
 import type { ApiPort } from './state/apiPort';
 import { selectApi } from './state/apiSelect';
 import { createAppStore, type AppStore } from './state/store';
@@ -46,7 +47,8 @@ function StepPanel() {
 /** Leerzustand der 3D-Ansicht: sagt, wann dort etwas erscheint. */
 function SceneEmptyHint() {
   const hasRun = useAppStore((s) => s.run !== null);
-  if (hasRun) return null;
+  const preview = useAppStore((s) => s.step === 'model' && s.project !== null);
+  if (hasRun || preview) return null;
   return (
     <Box
       data-testid="scene-empty-hint"
@@ -57,6 +59,23 @@ function SceneEmptyHint() {
       </Text>
     </Box>
   );
+}
+
+/**
+ * Wandvorschau über der Szene: in Schritt 1 alle Wände des Projekts (Auswahl synchron zur Liste),
+ * in Schritt 2 die gewählte Wand, solange noch kein Lauf vorliegt.
+ */
+function WallPreviewLayer() {
+  const step = useAppStore((s) => s.step);
+  const project = useAppStore((s) => s.project);
+  const wallId = useAppStore((s) => s.wallId);
+  const hasRun = useAppStore((s) => s.run !== null);
+  const selectWall = useAppStore((s) => s.selectWall);
+  const meshUrl = useAppStore((s) => s.wallMeshUrl);
+  if (!project) return null;
+  if (step === 'model') return <WallPreview walls={project.walls} wallId={wallId} meshUrl={meshUrl} onSelect={selectWall} />;
+  if (step === 'decompose' && !hasRun && wallId) return <WallPreview walls={project.walls} wallId={wallId} meshUrl={meshUrl} onSelect={selectWall} onlySelected />;
+  return null;
 }
 
 /** Direkteinstieg: `/?run=<run_id>&part=<part_id>` öffnet die Simulation eines vorhandenen Laufs. */
@@ -92,6 +111,7 @@ function Shell() {
           <StepperBar />
           <Box style={{ flex: 1, minHeight: 0, position: 'relative' }}>
             <PlayerScene />
+            <WallPreviewLayer />
             <SceneEmptyHint />
           </Box>
         </Stack>

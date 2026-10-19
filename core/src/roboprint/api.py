@@ -48,6 +48,15 @@ _MEDIA = {
 }
 
 
+# Anzeigenamen und Kurzbeschreibungen der mitgelieferten Beispiele (die Kennungen bleiben die ids).
+_EXAMPLE_TEXT: dict[str, tuple[str, str]] = {
+    "Building-Architecture": ("Gebäudemodell (IFC)", "Mehrere Wände, darunter eine zu dünne"),
+    "S1_modul_referenz": ("Referenzmodul 600 × 200 × 400 mm", "Quader am Doosantisch, Referenzfall"),
+    "S2_beispiel_ifc_modul": ("Gebäudewände als Module", "Alle Wände des Gebäudemodells"),
+    "S3_kollision_negativ": ("Kollisionsbeispiel", "Quader in der Roboterbasis, zeigt die Kollisionsanzeige"),
+}
+
+
 def _err(status: int, msg: str) -> HTTPException:
     return HTTPException(status_code=status, detail=msg)
 
@@ -182,19 +191,22 @@ def create_app(
     def examples() -> list[Example]:
         out: list[Example] = []
         for p in sorted((root / "examples").glob("*.ifc")):
-            out.append(Example(id=p.stem, name=p.stem, kind="ifc", path=p.relative_to(root).as_posix()))
+            name, desc = _EXAMPLE_TEXT.get(p.stem, (p.stem, None))
+            rel = p.relative_to(root).as_posix()
+            out.append(Example(id=p.stem, name=name, kind="ifc", path=rel, description=desc))
         for p in sorted((root / "spec" / "scenarios").glob("*.json")):
             try:
                 desc = json.loads(p.read_text(encoding="utf-8")).get("beschreibung")
             except (OSError, ValueError):
                 desc = None
+            name, short = _EXAMPLE_TEXT.get(p.stem, (p.stem, None))
             out.append(
                 Example(
                     id=p.stem,
-                    name=p.stem,
+                    name=name,
                     kind="scenario",
                     path=p.relative_to(root).as_posix(),
-                    description=desc,
+                    description=short or desc,
                 )
             )
         return out
@@ -252,6 +264,33 @@ def create_app(
     def get_project(project_id: str) -> ProjectInfo:
         pdir = project_dir(project_id)
         return ProjectInfo.model_validate_json((pdir / "project.json").read_text(encoding="utf-8"))
+
+    wall_stl_cache: dict[str, dict[str, bytes]] = {}
+
+    @app.get("/api/projects/{project_id}/walls/{wall_file}")
+    def get_wall_mesh(project_id: str, wall_file: str) -> Response:
+        """Wandmesh als binäres STL im Frame L (mm), `wall_file` = `<wall_id>.stl`."""
+        pdir = project_dir(project_id)
+        wall_id = wall_file[:-4] if wall_file.lower().endswith(".stl") else ""
+        info = ProjectInfo.model_validate_json((pdir / "project.json").read_text(encoding="utf-8"))
+        if not wall_id or wall_id not in {w.wall_id for w in info.walls}:
+            raise _err(404, "Wand nicht gefunden")
+        if project_id not in wall_stl_cache:
+            from roboprint import ifc
+
+            ifc_path = json.loads((pdir / "source.json").read_text(encoding="utf-8"))["ifc"]
+            try:
+                walls = ifc.read_walls(ifc_path)
+            except Exception as exc:  # defektes IFC
+                raise _err(422, f"IFC konnte nicht gelesen werden: {exc}") from exc
+            wall_stl_cache[project_id] = {
+                str(_wall_attr(w, "wall_id", "id", "guid", default="")): bytes(w.mesh.export(file_type="stl"))
+                for w in walls
+            }
+        data = wall_stl_cache[project_id].get(wall_id)
+        if data is None:
+            raise _err(404, "Wandgeometrie nicht verfügbar")
+        return Response(data, media_type="model/stl")
 
     # ------------------------------------------------------------------ jobs
     @app.post("/api/projects/{project_id}/jobs", status_code=202)

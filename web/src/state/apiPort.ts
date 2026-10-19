@@ -18,6 +18,8 @@ export interface ApiPort {
   loadRun(runId: string, path: string): Promise<string>;
   /** URL einer Laufdatei für Lader, die selbst holen (z. B. `parts/P01/part.stl`). */
   runFileUrl(runId: string, path: string): string;
+  /** URL des Wandmeshes (STL, Frame L, mm) einer Wand des Projekts. */
+  wallMeshUrl(projectId: string, wallId: string): string;
   /** Basis-URL der Assets (URDF, Tisch- und Werkzeug-STL), z. B. `/api/assets`. */
   readonly assetBase: string;
 }

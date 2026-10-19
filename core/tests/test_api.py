@@ -235,3 +235,25 @@ def test_assets(fixture_client):
 )
 def test_assets_whitelist(fixture_client, path):
     assert fixture_client.get(f"/api/assets/{path}").status_code == 404
+
+
+def test_wall_mesh_stl_real_ifc(tmp_path):
+    """Wandmesh im Frame L (mm): STL passt zu den Maßen der Wandliste; Fehlerpfade geben 404."""
+    import io
+
+    import trimesh
+
+    app = create_app(tmp_path / "runs", tmp_path / "projects", ROOT)
+    with TestClient(app) as c:
+        pid = c.post("/api/projects", json=EXAMPLE).json()["project_id"]
+        walls = c.get(f"/api/projects/{pid}").json()["walls"]
+        w = walls[0]
+        r = c.get(f"/api/projects/{pid}/walls/{w['wall_id']}.stl")
+        assert r.status_code == 200 and r.headers["content-type"].startswith("model/stl")
+        mesh = trimesh.load(io.BytesIO(r.content), file_type="stl")
+        ext = mesh.bounds[1] - mesh.bounds[0]
+        assert abs(ext[0] - w["length_mm"]) < 1.0 and abs(ext[2] - w["height_mm"]) < 1.0
+        assert c.get(f"/api/projects/{pid}/walls/nope.stl").status_code == 404
+        assert c.get(f"/api/projects/{pid}/walls/{w['wall_id']}").status_code == 404
+        assert c.get("/api/projects/nope/walls/x.stl").status_code == 404
+        assert "dünn" in "".join(x["reason"] or "" for x in walls)

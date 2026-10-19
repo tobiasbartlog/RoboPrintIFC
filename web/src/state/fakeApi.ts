@@ -124,6 +124,8 @@ export function createFakeApi(opts: FakeOptions = {}): ApiPort {
     },
     // Binärdateien (STL) und Assets liefert der Vite-Dev-Server (Ordner fixtures/, /dev-assets).
     runFileUrl: (_runId: string, path: string) => `/fixtures/run_demo/${path}`,
+    // Das Fixture hat kein Wandmesh; das Teil-STL dient als Platzhalter.
+    wallMeshUrl: () => '/fixtures/run_demo/parts/P01/part.stl',
     assetBase: '/dev-assets',
   };
 }

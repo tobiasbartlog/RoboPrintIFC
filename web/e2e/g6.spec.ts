@@ -89,20 +89,26 @@ test('G6 Glückspfad: Projekt → Wand → Zerlegen & prüfen → alle Teile gr�
       return route.fulfill({
         json: done
           ? { state: 'done', progress: 1, stage: 'Prüfen', message: null, run_id: RUN_S1 }
-          : { state: 'running', progress: 0.5, stage: 'Planen', message: 'Teil 1', run_id: null },
+          : { state: 'running', progress: 0.5, stage: 'plan', message: 'Teil 1/2', run_id: null },
       });
     });
   }
 
   await page.goto('/');
   // 1 Modell: Beispiel-IFC über die echte API
-  const ifc = page.locator('[data-testid^="example-"]', { hasText: 'Building-Architecture' }).first();
+  const ifc = page.locator('[data-testid^="example-"]', { hasText: 'Gebäudemodell' }).first();
   await ifc.click();
   await expect(page.getByTestId('wall-list')).toBeVisible({ timeout: 60_000 });
   const eligible = page.locator('[data-testid^="wall-row-"][data-eligible="true"]').first();
   await expect(eligible, 'Das Beispiel-IFC hat keine geeignete Wand').toBeVisible();
   await eligible.locator('[data-testid^="wall-select-"]').check();
   await expect(page.getByTestId('step-model')).toHaveAttribute('data-status', 'aktuell');
+  // Wandvorschau: gewählte Wand in 3D, Liste und Ansicht synchron; Weiter ohne Scrollen sichtbar.
+  const picked = await eligible.getAttribute('data-testid');
+  await expect(page.getByTestId('wall-preview')).toHaveAttribute('data-selected-wall', picked!.replace('wall-row-', ''));
+  await expect(page.locator('[data-testid^="wall-label-"][data-selected="true"]')).toHaveCount(1);
+  await expect(page.getByTestId('to-decompose')).toBeInViewport();
+  await page.waitForTimeout(1500); // Wandnetze laden
   await page.screenshot({ path: shot('g6-1-modell') });
 
   // 2 Zerlegen & prüfen
@@ -114,6 +120,9 @@ test('G6 Glückspfad: Projekt → Wand → Zerlegen & prüfen → alle Teile gr�
   expect(n).toBeGreaterThan(0);
   for (let k = 0; k < n; k++) await expect(statuses.nth(k)).toHaveText('machbar');
   await expect(page.getByTestId('step-decompose')).toHaveAttribute('data-status', 'aktuell');
+  await expect(page.getByTestId('module-raster')).toBeVisible();
+  await expect(page.locator('[data-testid^="module-cell-"]').first()).toBeVisible();
+  await expect(page.getByTestId('stat-time')).toContainText(/\d/);
   await page.screenshot({ path: shot('g6-2-zerlegen') });
 
   // 3 Wiedergabe
