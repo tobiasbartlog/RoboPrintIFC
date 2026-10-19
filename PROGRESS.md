@@ -521,3 +521,26 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Vergleich zum Lauf 16:35: S1 77 → 93 s (S1 nutzt die Höhensuche nicht, Planung unverändert; Streuung der VM),
   S2 331 → 303 s. In S2 kostet die Höhensuche je Wandgruppe ~101 s (`*.scan`), die Zerlegung insgesamt 270 s.
 
+
+### 2026-10-19 19:20 Giebelwand mit Modulhöhe höchstens 1000 mm, Orakel-Bestätigung (Cloud, 4 vCPU)
+- Szenario `/tmp/giebel_h1000.json` wie im Eintrag 17:35 (Kopie S2, Wand `1AQAupaRP1txwK1AGiN61V`,
+  `module_height_max_mm` = 1000, `expect` = {}, `limits.wall_time_s` = 10⁶), Stand ea4f66f.
+- **Lauf: 1095 s, Exit 0** (vorher Timeout nach 3600 s). Zerlegung 1082 s, davon Höhensuche 912 s (Windows seriell
+  568 s), Planung der schrägen Oberreihe 157 s, Export 11 s.
+- **12 Teile, alle `machbar`**: 9 × 600 × 200 × 910 mm (Reihen r0–r2, Platzierung (−450, 250), 90°), 3 × 600 × 200 ×
+  896 mm (Oberreihe r3 mit schräger Oberkante, (−625, 300), 90°). Höchstes Modul 910 mm (`bbox_P`). d_min (Planer)
+  10,33 mm (Windows: 10,06 mm).
+- **Orakel `verify.check_run`: BESTANDEN (0 Fehler, 89 s).** 2 Vertreter voll geprüft, die übrigen 10 sind
+  inhaltsgleich (`same_as`, Hash):
+
+| Vertreter | Samples | Kollisionen | d_min_lb Orakel | Abdeckung min | max. Schritt TCP / q |
+|---|---|---|---|---|---|
+| r0_c0 (910 mm, für r0–r2) | 105 683 | 0 | 11,85 mm | 99,52 % | 4,01 mm / 0,0049 rad |
+| r3_c0 (896 mm, für r3) | 88 443 | 0 | 11,04 mm | 98,38 % | 3,96 mm / 0,0049 rad |
+
+- Bahnabweichung und Achsabweichung 0. Das Orakel weicht nicht ab; jedes Modul ist bestätigt.
+- Wandabdeckung: Mit `expect` = {} läuft das Orakel im Modus S1 und prüft die Wand nicht. Zusatzlauf auf einer Kopie
+  mit den S2-Erwartungen: Für diese Wand Volumen der Teile 1 269 264 902 mm³ gegen IFC 1 269 264 935 mm³
+  (Δ 3·10⁻⁸), Überlappung 0, kein Fehler zu Eignung oder Überhang. Die einzigen 3 Fehler betreffen die übrigen
+  Wände des IFC, die das Szenario bewusst weglässt („fehlt in summary.walls“).
+- Damit ist H* ≥ 910 mm für 600 × 200 mm unabhängig bestätigt; die Erwartung ~800 mm (Double-Plan) war zu vorsichtig.
