@@ -293,7 +293,9 @@ def make(out: Path) -> None:
             mesh="workstations/doosantisch.stl", T_WB=mat_list(T_WB), T_WS=mat_list(T_WS)
         ),
         tool=SceneTool(mesh="tools/30gut.stl", T_FT=mat_list(tool_T_FT), mesh_transform=mat_list(mesh_T)),
-        params=SceneParams(d_hard_mm=10.0, d_target_mm=50.0, r_free_mm=40.0, layer_height_mm=H),
+        params=SceneParams(
+            d_hard_mm=10.0, d_target_mm=50.0, d_target_printed_mm=20.0, r_free_mm=40.0, layer_height_mm=H
+        ),
     )
     part = PartArtifact(
         part_id=PART_ID,
@@ -330,6 +332,7 @@ def make(out: Path) -> None:
             "r_blend_mm": 2.0,
             "d_hard_mm": 10.0,
             "d_target_mm": 50.0,
+            "d_target_printed_mm": 20.0,
             "r_free_mm": 40.0,
             "tau_max_deg": 0.0,
             "psi_step_deg": 15.0,

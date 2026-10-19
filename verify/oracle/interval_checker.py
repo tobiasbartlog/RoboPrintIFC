@@ -18,6 +18,12 @@ Enthaltensein) werden exakt erkannt; ihre Tiefe wird hier nicht bestimmt.
 Statusregel (SPEC §2, Nutzerentscheidung 19.10.2026): Mit `relaxed_below = d_hard` liefert der Pruefer
 das Intervall von d_status statt d. Die Paare aus `RELAXED_PAIRS` werden zuerst gegen d_hard entschieden;
 liegen sie darueber, fallen sie aus dem Minimum heraus, sonst zaehlen sie normal.
+
+Eigener Sollabstand gegen den Druckstand (Nutzerentscheidung 19.10.2026): Zusaetzlich fuehrt der Pruefer
+das Intervall des normierten Abstands e = min ueber zaehlende Paare von (d + Verschiebung), mit
+Verschiebung = d_target - d_target_printed fuer Paare am Druckstand und 0 sonst. Es gilt
+e < d_target genau dann, wenn ein zaehlendes Paar unter seinem Sollabstand liegt. Die Schwellen fuer e
+(`status_thresholds`) werden je Paar um dessen Verschiebung nachgerechnet.
 """
 
 from __future__ import annotations
@@ -38,6 +44,8 @@ class Interval:
     ub: float  # obere Schranke von d (COLLISION_D bei Kollision)
     pair: tuple[str, str]  # Paar, das ub liefert
     witness_W: tuple[np.ndarray, np.ndarray] | None
+    lb_e: float = -np.inf  # Schranken des normierten Abstands e (Statusregel); ohne
+    ub_e: float = np.inf  # status_thresholds identisch mit lb/ub
 
     @property
     def collision(self) -> bool:
@@ -59,9 +67,13 @@ def _disp_many(C: np.ndarray, R: np.ndarray, T0: np.ndarray, T1: np.ndarray) -> 
 
 
 class IntervalChecker:
-    def __init__(self, oracle: CollisionOracle, thresholds, relaxed_below: float | None = None):
+    def __init__(self, oracle: CollisionOracle, thresholds, relaxed_below: float | None = None,
+                 status_thresholds=(), printed_shift: float = 0.0):
         self.o = oracle
         self.T = sorted({float(t) for t in thresholds})
+        self.Te = sorted({float(t) for t in status_thresholds})
+        self.shift = np.array([printed_shift if p[1] == "printed" else 0.0 for p in oracle.pairs
+                               if p[1] != "floor"])
         self.pairs = [p for p in oracle.pairs if p[1] != "floor"]
         self.relaxed_below = None if relaxed_below is None else float(relaxed_below)
         self.relaxed = np.array([is_relaxed(p) for p in self.pairs], dtype=bool)
@@ -153,25 +165,39 @@ class IntervalChecker:
                 if lb[j] >= h:  # Paar zaehlt nicht fuer d_status
                     lb[j], ub[j] = np.inf, np.inf
 
-        for _ in range(len(self.T) + 2):
+        sh = self.shift[act]
+        for _ in range(len(self.T) + len(self.Te) + 4):
             L = min(float(lb.min()) if len(lb) else np.inf, f_best)
             U = min(float(ub.min()) if len(ub) else np.inf, f_best)
             open_t = [t for t in self.T if L < t <= U]
-            if not open_t:
+            if open_t:
+                t = open_t[-1]
+                for j in np.argsort(lb):
+                    if lb[j] >= t:
+                        break
+                    lb[j], ub[j] = self._refine(int(act[j]), t, poses, k)
+                continue
+            lbe, ube = lb + sh, ub + sh
+            Le = min(float(lbe.min()) if len(lbe) else np.inf, f_best)
+            Ue = min(float(ube.min()) if len(ube) else np.inf, f_best)
+            open_e = [t for t in self.Te if Le < t <= Ue]
+            if not open_e:
                 break
-            t = open_t[-1]
-            for j in np.argsort(lb):
-                if lb[j] >= t:
+            t = open_e[-1]
+            for j in np.argsort(lbe):
+                if lbe[j] >= t:
                     break
-                lb[j], ub[j] = self._refine(int(act[j]), t, poses, k)
+                lb[j], ub[j] = self._refine(int(act[j]), t - float(sh[j]), poses, k)
         L = min(float(lb.min()) if len(lb) else np.inf, f_best)
+        Le = min(float((lb + sh).min()) if len(lb) else np.inf, f_best)
+        Ue = min(float((ub + sh).min()) if len(ub) else np.inf, f_best)
         if len(ub) and float(ub.min()) < f_best:
             j = int(np.argmin(ub))
             i = int(act[j])
             pair = self.pairs[i]
             w = self._witness_W(i, poses)
-            return Interval(L, float(ub[j]), pair, w)
-        return Interval(L, f_best, f_pair, f_w)
+            return Interval(L, float(ub[j]), pair, w, Le, Ue)
+        return Interval(L, f_best, f_pair, f_w, Le, Ue)
 
     # ------------------------------------------------------------------------
     def _ub(self, i: int, poses) -> float:

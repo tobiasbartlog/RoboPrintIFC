@@ -166,6 +166,7 @@ def _scene(params: PlannerParams, root: Path) -> Scene:
         params=SceneParams(
             d_hard_mm=params.d_hard_mm,
             d_target_mm=params.d_target_mm,
+            d_target_printed_mm=params.d_target_printed_mm,
             r_free_mm=params.r_free_mm,
             layer_height_mm=params.layer_height_mm,
         ),

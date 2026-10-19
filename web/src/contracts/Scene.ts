@@ -13,6 +13,7 @@ export interface Scene {
 export interface SceneParams {
   d_hard_mm: number;
   d_target_mm: number;
+  d_target_printed_mm: number;
   layer_height_mm: number;
   r_free_mm: number;
 }

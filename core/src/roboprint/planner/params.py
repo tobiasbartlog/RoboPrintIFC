@@ -26,6 +26,7 @@ class PlannerParams:
     r_blend_mm: float = 2.0
     d_hard_mm: float = 10.0
     d_target_mm: float = 50.0
+    d_target_printed_mm: float = 20.0  # Sollabstand gegen den Druckstand (SPEC §10)
     r_free_mm: float = 40.0
     tau_max_deg: float = 0.0
     psi_step_deg: float = 15.0
@@ -65,6 +66,7 @@ _ALIASES = {
     "v_travel": "v_travel_mm_s",
     "d_hard": "d_hard_mm",
     "d_target": "d_target_mm",
+    "d_target_printed": "d_target_printed_mm",
     "r_free": "r_free_mm",
     "z_lift": "z_lift_mm",
 }

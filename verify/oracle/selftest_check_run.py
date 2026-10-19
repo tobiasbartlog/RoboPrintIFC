@@ -48,12 +48,30 @@ def test_manipulated_status_fails(minirun_copy):
 
 def test_inconsistent_status_fails(minirun_copy):
     p, tr = _traj(minirun_copy)
-    tr["status"][5] = "ok"  # d_mm bleibt < 50
+    # Paar ausserhalb des Druckstands mit d_mm = 15 < d_target = 50 verlangt warn (am Druckstand waeren
+    # 20 <= d < 50 mit ok vereinbar, Nutzerentscheidung 19.10.2026)
+    tr["status"][5] = "ok"
+    tr["d_mm"][5] = 15.0
+    tr["pair"][5] = ["link_3", "table"]
     tr["summary"]["n_ok"] += 1
     tr["summary"]["n_warn"] -= 1
     _save(p, tr)
     ok, rep = _check(minirun_copy)
     assert not ok and any("status passt nicht zu d_mm" in e for e in rep["errors"])
+
+
+def test_allowed_statuses_per_pair_target():
+    """Statusregel (Nutzerentscheidung 19.10.2026): Druckstand warnt unter 20 mm, sonst unter 50 mm."""
+    from verify.oracle.run_checks import Params, allowed_statuses
+
+    prm = Params()
+    assert allowed_statuses(-0.001, True, prm) == {"collision"}
+    assert allowed_statuses(15.0, True, prm) == {"warn"}
+    assert allowed_statuses(41.0, True, prm) == {"ok", "warn"}  # ok, wenn auch kein anderes Paar < 50
+    assert allowed_statuses(55.0, True, prm) == {"ok"}
+    assert allowed_statuses(41.0, False, prm) == {"warn"}
+    assert allowed_statuses(55.0, False, prm) == {"ok"}
+    assert prm.printed_shift == 30.0 and prm.status_thresholds() == [49.0, 50.0, 62.0]
 
 
 def test_large_step_fails(minirun_copy):

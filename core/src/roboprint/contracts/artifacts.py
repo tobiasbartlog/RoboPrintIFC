@@ -87,6 +87,7 @@ class SceneTool(ContractModel):
 class SceneParams(ContractModel):
     d_hard_mm: float
     d_target_mm: float
+    d_target_printed_mm: float
     r_free_mm: float
     layer_height_mm: float
 

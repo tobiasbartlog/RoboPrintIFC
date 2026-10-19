@@ -16,7 +16,7 @@ import numpy as np
 import trimesh
 
 from roboprint import collision_assets as ca
-from roboprint.collision import LINKS, checked_pairs
+from roboprint.collision import LINKS, checked_pairs, is_const_pair
 from roboprint.frames import T_from_pos_quat
 
 
@@ -100,6 +100,8 @@ def reference_distance(world, q, k: int) -> tuple[float, tuple[str, str]]:
                 d = coal.distance(A.bvh, ta, B.bvh, tb, req, coal.DistanceResult())
                 if d < 200 and (_inside(A, T[a], B, T[b]) or _inside(B, T[b], A, T[a])):
                     d = -1e-3
+        if is_const_pair((a, b)) and d >= world.d_hard_mm:
+            continue  # Statusregel (SPEC §2): i <-> i+2 zaehlt nur unter d_hard
         if d < best:
             best, pair = d, (a, b)
     return float(best), pair

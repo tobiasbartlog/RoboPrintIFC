@@ -71,7 +71,7 @@ def test_g2_collision_against_coal():
     bad, n_neg, n_near = [], 0, 0
     for i, q in enumerate(poses()):
         c_rp = world.distance(np.asarray(q, dtype=float), K)
-        c_or = oracle.distance(q, K, depth=True)
+        c_or = oracle.status_contact(q, K, 10.0, depth=True)  # d_status, SPEC §2
         d_rp, d_or = float(c_rp.d_mm), float(c_or.d_mm)
         n_neg += d_or < 0
         n_near += 0 <= d_or < 50

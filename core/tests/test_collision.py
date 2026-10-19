@@ -15,7 +15,7 @@ import pytest
 import trimesh
 
 from roboprint import collision_assets as ca
-from roboprint.collision import CONST_PAIR, LINKS, World, checked_pairs
+from roboprint.collision import CONST_PAIRS, LINKS, Contact, World, checked_pairs, is_const_pair, status_of
 from roboprint.frames import T_from_pos_quat
 
 slow = pytest.mark.skipif(not os.environ.get("ROBOPRINT_SLOW"), reason="ausfuehrlich: ROBOPRINT_SLOW=1")
@@ -181,34 +181,99 @@ def test_branch_and_bound_equals_min_over_pairs():
         q[2] = np.clip(q[2], -2.79, 2.79)
         pd = w.pair_distances(q, 20)
         c = w.distance(q, 20)
-        # Statusregel: CONST_PAIR zaehlt nur unter d_hard
-        rest = min(v for k, v in pd.items() if k != CONST_PAIR or v < w.d_hard_mm)
+        # Statusregel: CONST_PAIRS zaehlt nur unter d_hard
+        rest = min(v for k, v in pd.items() if not is_const_pair(k) or v < w.d_hard_mm)
         assert c.d_mm == pytest.approx(rest, abs=1e-6)
         assert pd[c.pair] == pytest.approx(c.d_mm, abs=1e-6)
 
 
+def test_const_pairs_are_neighbour_links():
+    """Gliedpaare mit genau einem Gelenk dazwischen, ungeordnet; sie sind geprueft (Sicherheitsnetz)."""
+    assert len(CONST_PAIRS) == 5
+    for i in range(5):
+        assert is_const_pair((LINKS[i], LINKS[i + 2])) and is_const_pair((LINKS[i + 2], LINKS[i]))
+    assert not is_const_pair(("link_1", "link_4")) and not is_const_pair(("link_2", "floor"))
+    assert not is_const_pair(("tool_body", "link_2")) and not is_const_pair(("link_6", "printed"))
+    checked = {frozenset(p) for p in checked_pairs()}
+    assert CONST_PAIRS <= checked
+
+
 def test_const_pair_below_target_does_not_count():
     """Home-Pose: base_link <-> link_2 liegt konstruktiv bei ~31 mm < d_target 50 mm, ist aber nicht
-    das Minimum von d_status; d_mm gehoert zu einem anderen Paar."""
+    das Minimum von d_status; d_mm gehoert zu einem anderen Paar, der Status ist ok."""
     w = s1_world()
     pd = w.pair_distances(HOME, 0)
-    assert 20.0 < pd[CONST_PAIR] < 50.0
+    const = ("link_2", "base_link")
+    assert 20.0 < pd[const] < 50.0
     c = w.distance(HOME, 0)
-    assert c.pair != CONST_PAIR
-    assert c.d_mm == pytest.approx(min(v for k, v in pd.items() if k != CONST_PAIR), abs=1e-6)
-    assert c.d_mm > pd[CONST_PAIR]
+    assert not is_const_pair(c.pair)
+    assert c.d_mm == pytest.approx(min(v for k, v in pd.items() if not is_const_pair(k)), abs=1e-6)
+    assert c.d_mm > pd[const]
+    assert status_of(c, 50.0, 20.0) == "ok"
+
+
+def test_other_const_pair_below_target_does_not_count():
+    """Andere i <-> i+2-Paare: bei eingeklapptem Ellbogen liegt ein solches Paar unter d_target;
+    es loest kein warn aus, solange es >= d_hard bleibt, und bestimmt d_mm nicht."""
+    w = s1_world()
+    q = np.deg2rad([103.7, 37.0, 4.3, -72.8, -107.1, -39.7])  # (link_2, link_4), (link_4, link_6) ~37 mm
+    pd = w.pair_distances(q, 0)
+    near = [k for k in pd if is_const_pair(k) and w.d_hard_mm <= pd[k] < 50.0]
+    assert {frozenset(k) for k in near} >= {frozenset(("link_2", "link_4")), frozenset(("link_4", "link_6"))}
+    assert min(v for k, v in pd.items() if not is_const_pair(k)) >= 50.0
+    c = w.distance(q, 0)
+    rest = min(v for k, v in pd.items() if not is_const_pair(k) or v < w.d_hard_mm)
+    assert c.d_mm == pytest.approx(rest, abs=1e-6)
+    assert not is_const_pair(c.pair) or c.d_mm < w.d_hard_mm
+    if min(v for k, v in pd.items() if not is_const_pair(k)) >= 50.0:
+        assert status_of(c, 50.0, 20.0) == "ok"
 
 
 def test_const_pair_below_d_hard_counts():
-    """Unterschreitet das Paar d_hard (hier kuenstlich 100 mm), geht es in d_status ein."""
+    """Unterschreitet ein solches Paar d_hard (hier kuenstlich 100 mm), geht es in d_status ein."""
     mesh, T_WP = s1_scene()  # noqa: N806
     w = World(mesh, T_WP, d_hard_mm=100.0)
     pd = w.pair_distances(HOME, 0)
     c = w.distance(HOME, 0)
-    assert pd[CONST_PAIR] < 100.0
+    const = ("link_2", "base_link")
+    assert pd[const] < 100.0
     assert c.d_mm == pytest.approx(min(pd.values()), abs=1e-6)
-    if min(pd, key=pd.get) == CONST_PAIR:
-        assert c.pair == CONST_PAIR
+    if min(pd, key=pd.get) == const:
+        assert c.pair == const
+
+
+def test_status_per_pair_targets():
+    """Statusregel: Druckstand warnt erst unter d_target_printed (20), alles uebrige unter d_target (50)."""
+    w = (np.zeros(3), np.zeros(3))
+    pr, ot = ("tool_body", "printed"), ("link_3", "table")
+    assert status_of(Contact(41.0, pr, w, 41.0, 90.0), 50.0, 20.0) == "ok"
+    assert status_of(Contact(19.0, pr, w, 19.0, 90.0), 50.0, 20.0) == "warn"
+    assert status_of(Contact(45.0, ot, w, 70.0, 45.0), 50.0, 20.0) == "warn"
+    assert status_of(Contact(-1.0, pr, w, -1.0, 90.0), 50.0, 20.0) == "collision"
+    # Druckstand ok, aber ein anderes Paar unter 50: warn
+    assert status_of(Contact(30.0, pr, w, 30.0, 45.0), 50.0, 20.0) == "warn"
+    # ohne Klassenwerte entscheidet das Paar des Minimums
+    assert status_of(Contact(41.0, pr, w), 50.0, 20.0) == "ok"
+    assert status_of(Contact(41.0, ot, w), 50.0, 20.0) == "warn"
+
+
+def test_class_minima_consistent():
+    """d_mm = min(d_printed, d_other); die Klassenwerte sind nie kleiner als die wahren Klassenminima."""
+    w = s1_world()
+    rng = np.random.default_rng(6)
+    for q in rng.uniform(-np.pi, np.pi, (12, 6)):
+        q[2] = np.clip(q[2], -2.79, 2.79)
+        pd = w.pair_distances(q, 20)
+        c = w.distance(q, 20)
+        cnt = {k: v for k, v in pd.items() if not is_const_pair(k) or v < w.d_hard_mm}
+        true_p = min((v for k, v in cnt.items() if k[1] == "printed"), default=np.inf)
+        true_o = min((v for k, v in cnt.items() if k[1] != "printed"), default=np.inf)
+        assert c.d_mm == pytest.approx(min(c.d_printed_mm, c.d_other_mm), abs=1e-6)
+        assert c.d_printed_mm >= true_p - 1e-6 and c.d_other_mm >= true_o - 1e-6
+        if true_o < 50.0:
+            assert c.d_other_mm == pytest.approx(true_o, abs=1e-6)
+        if true_p < 50.0 and true_p <= true_o:
+            assert c.d_printed_mm == pytest.approx(true_p, abs=1e-6)
 
 
 def test_batch_equals_single():

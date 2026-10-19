@@ -38,12 +38,22 @@ class Params:
     shells: int = 2
     d_hard: float = 10.0
     d_target: float = 50.0
+    d_target_printed: float = 20.0  # Sollabstand gegen den Druckstand (Nutzerentscheidung 19.10.2026)
     r_free: float = 40.0
     tau_max_deg: float = 0.0
 
     def thresholds(self) -> list[float]:
-        return [0.0, self.d_hard, G2_TOL_NEG, self.d_target - G2_TOL_POS, self.d_target,
-                self.d_target + G2_TOL_NEG]
+        """Schwellen fuer d (d_status): Kollision, d_hard, Toleranz."""
+        return [0.0, self.d_hard, G2_TOL_NEG]
+
+    def status_thresholds(self) -> list[float]:
+        """Schwellen fuer e = min(d_uebrige, d_Druckstand + d_target - d_target_printed): Warnschwelle
+        mit den G2-Toleranzen. e < d_target <=> ein zaehlendes Paar liegt unter seinem Sollabstand."""
+        return [self.d_target - G2_TOL_POS, self.d_target, self.d_target + G2_TOL_NEG]
+
+    @property
+    def printed_shift(self) -> float:
+        return self.d_target - self.d_target_printed
 
 
 @dataclass
@@ -61,7 +71,21 @@ class Findings:
 
 
 def status_of(d: float, d_target: float) -> str:
+    """Status aus dem auf d_target normierten Abstand e (siehe Params.status_thresholds)."""
     return "collision" if d < 0 else ("warn" if d < d_target else "ok")
+
+
+def allowed_statuses(d: float, printed: bool, prm: Params) -> set[str]:
+    """Status, den ein Sample mit kleinstem zaehlendem Abstand d (Paar am Druckstand: printed)
+    haben darf, allein aus den eigenen Artefaktwerten (d_mm, pair). Regel: Druckstand warnt unter
+    d_target_printed, jedes andere Paar unter d_target, d_mm ist das Minimum aller zaehlenden Paare."""
+    if d < 0:
+        return {"collision"}
+    if printed:
+        if d < prm.d_target_printed:
+            return {"warn"}
+        return {"ok"} if d >= prm.d_target else {"ok", "warn"}
+    return {"warn"} if d < prm.d_target else {"ok"}
 
 
 def load_json(p: Path) -> dict:
@@ -108,6 +132,7 @@ class PartData:
     d_mm: np.ndarray
     reach: np.ndarray  # bool: nicht unreachable
     ring_layer: np.ndarray
+    on_printed: np.ndarray | None = None  # bool: Paar des Minimums enthaelt den Druckstand
 
 
 _INTERN = {s: s for s in (*STATUSES, *KINDS)}
@@ -186,8 +211,10 @@ def _from_trajectory(tag, pdir, part, mesh, T_WP, tp, tr, F) -> PartData | None:
         F.err(f"{tag}: branch ausserhalb 0..7")
     reach = np.array([s != "unreachable" for s in status])
     d = np.full(N, np.nan)
+    on_printed = np.zeros(N, dtype=bool)
     for i in range(N):
         v, p, w = tr["d_mm"][i], tr["pair"][i], tr["witness"][i]
+        on_printed[i] = isinstance(p, list) and "printed" in p
         if reach[i]:
             if v is None or p is None or w is None:
                 F.err(f"{tag}: Sample {i} ({status[i]}) ohne d_mm/pair/witness")
@@ -203,7 +230,7 @@ def _from_trajectory(tag, pdir, part, mesh, T_WP, tp, tr, F) -> PartData | None:
         return None
     summary = tr.get("summary")
     return PartData(tag, pdir, part, mesh, T_WP, tp, summary if isinstance(summary, dict) else {}, N, q,
-                    tcp, layer, ring, kind, branch, status, d, reach, ring_layer)
+                    tcp, layer, ring, kind, branch, status, d, reach, ring_layer, on_printed)
 
 
 # --------------------------------------------------------------------------- Kinematik
@@ -417,15 +444,19 @@ def check_coverage(P: PartData, pos: np.ndarray, prm: Params, F: Findings) -> No
 
 
 def check_status(P: PartData, lb: np.ndarray, ub: np.ndarray, pairs: list, prm: Params, F: Findings,
-                 evaluated: np.ndarray) -> dict:
-    """Eigener Status (roboprint) gegen Pruefer-Intervall [lb, ub] (alle Schwellen entschieden)."""
+                 evaluated: np.ndarray, lbe: np.ndarray | None = None) -> dict:
+    """Eigener Status (roboprint) gegen Pruefer-Intervall [lb, ub] fuer d_status und lbe fuer den
+    normierten Abstand e (alle Schwellen entschieden). Ohne lbe gilt e = d (ein Sollabstand)."""
+    if lbe is None:
+        lbe = lb
     own_bad, cmp_bad, hard_bad = [], [], []
     n_chk_coll = 0
     for i in np.flatnonzero(evaluated):
         s = P.status[i]
         d_rp = P.d_mm[i]
-        if status_of(d_rp, prm.d_target) != s:
-            own_bad.append(f"#{i} status {s} passt nicht zu d_mm {d_rp:.3f}")
+        on_p = bool(P.on_printed[i]) if getattr(P, "on_printed", None) is not None else False
+        if s not in allowed_statuses(d_rp, on_p, prm):
+            own_bad.append(f"#{i} status {s} passt nicht zu d_mm {d_rp:.3f} (Paar am Druckstand: {on_p})")
         if d_rp < prm.d_hard:
             hard_bad.append(f"#{i} roboprint d={d_rp:.2f} mm")
         if ub[i] < 0:
@@ -440,10 +471,11 @@ def check_status(P: PartData, lb: np.ndarray, ub: np.ndarray, pairs: list, prm: 
             continue
         if dc < prm.d_hard:
             hard_bad.append(f"#{i} Pruefer d in [{lb[i]:.2f}, {ub[i]:.2f}] mm ({pairs[i]})")
-        lo_s, hi_s = status_of(dc - G2_TOL_NEG, prm.d_target), status_of(dc + G2_TOL_POS, prm.d_target)
+        ec = lbe[i]
+        lo_s, hi_s = status_of(ec - G2_TOL_NEG, prm.d_target), status_of(ec + G2_TOL_POS, prm.d_target)
         if not RANK[lo_s] <= RANK.get(s, -1) <= RANK[hi_s]:
             cmp_bad.append(f"#{i} {P.kind[i]}: roboprint {s} (d={d_rp:.2f}), Pruefer d in "
-                           f"[{lb[i]:.2f}, {ub[i]:.2f}] ({pairs[i]})")
+                           f"[{lb[i]:.2f}, {ub[i]:.2f}], e = {ec:.2f} ({pairs[i]})")
     F.capped(f"{P.pid}: status passt nicht zu d_mm", own_bad)
     F.capped(f"{P.pid}: eigener Status != Pruefer-Status", cmp_bad)
     F.capped(f"{P.pid}: d < d_hard", hard_bad)

@@ -15,6 +15,7 @@
     "r_blend_mm": 2.0,
     "d_hard_mm": 10.0,
     "d_target_mm": 50.0,
+    "d_target_printed_mm": 20.0,
     "r_free_mm": 40.0,
     "tau_max_deg": 0.0,
     "psi_step_deg": 15.0,

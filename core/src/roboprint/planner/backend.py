@@ -63,7 +63,7 @@ def d_batch(backend: Any, Q: np.ndarray, layers: np.ndarray, self_collision: boo
 _CULL_MM = 50.0  # weiter weg reicht die Huellkugel als (konservative) Schranke
 #: base_link <-> link_2: nahezu konstanter Abstand (Orakel/Coal 33,15 mm, `collision.World` 30,7 mm,
 #: link_2 dreht um die J2-Achse, die naechsten Stellen sind rotationssymmetrisch). Statusregel
-#: (collision.CONST_PAIR): zaehlt nur unter d_hard, was konstruktiv nie eintritt; das Punkt-Double
+#: (collision.CONST_PAIRS): zaehlt nur unter d_hard, was konstruktiv nie eintritt; das Punkt-Double
 #: laesst das Paar daher ganz weg.
 
 
@@ -415,11 +415,18 @@ class SphereWorld:
         return self.distance_batch(np.asarray(q, float)[None], np.array([layer]))[0]
 
 
-def make_world(part_mesh_P: Any, T_WP: np.ndarray, layer_height_mm: float, root: Path, r_free_mm: float):  # noqa: N803
+def make_world(
+    part_mesh_P: Any,  # noqa: N803
+    T_WP: np.ndarray,  # noqa: N803
+    layer_height_mm: float,
+    root: Path,
+    r_free_mm: float,
+    d_target_mm: float = 50.0,
+):
     """Echte Kollisionswelt `roboprint.collision.World` (SPEC §5.1)."""
     from roboprint.collision import World
 
-    return World(part_mesh_P, T_WP, layer_height_mm, root, r_free_mm)
+    return World(part_mesh_P, T_WP, layer_height_mm, root, r_free_mm, d_target_mm=d_target_mm)
 
 
 _POOL_BACKEND: Any = None

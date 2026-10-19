@@ -52,10 +52,10 @@ TOOL_DIR = ROOT / "tools"
 MOVING_FLOOR_TABLE = ("link_2", "link_3", "link_4", "link_5", "link_6", "tool_body", "nozzle_tip")
 MOVING_PRINTED = (*LINK_NAMES, "tool_body")
 
-# Statusregel (SPEC §2, Nutzerentscheidung 19.10.2026): Diese Paare liegen konstruktiv konstant bei
-# ~33 mm < d_target. Sie zaehlen fuer collision und d_hard, nicht fuer die d_target-Schwelle.
-# Weitere Paare nur nach Freigabe durch den Nutzer (SPEC §2).
-RELAXED_PAIRS = frozenset({frozenset(("base_link", "link_2"))})
+# Statusregel (SPEC §2, Nutzerentscheidung 19.10.2026, erweitert A6.4): Gliedpaare mit genau einem Gelenk
+# dazwischen (i <-> i+2) koennen nicht kollidieren (base_link <-> link_2 konstruktiv ~33 mm). Sie zaehlen
+# fuer collision und d_hard, nicht fuer die d_target-Schwelle. Weitere Paare nur nach Freigabe (SPEC §2).
+RELAXED_PAIRS = frozenset(frozenset((LINK_NAMES[i], LINK_NAMES[i + 2])) for i in range(len(LINK_NAMES) - 2))
 
 
 def is_relaxed(pair) -> bool:
@@ -323,6 +323,25 @@ class CollisionOracle:
             if r.d_mm < d_hard and r.d_mm < c.d_mm:
                 return r
         return c
+
+    def status_of_pose(self, q, layer: int, d_hard: float, d_target: float, d_target_printed: float,
+                       depth: bool = False) -> tuple[str, Contact]:
+        """(Status, d_status-Kontakt) nach SPEC §2 inkl. Nachtrag 19.10.2026: collision bei d < 0 eines
+        beliebigen Paars; warn, wenn ein zaehlendes Paar unter seinem Sollabstand liegt (Druckstand:
+        d_target_printed, uebrige: d_target; RELAXED_PAIRS nur bei d < d_hard); sonst ok."""
+        c = self.status_contact(q, layer, d_hard, depth=depth)
+        if c.d_mm < 0:
+            return "collision", c
+        printed = [p for p in self.pairs if p[1] == "printed"]
+        other = [p for p in self.pairs if p[1] != "printed" and not is_relaxed(p)]
+        rel = [p for p in self.pairs if is_relaxed(p)]
+        d_o = self.distance(q, layer, depth=depth, pairs=other).d_mm if other else np.inf
+        if rel:
+            r = self.distance(q, layer, depth=depth, pairs=rel).d_mm
+            if r < d_hard:
+                d_o = min(d_o, r)
+        d_p = self.distance(q, layer, depth=depth, pairs=printed).d_mm if printed else np.inf
+        return ("warn" if (d_o < d_target or d_p < d_target_printed) else "ok"), c
 
     def distance(self, q, layer: int, cap: float | None = None, depth: bool = True,
                  pairs: list[tuple[str, str]] | None = None) -> Contact:

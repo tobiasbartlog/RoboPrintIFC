@@ -9,6 +9,9 @@
         "d_target_mm": {
           "type": "number"
         },
+        "d_target_printed_mm": {
+          "type": "number"
+        },
         "layer_height_mm": {
           "type": "number"
         },
@@ -19,6 +22,7 @@
       "required": [
         "d_hard_mm",
         "d_target_mm",
+        "d_target_printed_mm",
         "r_free_mm",
         "layer_height_mm"
       ],
