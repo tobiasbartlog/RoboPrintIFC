@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T02:04:01+02:00 · Session: orchestrator · Phase: P4
+Herzschlag: 2026-10-19T02:18:24+02:00 · Session: orchestrator · Phase: P4
 
 # PROGRESS — Nachtlauf v2
 
@@ -255,3 +255,10 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Commit: 54bb407
 - Offen: Wandvorschau in 3D (API liefert keine Wandgeometrie), Modulraster/Druckzeit/Fortschritt je Modul in
   Schritt 2, Kerntexte ohne Umlaute, Export-Bericht; „Weiter“ bei 1280 × 800 unter dem Falz.
+
+### 2026-10-19 02:18 P4/A4.4 UX-Folgeaufgaben
+- Ergebnis: Wandvorschau in 3D (`GET /api/projects/{id}/walls/{wall_id}.stl`), Modulraster in Wandansicht,
+  Kennzahlen Druckzeit/d_min, Fortschritt je Modul, Umlaute im Eignungsgrund, „Weiter“ bei 1280 × 800 sichtbar.
+  G6 und G8 nach dem Merge grün; Screenshots aus dem Gate-Lauf.
+- Commit: 48d047c
+- Offen: Annahmenliste im DRL-Kopf in ASCII-Umschrift, Export-Bericht.
