@@ -6,9 +6,14 @@ identische Welt, damit identische Toolpaths, Trajektorien, Pruefergebnisse und P
 Repraesentant einer solchen Gruppe (das erste Teil in Laufreihenfolge) wird voll aufbereitet und
 dicht geprueft (Trajektorie, Selbstpruefung, DRL); seine Pruefung gilt fuer alle Kopien. Die
 Kopien bekommen dieselben Bytes, in denen nur `part_id` (toolpath.json, trajectory.json) bzw. die
-Kopfzeile des Programms ersetzt ist; part.json und part.stl schreibt jede Kopie selbst (eigene
-Lage T_LP in der Wand). In `summary.parts[].same_as` steht fuer jede Kopie die part_id des
-Repraesentanten (sonst null).
+Kopfzeile des Programms ersetzt ist. part.stl ist eine Byte-Kopie des Repraesentanten; part.json
+stammt aus dem Repraesentanten, nur `part_id`, `wall_id` und `T_LP` (eigene Lage in der Wand) sind
+teilspezifisch. Damit das stimmt, bildet `group_parts` nur Gruppen, deren Mesh in P (sortierte
+Eckpunkte, Flaechenzahl) um hoechstens `COPY_TOL_MM` = 0,01 mm und deren Volumen um hoechstens
+1e-4 relativ vom Repraesentanten abweicht; sonst ist das Teil ein eigener
+Repraesentant. Die Wandpruefung (Volumen +-0,5 %, Ueberlappung ueber T_LP) liest weiter je Teil
+sein eigenes T_LP; 0,01 mm Eckpunktabweichung liegt weit unter ihren Toleranzen. In
+`summary.parts[].same_as` steht fuer jede Kopie die part_id des Repraesentanten (sonst null).
 
 Mit `jobs > 1` laufen die Gruppen parallel in Prozessen (fork; die Plaene werden geerbt, nicht
 gepickelt).
@@ -18,6 +23,7 @@ from __future__ import annotations
 
 import json
 import multiprocessing as mp
+import shutil
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -83,6 +89,21 @@ def _round(v: Any) -> Any:
     return round(float(v), 1)
 
 
+COPY_TOL_MM = 0.01
+
+
+def _same_geometry(a: Any, b: Any) -> bool:
+    """Mesh in P gleich bis COPY_TOL_MM (Eckpunkte in kanonischer Reihenfolge) und gleiches Volumen."""
+    va, vb = np.asarray(a.vertices, float), np.asarray(b.vertices, float)
+    if va.shape != vb.shape or len(a.faces) != len(b.faces):
+        return False
+    va = va[np.lexsort(np.round(va, 2).T[::-1])]
+    vb = vb[np.lexsort(np.round(vb, 2).T[::-1])]
+    if float(np.abs(va - vb).max(initial=0.0)) > COPY_TOL_MM:
+        return False
+    return abs(float(a.volume) - float(b.volume)) <= 1e-4 * max(abs(float(a.volume)), 1.0)
+
+
 def group_parts(part_jobs: list[Any], plans: list[PartPlan]) -> list[list[int]]:
     """Gruppen gleicher Teile (Indizes, erstes = Repraesentant): derselbe Plan (gleiche
     Geometrie aus dem Cache, gleiche Platzierung), gleiches Mesh und gleiche Sollmasse der
@@ -101,7 +122,18 @@ def group_parts(part_jobs: list[Any], plans: list[PartPlan]) -> list[list[int]]:
             _round(getattr(job, "expected_volume_mm3", None)),
         )
         groups.setdefault(key, []).append(i)
-    return sorted(groups.values(), key=lambda g: g[0])
+    out: list[list[int]] = []
+    for g in groups.values():
+        reps: list[list[int]] = []
+        for i in g:
+            for r in reps:
+                if _same_geometry(part_jobs[r[0]].mesh_P, part_jobs[i].mesh_P):
+                    r.append(i)
+                    break
+            else:
+                reps.append([i])
+        out.extend(reps)
+    return sorted(out, key=lambda g: g[0])
 
 
 # --------------------------------------------------------------------------- Bytes
@@ -271,12 +303,21 @@ def export_group(idx: list[int], ctx: ExportContext | None = None) -> list[PartE
         job = ctx.part_jobs[i]
         pdir = ctx.out / "parts" / job.part_id
         pdir.mkdir(parents=True, exist_ok=True)
-        job.mesh_P.export(pdir / "part.stl")
         same = k > 0
+        if same:
+            shutil.copyfile(ctx.out / "parts" / rep_job.part_id / "part.stl", pdir / "part.stl")
+        else:
+            job.mesh_P.export(pdir / "part.stl")
         rid = rep_job.part_id
         (pdir / "toolpath.json").write_bytes(retag_part_id(tp_b, rid, job.part_id) if same else tp_b)
         (pdir / "trajectory.json").write_bytes(retag_part_id(tr_b, rid, job.part_id) if same else tr_b)
-        part = _part_artifact(job, pp, status, cause) if same else rep_part
+        part = (
+            rep_part.model_copy(
+                update={"part_id": job.part_id, "wall_id": job.wall_id, "T_LP": np.asarray(job.T_LP).tolist()}
+            )
+            if same
+            else rep_part
+        )
         dump_json(part, pdir / "part.json")
         for d, text in progs.items():
             if same:

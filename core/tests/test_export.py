@@ -105,3 +105,24 @@ def test_retag() -> None:
     text = "# Teil: a_r0 (Wand W1)\n#\nmovej(x)  # a_r0\n"
     out = export.retag_program(text, ("a_r0", "W1"), ("b_r1", "W2"))
     assert out == "# Teil: b_r1 (Wand W2)\n#\nmovej(x)  # a_r0\n"
+
+
+def test_kopie_stl_bytegleich_und_toleranz(plan, tmp_path: Path) -> None:
+    mesh, pp = plan
+    noisy = mesh.copy()
+    noisy.vertices = noisy.vertices + 0.004  # Rundungsrauschen unter 0,01 mm
+    jobs = [_job(mesh, "p0", "W1", 0.0), _job(noisy, "p1", "W2", 200.0)]
+    plans = [dataclasses.replace(pp, part_id=j.part_id) for j in jobs]
+    assert export.group_parts(jobs, plans) == [[0, 1]]
+    export.export_parts(_ctx(tmp_path, jobs, plans))
+    p0, p1 = tmp_path / "parts" / "p0", tmp_path / "parts" / "p1"
+    assert (p0 / "part.stl").read_bytes() == (p1 / "part.stl").read_bytes()
+    j0, j1 = json.loads((p0 / "part.json").read_text()), json.loads((p1 / "part.json").read_text())
+    assert j1["part_id"] == "p1" and j1["wall_id"] == "W2" and j1["T_LP"] == jobs[1].T_LP.tolist()
+    skip = ("part_id", "wall_id", "T_LP")
+    assert {k: v for k, v in j0.items() if k not in skip} == {k: v for k, v in j1.items() if k not in skip}
+    # Abweichung ueber der Toleranz: keine Gruppe
+    far = mesh.copy()
+    far.vertices = far.vertices + 0.05
+    jobs[1].mesh_P = far
+    assert export.group_parts(jobs, plans) == [[0], [1]]
