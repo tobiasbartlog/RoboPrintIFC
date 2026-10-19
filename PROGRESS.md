@@ -395,3 +395,16 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - **Hausansicht** im Schritt Modell: Umschalter „Wände nebeneinander | Haus“. API: `ProjectInfo.building_mm`,
   `GET .../walls/{id}.stl?frame=building` (Wand in Gebäudelage, Ursprung = min-Ecke der Wände in G),
   `GET .../context.stl` (Decken, Dach, Stützen usw. aus `ifc.read_context`). Quader-Projekte haben keine Hausansicht.
+
+### 2026-10-19 16:00 Modulhöhe höchstens als Parameter (Nutzerentscheidung Tobias)
+- **Neuer Parameter `module_height_max_mm`** (Standard 400 mm, Lehm unter Eigengewicht) in `PlannerParams` und im
+  Viewer („Modulhöhe höchstens“). Er ist die obere Schranke der H*-Bisektion (`scenario_parts` → `h_upper_mm`).
+- **H* wird mit voller Planung bestätigt** (`DecomposeParams.h_verify`, an in `DECOMPOSE_DEFAULTS`): Die Vorprüfung
+  (Kugel-Double) hält Quader bis ~1000 mm für machbar. Danach bisektiert die volle Planung in 50-mm-Schritten
+  zwischen h_min und dem Vorprüfungs-H*. Ergebnisse werden gecacht, Monotonie in Breite und Höhe genutzt. Test
+  `test_hstar_volle_planung_bestaetigt_die_vorpruefung`. Viewer zeigt „höchstes Modul (Grenze X mm)“.
+- **Giebelwand `1AQAupaRP1txwK1AGiN61V`, Windows seriell:** Grenze 400 mm → 30 Teile, alle machbar, höchstens 370 mm
+  (10 Reihen à 370, letzte 296), 449 s. Grenze 1000 mm nach 1 h 45 min abgebrochen, ohne Ergebnis.
+- **Offen: Laufzeit bei hoher Grenze.** Jeder Bestätigungsschritt über der Kollisionsgrenze ist eine volle Planung,
+  die erst nach allen Platzierungen scheitert. Unter Windows seriell ist das für die App zu langsam. Messung mit
+  4 vCPU und fork im Cloud-Lauf.
