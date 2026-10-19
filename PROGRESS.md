@@ -534,3 +534,4 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   und `ParamsPanel.test.tsx`). e2e **8 passed** (29,8 s) gegen lokal erzeugte Läufe `runs/verify/S1` (2 min) und
   `runs/verify/S3` (57 s), Playwright-Chromium dafür nachinstalliert. `pytest core/tests/test_api.py -k
   web_default_params` grün. Screenshots `2-zerlegen.png` und `g6-2-zerlegen.png` zeigen das neue Panel.
+- Cloud-Prüfung nach Merge von v2-nachtlauf (Merge f591f9f, PROGRESS-Konflikt: beide Einträge in zeitlicher Reihenfolge, sonst konfliktfrei): web lint, typecheck grün, vitest 79 passed; ruff grün; pytest core -n 2 216 passed, 2 skipped; `verify.py --fast` G1, G2, G3, G5, G8 grün (`--fast` lässt G6 aus, weil G6 `slow` ist); e2e separat gegen S1 (verify.py) und S3 (`run-scenario`, check_run bestanden): 9 passed, davon neu `params.spec.ts` (kein Überlauf bei 1280 × 800, Knopf sticky, hell und dunkel). G4 und G7 nicht geprüft.
