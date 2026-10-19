@@ -474,3 +474,29 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Nur gemessen, nichts getunt. Ansatzpunkte für später (Nutzerentscheidung): Nachplanung in der H*-Bestätigung
   weglassen oder auf einen Kandidaten begrenzen, Bisektion bei der Quader-Höhe aus dem Höhenexperiment (800 mm)
   beginnen, Zeitlimit je Bestätigungsschritt.
+
+### 2026-10-19 18:40 Höhensuche statt Bisektion der vollen Planung (Nutzerentscheidung Tobias)
+- **Anlass:** Mit `h_verify` lief die Giebelwand bei Grenze 1000 mm lokal 1 h 45 min und in der Cloud 1 h ohne
+  Ergebnis (Eintrag 17:35). Jeder Bisektionsschritt plante von Schicht 1 neu, gescheiterte Schritte mit Nachplanung.
+- **Prinzip (exakt bei fester Platzierung und gleicher Diskretisierung):** Ob Schicht k geht, hängt nur vom Druckstand
+  darunter ab; ein niedrigerer Quader besteht aus den unteren Schichten des höheren. `planner.scan_height` plant den
+  Quader b × T × H*_vor deshalb einmal von unten, prüft jeden Ring sofort mit der echten Welt
+  (`PartPlanner(stop_at_bad=True)`, mit lokaler Ring-Nachbesserung) und stoppt an der ersten Schicht, die nicht geht
+  (unerreichbar, d < d_hard, Zweigwechsel im Ring, unfreier Transfer). H* = Oberkante der Schicht darunter.
+  Vollquader-Zellen bis H* bekommen den Plan als Ausschnitt (`truncate_plan`), wenn ihre Ringe exakt gleich sind;
+  sonst normale Planung. Nicht global optimal: Der Planer entscheidet Schicht für Schicht, über 3 Platzierungen.
+- **Tests:** `test_niedrigeres_prisma_ist_praefix_des_hoeheren` (Plan 30 mm = Ausschnitt des 60-mm-Plans, bitgleich),
+  `test_hoehensuche_stoppt_an_der_ersten_schicht_die_nicht_geht`, `test_quaderzelle_bekommt_den_ausschnitt_der_hoehensuche`,
+  `test_hstar_hoehensuche_bestaetigt_die_vorpruefung`. pytest core 169 grün (ohne Symlink-Test, Windows).
+- **Giebelwand `1AQAupaRP1txwK1AGiN61V`, Windows seriell:**
+
+| Grenze | vorher | jetzt | Ergebnis |
+|---|---|---|---|
+| 400 mm | 449 s | 194 s (Suche 57 s, schräge Oberreihe 116 s) | 30 Teile à 370 mm, alle machbar, d_min 10,83 mm |
+| 1000 mm | > 1 h 45 min, abgebrochen | 801 s (Suche 568 s, schräge Oberreihe 212 s) | 12 Teile à 910 mm (oben 896), alle machbar, d_min 10,06 mm |
+
+- H* ≥ 910 mm liegt über den erwarteten ~800 mm: Die Suche bessert jeden Ring gegen die echte Welt nach, was der reine
+  Double-Plan nicht tut. Jeder Sample ist mit der echten Welt geprüft, Selbstprüfung grün; Orakel-Bestätigung im
+  nächsten Cloud-verify.
+- `DecomposeParams.h_verify` und `h_verify_step_mm` entfallen; `scenario_parts` übergibt die Höhensuche im Modus
+  `collision_aware`.
