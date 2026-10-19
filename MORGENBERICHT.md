@@ -29,7 +29,8 @@ Deshalb wurde S2 zusätzlich in Teilmengen mit demselben, unveränderten Prüfer
 
 <!-- S2-BLOECKE -->
 
-S3 (Negativfall) separat: <!-- S3-ERGEBNIS -->
+S3 (Negativfall) separat: `check_run` **BESTANDEN**. roboprint meldet 61 011 von 61 350 Samples als `collision`,
+der Prüfer bestätigt 61 010 davon. Der Gate-Runner kam nicht bis S3, weil er G4 nach dem S2-Abbruch beendet.
 
 ## Was jetzt funktioniert
 
