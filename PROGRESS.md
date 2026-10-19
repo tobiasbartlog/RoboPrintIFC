@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T04:24:10+02:00 · Session: orchestrator · Phase: P4
+Herzschlag: 2026-10-19T04:30:09+02:00 · Session: orchestrator · Phase: P4
 
 # PROGRESS — Nachtlauf v2
 
@@ -290,3 +290,9 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   Giebelmodule `house_right_front_r9_c0/_c1` (Schicht 27–29: 0 %), weil die Schalen-Offsets im schmalen
   Querschnitt verschwinden.
 - Aufgaben: A4.5 (Slicer, Schmalstellen-Abdeckung), A4.6 (adaptive Verdichtung, weniger Samples → weniger Speicher).
+
+### 2026-10-19 04:30 P4/A4.5 Slicer Schmalstellen
+- Ergebnis: Prüferwerte reproduziert (76,5 / 85,9 / 0 %), Ursache: Schalenringe verschwinden im schmalen Querschnitt.
+  Fix: bis zu 3 geschlossene Zusatzringe mit kleinerem Versatz, wenn die Abdeckung < 97 %. Giebelmodul r9_c0 jetzt
+  ≥ 98,4 % je Schicht. Unit-Tests + G3 (S1) grün. S2-Neulauf steht aus.
+- Commit: f6974a4
