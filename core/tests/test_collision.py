@@ -276,6 +276,23 @@ def test_class_minima_consistent():
             assert c.d_printed_mm == pytest.approx(true_p, abs=1e-6)
 
 
+def test_seeds_skip_const_pairs():
+    """Saaten aus i <-> i+2-Paaren liefern keine obere Schranke (sie zaehlen erst unter d_hard) und
+    machen die Branch-and-Bound-Suche um Groessenordnungen langsamer; sie duerfen nie Saat sein."""
+    from roboprint.collision import _BlockBounds
+
+    w = s1_world()
+    rng = np.random.default_rng(8)
+    Q = rng.uniform(-np.pi, np.pi, (16, 6))  # noqa: N806
+    Q[:, 2] = np.clip(Q[:, 2], -2.79, 2.79)
+    F = np.empty((len(Q), len(LINKS) + 1, 4, 4))  # noqa: N806
+    F[:, : len(LINKS)] = w.T_WB @ w.chain.link_poses_batch(Q)
+    F[:, len(LINKS)] = np.eye(4)
+    sc = w._scene(20)
+    _, ks = _BlockBounds(F, sc).seeds(2)
+    assert ks and not any(sc.k_const[k] for k in ks)
+
+
 def test_batch_equals_single():
     w = s1_world()
     rng = np.random.default_rng(2)
