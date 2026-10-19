@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T16:35:00+02:00 · Session: cloud-verify · Phase: P6 abgeschlossen, Nutzertest nachgeprüft
+Herzschlag: 2026-10-19T19:15:00+02:00 · Session: cloud-verify · Phase: P6 abgeschlossen, Höhensuche nachgeprüft
 
 # PROGRESS — Nachtlauf v2
 
@@ -10,12 +10,12 @@ Ablauf und Regeln stehen in `spec/NACHTLAUF.md`, die Gates in `spec/SPEC.md` §1
 |---|---|---|---|
 | G1 Kinematik | grün | 2000 FK + 2000 IK gegen Pinocchio | P0 Ende |
 | G2 Kollision | grün | 500 Posen; d_rp ≥ 0,5 mm unter d_coal, |Δ| ≤ 4,3 mm (beide ≥ 0) | P1 A1.4 |
-| G3 Referenzmodul S1 | grün | d_min 10,83 mm; 90,5 % ok / 9,5 % warn; 0 coll/unreach | Cloud-verify 19.10. (Basis gedreht) |
-| G4 Beispiel-IFC S2 + S3 | grün | S2 172 Module (4 geprüft), check_run 58 s; S3 bestätigt | Cloud-verify 19.10. |
-| G5 DRL | grün | fake_drcf S1 + S2 36,5 s | Cloud-verify 19.10. |
-| G6 Viewer | grün | e2e 8 passed (57 s), Uhr-Invariante 50 t S1+S3 | Cloud-verify 19.10. |
-| G7 Laufzeit | grün | S1 76,9 s, S2 330,5 s | Cloud-verify 19.10. |
-| G8 Qualität | grün | ruff, pytest core, web lint/typecheck/test | Cloud-verify 19.10. |
+| G3 Referenzmodul S1 | grün | d_min 10,83 mm; 0 coll/unreach | Cloud-verify 19.10. nach Höhensuche |
+| G4 Beispiel-IFC S2 + S3 | grün | S2 172 Module (4 geprüft), check_run 88 s; S3 bestätigt | Cloud-verify 19.10. nach Höhensuche |
+| G5 DRL | grün | fake_drcf S1 + S2 42,5 s | Cloud-verify 19.10. nach Höhensuche |
+| G6 Viewer | grün | e2e 63 s, Uhr-Invariante S1+S3 | Cloud-verify 19.10. nach Höhensuche |
+| G7 Laufzeit | grün | S1 93,2 s, S2 302,5 s | Cloud-verify 19.10. nach Höhensuche |
+| G8 Qualität | grün | ruff, pytest core, web lint/typecheck/test | Cloud-verify 19.10. nach Höhensuche |
 
 ## Ausgangslage (Vorbereitung 2026-10-18)
 
@@ -500,3 +500,24 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   nächsten Cloud-verify.
 - `DecomposeParams.h_verify` und `h_verify_step_mm` entfallen; `scenario_parts` übergibt die Höhensuche im Modus
   `collision_aware`.
+
+### 2026-10-19 19:15 Cloud-verify nach Höhensuche
+- Anlass: Höhensuche `planner.scan_height` statt Bisektion der vollen Planung (761c3e7, ea4f66f). Cloud-VM 4 vCPU,
+  Python `/opt/fgc-venv`, Stand ea4f66f.
+- Vorab: `pytest core -q -n 2` 216 passed, 2 skipped (499 s); `ruff` grün; web ci/lint/typecheck/test grün (57 Tests).
+- **Voller verify-Lauf: G1–G8 grün** (1031 s gesamt, Bericht `runs/verify/report.json`), nichts zu beheben:
+
+| Gate | Ergebnis | Laufzeit | Kernzahlen |
+|---|---|---|---|
+| G1 | grün | 11,8 s | FK/IK gegen Pinocchio |
+| G2 | grün | 51,6 s | 500 Posen gegen Coal |
+| G3 | grün | 93,2 s, check 30,2 s | S1 machbar, d_min 10,83 mm, 0 coll/unreach |
+| G4 | grün | S2 302,5 s, check 88,1 s; S3 52,0 s, check 74,8 s | S2 172 Teile, alle machbar, höchstes Modul 380 mm, d_min 10,83 mm, Orakel 4 Vertreter voll geprüft (Rest inhaltsgleich), d_min_lb ≥ 10,01 mm, 0 Kollisionen; S3 nicht machbar, Prüfer bestätigt |
+| G5 | grün | 42,5 s | fake_drcf S1 und S2, 0 Fehler |
+| G6 | grün | 63,2 s | e2e grün; Screenshots unter `web/e2e/screenshots/` aktualisiert |
+| G7 | grün | — | S1 93,2 s (≤ 180), S2 302,5 s (≤ 1800) |
+| G8 | grün | 220,7 s | ruff, pytest core (203,8 s), web lint/typecheck/test |
+
+- Vergleich zum Lauf 16:35: S1 77 → 93 s (S1 nutzt die Höhensuche nicht, Planung unverändert; Streuung der VM),
+  S2 331 → 303 s. In S2 kostet die Höhensuche je Wandgruppe ~101 s (`*.scan`), die Zerlegung insgesamt 270 s.
+
