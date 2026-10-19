@@ -105,6 +105,30 @@ def test_movel_chain_haelt_ecken(kin: Kin) -> None:
     _check_density(Q[0, b], d, kin)
 
 
+def test_movel_chain_nicht_dichter_als_noetig(kin: Kin) -> None:
+    """A4.6: je Segment hoechstens ceil(Bedarf) + Reserve Samples, Bedarf aus TCP-Weg und Gelenkweg."""
+    pts = np.array(
+        [[700.0, 500.0, 1000.0], [720.0, 500.0, 1000.0], [720.0, 520.0, 1000.0], [900.0, 520.0, 1000.0]]
+    )
+    psi = np.array([0.0, 0.4, 0.4, 0.4])
+    Q, ok = kin.ik(pts[:1], psi[:1])
+    b = int(np.nonzero(ok[0])[0][0])
+    q0 = Q[0, b]
+    d, seg = movel_chain(kin, pts, psi, q0, b, P)
+    assert d.ok.all()
+    _check_density(q0, d, kin)
+    q = np.vstack([q0[None], d.q])
+    tcp = kin.tcp_W(q)[:, :3, 3]
+    for s in (1, 2, 3):
+        idx = np.flatnonzero(seg == s)
+        assert np.linalg.norm(tcp[idx[-1] + 1] - pts[s]) < 1e-3  # Wegpunkt ist ein Sample
+        steps = np.abs(np.diff(q[idx[0] : idx[-1] + 2], axis=0))
+        need_q = steps.sum(axis=0).max() / 0.005  # Gelenkweg des fuehrenden Gelenks
+        need_p = np.linalg.norm(pts[s] - pts[s - 1]) / 5.0
+        lower = int(np.ceil(max(need_q, need_p)))
+        assert lower <= len(idx) <= int(np.ceil(1.1 * max(need_q, need_p) + 1e-9)) + 1
+
+
 def test_movej_dicht(kin: Kin) -> None:
     q_b = HOME_Q + np.array([0.4, -0.2, 0.3, 0.5, -0.3, 1.0])
     d = movej(kin, HOME_Q, q_b, P)
