@@ -501,6 +501,43 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - `DecomposeParams.h_verify` und `h_verify_step_mm` entfallen; `scenario_parts` übergibt die Höhensuche im Modus
   `collision_aware`.
 
+### 2026-10-19 18:45 Druckeinstellungen nach Kategorien (Variante A, Entwurf freigegeben von Tobias)
+- Branch `v2/params-akkordeon` von `origin/v2-nachtlauf` (b0fa62f), nur `web/` und dieser Eintrag. Nicht gemergt;
+  der Merge folgt nach dem Nutzertest.
+- **Panel „Druckeinstellungen“** wie bei Kunststoff-Slicern: Akkordeon mit acht Kategorien (Schicht & Strang, Module,
+  Geschwindigkeit, Pumpe, Bewegung, Abstände, Bahnplanung, Steuerung & Export), alle zugeklappt mit Kurzfassung
+  („10 mm · 30 mm · 2 Schalen“, „100 · 250 mm/s“, „DRL v2“). Modus „Grundlegend | Alle“: 9 von 21 Parametern
+  grundlegend. Suche über Label und Gruppentitel (ohne Groß-/Kleinschreibung und Umlaute, jedes Wort muss passen)
+  ignoriert den Modus und klappt Gruppen mit Treffern auf. Hinweis „12 weitere Parameter unter „Alle““ mit Badge der
+  versteckten Änderungen; ein Klick schaltet auf „Alle“ und klappt deren Gruppen auf. „Ergibt bis zu ⌊H/h⌋ Schichten
+  je Modul.“ Keine Profil-Auswahl.
+- Geändert = Primärfarbe (Punkt, fettes Label, Rand und Tönung des Felds, Badge „N geändert“ je Gruppe und im Kopf),
+  das Gelb entfällt. Annahme = gelbes „A“ (gefüllt, `autoContrast`) mit Tooltip und zugänglichem Text, bei `t_tot_s`
+  „Annahme, vorläufig“. Reset-Knopf je Zeile nur bei Änderung, Platz reserviert. Icons als Inline-SVG
+  (`ParamIcons.tsx`), Tabler ist keine Abhängigkeit.
+- Logik als reine Funktionen in `web/src/state/params.ts` (`PARAMS`, `PARAM_GROUPS`, `visibleParams`, `groupViews`,
+  `hiddenInfo`, `groupSummary`, `secondaryLine`, `layersPerModule`); `tcp_name` und `dialect` sind Text- bzw.
+  Auswahlparameter im selben Modell. Schlüssel und Defaults unverändert.
+- **Kopplung an den Kern:** `core/tests/test_api.py::test_web_default_params_accepted` liest `params.ts` mit Regex
+  (Schlüssel und Default im selben Objektliteral, Zahl der Schlüssel-Literale = Zahl der Zahlenparameter,
+  `tcp_name`/`dialect` als eigene Zeile). Deshalb stehen die Text- und Auswahlparameter nach Feldnamen und die
+  Defaults in `STRING_DEFAULTS`; ein Vitest prüft dieselben Ausdrücke, damit eine Web-Änderung den Kerntest nicht
+  still bricht.
+- „Zerlegen & prüfen“ samt Grund sitzt `sticky` am unteren Rand der Seitenleiste (Hintergrund `--mantine-color-body`).
+  Geprüft bei 1280 × 800 und 1024 × 800 (Seitenleiste 440/340 px), hell und dunkel: Knopf im Bild, kein
+  horizontaler Überlauf. Unter `lg` sind Feld 100 px und Labels 12 px breit bzw. groß, sonst brachen Labels mitten im
+  Wort. Hinweis im Export auf „Druckeinstellungen → Steuerung & Export“ angepasst.
+- e2e `shell.spec.ts`: `params-toggle` entfällt; der Test klappt Pumpe und Geschwindigkeit auf und erwartet
+  „vorläufig“ am Kennzeichen von `t_tot_s`. Neue Test-IDs: `param-group-<id>`, `param-mode`, `param-search`,
+  `param-hidden-note`.
+- Checks lokal (Windows 11, Node 24): web lint, typecheck und test grün (79 Tests, davon 22 neu in `params.test.ts`
+  und `ParamsPanel.test.tsx`). e2e **8 passed** (29,8 s) gegen lokal erzeugte Läufe `runs/verify/S1` (2 min) und
+  `runs/verify/S3` (57 s), Playwright-Chromium dafür nachinstalliert. `pytest core/tests/test_api.py -k
+  web_default_params` grün. Screenshots `2-zerlegen.png` und `g6-2-zerlegen.png` zeigen das neue Panel.
+- Cloud-Prüfung nach Merge von v2-nachtlauf (Merge f591f9f, PROGRESS-Konflikt: beide Einträge in zeitlicher Reihenfolge, sonst konfliktfrei): web lint, typecheck grün, vitest 79 passed; ruff grün; pytest core -n 2 216 passed, 2 skipped; `verify.py --fast` G1, G2, G3, G5, G8 grün (`--fast` lässt G6 aus, weil G6 `slow` ist); e2e separat gegen S1 (verify.py) und S3 (`run-scenario`, check_run bestanden): 9 passed, davon neu `params.spec.ts` (kein Überlauf bei 1280 × 800, Knopf sticky, hell und dunkel). G4 und G7 nicht geprüft.
+- Gemergt in `v2-nachtlauf` auf Stand 09d7de4. Konflikte nur in `PROGRESS.md` (Einträge zeitlich geordnet) und
+  `web/e2e/screenshots/g6-2-zerlegen.png` (Fassung des Branches mit dem neuen Panel).
+
 ### 2026-10-19 19:15 Cloud-verify nach Höhensuche
 - Anlass: Höhensuche `planner.scan_height` statt Bisektion der vollen Planung (761c3e7, ea4f66f). Cloud-VM 4 vCPU,
   Python `/opt/fgc-venv`, Stand ea4f66f.

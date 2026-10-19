@@ -61,7 +61,7 @@ export function ExportStep() {
 
       <Text size="sm" c="dimmed">
         Je Modul ein DRL-Programm für den Doosan M1013. Gewählter Dialekt: {dialect} ({dialect === 'v2' ? 'Firmware 2.x' : 'Firmware 3.x'});
-        der Dialekt lässt sich unter „Zerlegen & prüfen“ → Parameter ändern.
+        der Dialekt lässt sich unter „Zerlegen & prüfen“ → Druckeinstellungen → Steuerung & Export ändern.
       </Text>
       <Stack gap="xs" data-testid="export-parts">
         {run?.summary.parts.map((p) => {
