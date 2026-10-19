@@ -96,7 +96,7 @@ class PartData:
     mesh: trimesh.Trimesh
     T_WP: np.ndarray
     toolpath: dict
-    traj: dict
+    traj_summary: dict  # trajectory.summary; die Roh-Listen werden nach dem Laden verworfen
     N: int
     q: np.ndarray
     tcp: np.ndarray
@@ -108,6 +108,9 @@ class PartData:
     d_mm: np.ndarray
     reach: np.ndarray  # bool: nicht unreachable
     ring_layer: np.ndarray
+
+
+_INTERN = {s: s for s in (*STATUSES, *KINDS)}
 
 
 def load_part(pdir: Path, T_WS: np.ndarray, F: Findings) -> PartData | None:
@@ -145,6 +148,13 @@ def load_part(pdir: Path, T_WS: np.ndarray, F: Findings) -> PartData | None:
     tp = load_json(files["toolpath.json"])
     _require(tp, ("part_id", "layer_height_mm", "bead_width_mm", "rings"), f"{tag}/toolpath.json", F)
     tr = load_json(files["trajectory.json"])
+    try:
+        return _from_trajectory(tag, pdir, part, mesh, T_WP, tp, tr, F)
+    finally:
+        tr.clear()  # Roh-Listen sofort freigeben (nur Arrays bleiben)
+
+
+def _from_trajectory(tag, pdir, part, mesh, T_WP, tp, tr, F) -> PartData | None:
     arrays = ("t_s", "q", "tcp", "layer", "ring", "kind", "branch", "status", "d_mm", "pair", "witness",
               "psi_rad")
     if not _require(tr, (*arrays, "part_id", "summary"), f"{tag}/trajectory.json", F):
@@ -166,7 +176,8 @@ def load_part(pdir: Path, T_WS: np.ndarray, F: Findings) -> PartData | None:
     except (TypeError, ValueError) as exc:
         F.err(f"{tag}: Arrays nicht numerisch/formgerecht: {exc}")
         return None
-    kind, status = list(tr["kind"]), list(tr["status"])
+    kind = [_INTERN.get(x, x) for x in tr["kind"]]
+    status = [_INTERN.get(x, x) for x in tr["status"]]
     if set(kind) - set(KINDS):
         F.err(f"{tag}: unbekannte kind-Werte {sorted(set(kind) - set(KINDS))}")
     if set(status) - set(STATUSES):
@@ -190,8 +201,9 @@ def load_part(pdir: Path, T_WS: np.ndarray, F: Findings) -> PartData | None:
     if np.any((ring < 0) | (ring >= max(len(rings), 1))):
         F.err(f"{tag}: ring-Index ausserhalb toolpath.rings")
         return None
-    return PartData(tag, pdir, part, mesh, T_WP, tp, tr, N, q, tcp, layer, ring, kind, branch, status,
-                    d, reach, ring_layer)
+    summary = tr.get("summary")
+    return PartData(tag, pdir, part, mesh, T_WP, tp, summary if isinstance(summary, dict) else {}, N, q,
+                    tcp, layer, ring, kind, branch, status, d, reach, ring_layer)
 
 
 # --------------------------------------------------------------------------- Kinematik
@@ -442,7 +454,7 @@ def check_status(P: PartData, lb: np.ndarray, ub: np.ndarray, pairs: list, prm: 
 
 
 def check_summary(P: PartData, prm: Params, F: Findings) -> None:
-    s = P.traj.get("summary", {})
+    s = P.traj_summary
     counts = {k: sum(1 for x in P.status if x == k) for k in STATUSES}
     exp = {"n": P.N, "n_ok": counts["ok"], "n_warn": counts["warn"], "n_collision": counts["collision"],
            "n_unreachable": counts["unreachable"]}

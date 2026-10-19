@@ -63,6 +63,13 @@ Das Modul steht auf der Arbeitsfläche, z = 0 in S. Für die Montage wird `T_LP`
 - `unreachable`: Für die Sollpose existiert keine gültige Gelenklösung. Das Sample bekommt
   kein d, und weder Arm noch Pose werden „eingefroren“ weitergeprüft.
 
+*Nachtrag 19.10.2026 (Nutzerentscheidung 19.10.2026):* Das Paar `base_link` ↔ `link_2` liegt
+konstruktiv konstant bei ≈ 33 mm < d_target. Der Status richtet sich deshalb nach
+d_status = Minimum über alle geprüften Paare außer (`base_link`, `link_2`); ist der Abstand dieses
+Paars < d_hard, geht er doch in d_status ein. Das Paar zählt also weiter für `collision` (d < 0) und
+für d_hard, aber nicht für die d_target-Schwelle. In den Regeln oben steht d für d_status. Weitere
+Paare kommen nur nach Freigabe durch den Nutzer hinzu.
+
 **IK-Zweig:** drei Bits (Schulter, Ellbogen, Handgelenk), Index 0–7. Die Zuordnung definiert
 `roboprint.robot` und dokumentiert sie im Docstring. Gleiche Bits müssen dieselbe Bedeutung
 haben wie `sol` im Doosan-`ikin` (docs/doosan-drl.md).
@@ -137,6 +144,10 @@ in P1 überzeugt (§5.2).
 
 **Ausgabe je Pose:** d_min, das Paar mit d_min (Glied- und Hindernisname) und die beiden
 Zeugenpunkte in W.
+
+*Nachtrag 19.10.2026 (Nutzerentscheidung 19.10.2026):* Für den Status zählt d_status nach §2
+(`base_link` ↔ `link_2` nur, wenn < d_hard). Die Paarliste oben bleibt unverändert; G2 vergleicht
+weiter die Abstände über alle Paare.
 
 ### 5.2 Planer (`planner`)
 

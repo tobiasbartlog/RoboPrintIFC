@@ -1,10 +1,15 @@
 """Unabhaengiger Pruefer fuer einen Laufordner (G3/G4, spec/SPEC.md §11, spec/ARTEFAKTE.md).
 
-    python -m verify.check_run <laufordner> --scenario <szenario.json> [--jobs N]
+    python -m verify.check_run <laufordner> --scenario <szenario.json> [--jobs N] [--old-status-rule]
 
 Schreibt <laufordner>/check.json und endet mit 0 genau dann, wenn alle Kriterien der Erwartung
 (`expect` im Szenario) erfuellt sind. Rechnet mit Pinocchio/Coal auf URDF und Roh-Meshes; importiert
 roboprint nicht. Methoden und Toleranzen: verify/README.md.
+
+Ablauf: Teile nacheinander je Arbeitsprozess laden und pruefen (Rohdaten danach frei), Abstaende in
+Bloecken, Wandpruefungen aus kleinen Daten je Teil. Teile mit identischen Pruefeingaben werden einmal
+geprueft (verify/oracle/content_hash.py), das Ergebnis traegt `same_as`.
+`--old-status-rule` prueft mit der Statusregel vor dem 19.10.2026 (nur zum Vergleich alter Laeufe).
 """
 
 from __future__ import annotations
@@ -13,9 +18,13 @@ import argparse
 import json
 import multiprocessing as mp
 import os
+import resource
 import sys
+import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import trimesh
@@ -26,8 +35,10 @@ from verify.oracle.collision_oracle import (
     CollisionOracle,
     _transform,
     bodies_intersect,
+    checked_pairs,
     static_geometry,
 )
+from verify.oracle.content_hash import part_key, retag
 from verify.oracle.interval_checker import IntervalChecker
 from verify.oracle.robot_oracle import ROOT, default_robot, inv_T, workstation_frames
 from verify.oracle.run_checks import (
@@ -46,53 +57,117 @@ from verify.oracle.run_checks import (
     load_part,
 )
 
-_WORK: dict[str, tuple] = {}
-_ORACLES: dict[str, CollisionOracle] = {}
+PAIRS: list[tuple[str, str]] = checked_pairs()
+_PAIR_CODE = {p: i for i, p in enumerate(PAIRS)}
+_CUR: dict[str, tuple] = {}  # Orakel-Cache je Arbeitsprozess: hoechstens zwei Teile
 
 
-# --------------------------------------------------------------------------- Abstaende (parallel)
+@dataclass
+class PartLite:
+    """Was nach der Pruefung eines Teils fuer Lauf- und Wandpruefungen bleibt (klein)."""
+    pid: str
+    N: int
+    mesh: trimesh.Trimesh
+    T_WP: np.ndarray
+    part: dict
+
+
+def _codes(values: list[str]) -> tuple[list[str], np.ndarray]:
+    uniq, inv = np.unique(np.array([str(v) for v in values], dtype=object), return_inverse=True)
+    return [str(u) for u in uniq], inv.astype(np.int16)
+
+
+# --------------------------------------------------------------------------- Teil pruefen (Arbeitsprozess)
+
+
+def _prepare(task) -> dict:
+    """Ein Teil laden und alle Pruefungen je Teil ausser dem Abstand; Rohdaten danach freigeben.
+    q/layer gehen als .npy in den Temp-Ordner (fuer die Abstandsbloecke)."""
+    pdir, mode, prm, tmp = task
+    T_WB, T_WS, _ = workstation_frames()
+    PF = Findings()
+    P = load_part(pdir, T_WS, PF)
+    out = {"pid": pdir.name, "loaded": P is not None, "errors": PF.errors, "metrics": PF.metrics}
+    if P is None:
+        return out
+    robot = default_robot()
+    pos, rot = check_kinematics(P, robot, T_WB, PF)
+    check_layer_rule(P, PF)
+    if mode != "s3":
+        check_density(P, pos, PF)
+        check_toolpath(P, pos, rot, prm, PF)
+        check_branches(P, robot, PF)
+        check_coverage(P, pos, prm, PF)
+        check_summary(P, prm, PF)
+        n_c = sum(s == "collision" for s in P.status)
+        n_u = sum(s == "unreachable" for s in P.status)
+        if n_c or n_u:
+            PF.err(f"{P.pid}: {n_c} collision, {n_u} unreachable (G3 verlangt 0)")
+        if P.part.get("status") != "machbar":
+            PF.err(f"{P.pid}: part.status = {P.part.get('status')!r}, erwartet 'machbar'")
+        if mode == "s2":
+            check_placement(P, PF)
+    del pos, rot
+    # Abstaende: S1/S2 jedes erreichbare Sample; S3 die von roboprint als Kollision gemeldeten
+    mask = np.array([s == "collision" for s in P.status]) if mode == "s3" else P.reach.copy()
+    qpath, lpath = Path(tmp) / f"{P.pid}.q.npy", Path(tmp) / f"{P.pid}.layer.npy"
+    np.save(qpath, P.q)
+    np.save(lpath, P.layer)
+    out.update(N=P.N, verts=np.asarray(P.mesh.vertices), faces=np.asarray(P.mesh.faces), T_WP=P.T_WP,
+               part=P.part, status=_codes(P.status), kind=_codes(P.kind), d_mm=P.d_mm, mask=mask,
+               qpath=str(qpath), lpath=str(lpath))
+    return out
 
 
 def _eval(task):
-    key, idx = task
-    mesh, T_WP, prm, q, layer = _WORK[key]
-    if key not in _ORACLES:
-        _ORACLES[key] = CollisionOracle(mesh, T_WP, prm.h, prm.r_free)
-    ic = IntervalChecker(_ORACLES[key], prm.thresholds())
+    """Abstandsintervalle fuer einen Block von Samples eines Teils."""
+    pid, qpath, lpath, verts, faces, T_WP, prm, relaxed, idx = task
+    if qpath not in _CUR:
+        while len(_CUR) >= 2:
+            _CUR.pop(next(iter(_CUR)))  # aeltestes Teil samt Druckstaenden freigeben
+        mesh = trimesh.Trimesh(verts, faces, process=False)
+        _CUR[qpath] = (CollisionOracle(mesh, T_WP, prm.h, prm.r_free), np.load(qpath), np.load(lpath))
+    oracle, q, layer = _CUR[qpath]
+    ic = IntervalChecker(oracle, prm.thresholds(), relaxed_below=prm.d_hard if relaxed else None)
     lb = np.empty(len(idx))
     ub = np.empty(len(idx))
-    pairs = []
+    pc = np.full(len(idx), -1, dtype=np.int16)
     for n, i in enumerate(idx):
         iv = ic.evaluate(q[i], int(layer[i]))
         lb[n], ub[n] = iv.lb, iv.ub
-        pairs.append(iv.pair)
-    return key, idx, lb, ub, pairs
+        pc[n] = _PAIR_CODE.get(tuple(iv.pair) if iv.pair is not None else None, -1)
+    return pid, idx, lb, ub, pc
 
 
-def evaluate_distances(parts: list[PartData], masks: dict[str, np.ndarray], prm: Params, jobs: int):
-    """Intervall [lb, ub] des kleinsten Abstands je ausgewaehltem Sample (alle Schwellen entschieden)."""
-    static_geometry(float(prm.r_free), 80.0)  # vor dem Fork bauen, Kinder erben sie
-    tasks = []
-    out = {}
-    for P in parts:
-        _WORK[P.pid] = (P.mesh, P.T_WP, prm, P.q, P.layer)
-        idx = np.flatnonzero(masks[P.pid])
-        out[P.pid] = (np.full(P.N, np.nan), np.full(P.N, np.nan), [None] * P.N)
-        nblk = max(1, min(len(idx) // 1500, jobs * 4)) if len(idx) else 0
-        for blk in np.array_split(idx, nblk) if nblk else []:
-            if len(blk):
-                tasks.append((P.pid, blk))
-    if jobs > 1 and len(tasks) > 1:
-        with mp.get_context("fork").Pool(jobs) as pool:
-            results = list(pool.imap_unordered(_eval, tasks))
-    else:
-        results = [_eval(t) for t in tasks]
-    for key, idx, lb, ub, pairs in results:
-        L, U, PR = out[key]
-        L[idx], U[idx] = lb, ub
-        for n, i in enumerate(idx):
-            PR[i] = pairs[n]
-    return out
+def _blocks(idx: np.ndarray, jobs: int) -> list[np.ndarray]:
+    nblk = max(1, min(len(idx) // 1500, jobs * 4)) if len(idx) else 0
+    return [b for b in (np.array_split(idx, nblk) if nblk else []) if len(b)]
+
+
+class _Serial:
+    """Pool-Ersatz fuer jobs = 1 (Selbsttests, Fehlersuche)."""
+
+    def map(self, fn, items):
+        return [fn(x) for x in items]
+
+    imap_unordered = map
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        _CUR.clear()
+        return False
+
+
+def _pool(jobs: int):
+    return mp.get_context("fork").Pool(jobs) if jobs > 1 else _Serial()
+
+
+def _peak_rss_mb() -> dict:
+    self_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+    child_mb = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss / 1024
+    return {"main": round(self_mb), "largest_worker": round(child_mb)}
 
 
 # --------------------------------------------------------------------------- Lauf-Ebene
@@ -150,7 +225,7 @@ def check_run_level(run: Path, scenario: dict, prm: Params, F: Findings):
     return summary, scene
 
 
-def check_walls(run: Path, scenario: dict, summary: dict, parts: dict[str, PartData], prm: Params,
+def check_walls(run: Path, scenario: dict, summary: dict, parts: dict[str, PartLite], prm: Params,
                 F: Findings) -> list[dict]:
     """S2: Eignung, vollstaendige Zerlegung, Ueberlappung, Ueberhang-Regel (unabhaengig aus dem IFC)."""
     src = scenario["source"]
@@ -218,19 +293,28 @@ def check_placement(P: PartData, F: Findings) -> None:
         F.err(f"{P.pid}: Teil schneidet die Roboterbasis (base_link)")
 
 
-def run(run_dir: Path, scenario_path: Path, jobs: int) -> tuple[bool, dict]:
+def _status_part(prep: dict, lb, ub, pc, prm: Params, PF: Findings) -> None:
+    su, sc = prep["status"]
+    ku, kc = prep["kind"]
+    lite = SimpleNamespace(pid=prep["pid"], status=[su[c] for c in sc], kind=[ku[c] for c in kc],
+                           d_mm=prep["d_mm"])
+    pairs = [PAIRS[c] if c >= 0 else None for c in pc]
+    check_status(lite, lb, ub, pairs, prm, PF, prep["mask"])
+
+
+def run(run_dir: Path, scenario_path: Path, jobs: int, legacy_status: bool = False) -> tuple[bool, dict]:
+    """Prueft den Laufordner Teil fuer Teil: je Arbeitsprozess ein Teil laden, pruefen, Rohdaten
+    freigeben; Teile mit identischen Pruefeingaben (content_hash.part_key) nur einmal.
+    legacy_status: Statusregel vor dem 19.10.2026 (alle Paare zaehlen fuer d_target), nur zum Vergleich."""
     t0 = time.monotonic()
     scenario = load_json(scenario_path)
-    _, T_WS, ws = workstation_frames()
+    _, _, ws = workstation_frames()
     prm = params_for(scenario, ws)
-    T_WB = workstation_frames()[0]
     F = Findings()
     expect = scenario.get("expect", {})
     mode = "s3" if expect.get("parts") == "collision_detected" else (
         "s2" if "eligible_walls" in expect else "s1")
     summary, _ = check_run_level(run_dir, scenario, prm, F)
-    parts: dict[str, PartData] = {}
-    part_findings: dict[str, Findings] = {}
     pdirs = sorted(p for p in (run_dir / "parts").glob("*") if p.is_dir())
     if summary is not None:
         listed = [p.get("part_id") for p in summary.get("parts", [])]
@@ -238,52 +322,71 @@ def run(run_dir: Path, scenario_path: Path, jobs: int) -> tuple[bool, dict]:
             F.err(f"summary.parts {sorted(listed)} != Ordner {[p.name for p in pdirs]}")
     if not pdirs:
         F.err("keine Teile im Laufordner")
-    robot = default_robot()
+    static_geometry(float(prm.r_free), 80.0)  # vor dem Fork bauen, Kinder erben sie
+    default_robot()
+    part_findings: dict[str, Findings] = {}
+    lites: dict[str, PartLite] = {}
+    with _pool(jobs) as pool, tempfile.TemporaryDirectory(prefix="check_run_") as tmp:
+        keys = pool.map(part_key, pdirs)
+        rep_of: dict[str, str] = {}
+        first: dict[str, str] = {}
+        for pdir, key in zip(pdirs, keys, strict=True):
+            rep_of[pdir.name] = pdir.name if key is None else first.setdefault(key, pdir.name)
+        reps = [p for p in pdirs if rep_of[p.name] == p.name]
+        preps: dict[str, dict] = {}
+        for res in pool.imap_unordered(_prepare, [(p, mode, prm, tmp) for p in reps]):
+            preps[res["pid"]] = res
+        t1 = time.monotonic()
+        tasks, acc = [], {}
+        for p in reps:
+            pr = preps[p.name]
+            if not pr["loaded"]:
+                part_findings[p.name] = Findings(list(pr["errors"]), dict(pr["metrics"]))
+                continue
+            acc[p.name] = [np.full(pr["N"], np.nan), np.full(pr["N"], np.nan),
+                           np.full(pr["N"], -1, dtype=np.int16), 0]
+            for blk in _blocks(np.flatnonzero(pr["mask"]), jobs):
+                tasks.append((p.name, pr["qpath"], pr["lpath"], pr["verts"], pr["faces"], pr["T_WP"], prm,
+                              not legacy_status, blk))
+                acc[p.name][3] += 1
+
+        def finish(pid: str) -> None:
+            pr = preps.pop(pid)
+            lb, ub, pc, _ = acc.pop(pid)
+            PF = Findings(list(pr["errors"]), dict(pr["metrics"]))
+            if mode == "s3":
+                m = pr["mask"]
+                PF.metrics["n_roboprint_collision"] = int(m.sum())
+                PF.metrics["n_confirmed_collision"] = int(np.sum(m & (ub < 0)))
+            else:
+                _status_part(pr, lb, ub, pc, prm, PF)
+            part_findings[pid] = PF
+            lites[pid] = PartLite(pid, pr["N"], trimesh.Trimesh(pr["verts"], pr["faces"], process=False),
+                                  pr["T_WP"], pr["part"])
+
+        for pid in [k for k, v in acc.items() if v[3] == 0]:
+            finish(pid)
+        for pid, idx, lb, ub, pc in pool.imap_unordered(_eval, tasks):
+            a = acc[pid]
+            a[0][idx], a[1][idx], a[2][idx] = lb, ub, pc
+            a[3] -= 1
+            if a[3] == 0:
+                finish(pid)
+        t_dist = time.monotonic() - t1
+    # Duplikate: Ergebnis des Repraesentanten mit Vermerk; T_LP usw. aus dem eigenen part.json
     for pdir in pdirs:
-        PF = Findings()
-        part_findings[pdir.name] = PF
-        P = load_part(pdir, T_WS, PF)
-        if P is None:
+        rep = rep_of[pdir.name]
+        if rep == pdir.name:
             continue
-        parts[P.pid] = P
-        pos, rot = check_kinematics(P, robot, T_WB, PF)
-        check_layer_rule(P, PF)
-        if mode != "s3":
-            check_density(P, pos, PF)
-            check_toolpath(P, pos, rot, prm, PF)
-            check_branches(P, robot, PF)
-            check_coverage(P, pos, prm, PF)
-            check_summary(P, prm, PF)
-            n_c = sum(s == "collision" for s in P.status)
-            n_u = sum(s == "unreachable" for s in P.status)
-            if n_c or n_u:
-                PF.err(f"{P.pid}: {n_c} collision, {n_u} unreachable (G3 verlangt 0)")
-            if P.part.get("status") != "machbar":
-                PF.err(f"{P.pid}: part.status = {P.part.get('status')!r}, erwartet 'machbar'")
-            if mode == "s2":
-                check_placement(P, PF)
-    # Abstaende: S1/S2 jedes erreichbare Sample; S3 die von roboprint als Kollision gemeldeten
-    masks = {}
-    for P in parts.values():
-        if mode == "s3":
-            masks[P.pid] = np.array([s == "collision" for s in P.status])
-        else:
-            masks[P.pid] = P.reach.copy()
-    t1 = time.monotonic()
-    dist = evaluate_distances(list(parts.values()), masks, prm, jobs)
-    t_dist = time.monotonic() - t1
-    n_rp_coll = n_confirmed = 0
-    for P in parts.values():
-        lb, ub, pairs = dist[P.pid]
-        PF = part_findings[P.pid]
-        if mode == "s3":
-            n_rp_coll += int(masks[P.pid].sum())
-            n_confirmed += int(np.sum(masks[P.pid] & (ub < 0)))
-            PF.metrics["n_roboprint_collision"] = int(masks[P.pid].sum())
-            PF.metrics["n_confirmed_collision"] = int(np.sum(masks[P.pid] & (ub < 0)))
-        else:
-            check_status(P, lb, ub, pairs, prm, PF, masks[P.pid])
+        RF = part_findings[rep]
+        part_findings[pdir.name] = Findings(retag(RF.errors, rep, pdir.name), {**RF.metrics, "same_as": rep})
+        if rep in lites:
+            L = lites[rep]
+            lites[pdir.name] = PartLite(pdir.name, L.N, L.mesh, L.T_WP, load_json(pdir / "part.json"))
+    part_findings = {p.name: part_findings[p.name] for p in pdirs}
     if mode == "s3":
+        n_rp_coll = sum(PF.metrics.get("n_roboprint_collision", 0) for PF in part_findings.values())
+        n_confirmed = sum(PF.metrics.get("n_confirmed_collision", 0) for PF in part_findings.values())
         if n_rp_coll == 0:
             F.err("S3: roboprint meldet kein Sample mit status collision")
         elif n_confirmed == 0:
@@ -294,17 +397,20 @@ def run(run_dir: Path, scenario_path: Path, jobs: int) -> tuple[bool, dict]:
                 F.err(f"summary: Teil {sp.get('part_id')} status {sp.get('status')!r}")
     walls = []
     if mode == "s2" and summary is not None:
-        walls = check_walls(run_dir, scenario, summary, parts, prm, F)
+        walls = check_walls(run_dir, scenario, summary, lites, prm, F)
     errors = list(F.errors) + [e for PF in part_findings.values() for e in PF.errors]
     passed = not errors
     report = {
         "schema_version": "2", "scenario": scenario.get("id"), "expect": expect, "mode": mode,
         "passed": passed, "errors": errors,
         "params": prm.__dict__, "walls": walls,
-        "parts": {k: {"n": parts[k].N if k in parts else None, **v.metrics}
+        "status_rule": "alt: alle Paare (nur Vergleich)" if legacy_status else
+        "d_status (SPEC §2, Nutzerentscheidung 19.10.2026)",
+        "parts": {k: {"n": lites[k].N if k in lites else None, **v.metrics}
                   for k, v in part_findings.items()},
+        "dedup": {"parts": len(pdirs), "checked": len(reps)},
         "seconds": {"total": round(time.monotonic() - t0, 1), "distances": round(t_dist, 1)},
-        "jobs": jobs,
+        "jobs": jobs, "peak_rss_mb": _peak_rss_mb(),
     }
     return passed, report
 
@@ -314,7 +420,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("run_dir", type=Path)
     ap.add_argument("--scenario", type=Path, required=True)
     ap.add_argument("--jobs", type=int, default=int(os.environ.get("VERIFY_JOBS", "0")) or
-                    max(1, min(3, (os.cpu_count() or 2) - 1)))
+                    max(1, min(4, os.cpu_count() or 1)))
+    ap.add_argument("--old-status-rule", action="store_true",
+                    help="Statusregel vor dem 19.10.2026 (nur Vergleich alter Laeufe)")
+    ap.add_argument("--out", type=Path, default=None, help="Bericht (Default <laufordner>/check.json)")
     args = ap.parse_args(argv)
     run_dir = args.run_dir if args.run_dir.is_absolute() else Path.cwd() / args.run_dir
     scen = args.scenario if args.scenario.is_absolute() else Path.cwd() / args.scenario
@@ -322,15 +431,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Laufordner fehlt: {run_dir}", file=sys.stderr)
         return 2
     try:
-        passed, report = run(run_dir, scen, max(1, args.jobs))
+        passed, report = run(run_dir, scen, max(1, args.jobs), legacy_status=args.old_status_rule)
     except Exception as exc:  # noqa: BLE001 - jeder Absturz ist ein Fehlschlag mit Bericht
         import traceback
 
         passed = False
         report = {"schema_version": "2", "passed": False,
                   "errors": [f"Pruefer abgebrochen: {exc!r}"], "traceback": traceback.format_exc()}
-    (run_dir / "check.json").write_text(json.dumps(report, indent=2, ensure_ascii=False, default=str),
-                                        encoding="utf-8")
+    out = args.out or run_dir / "check.json"
+    out.write_text(json.dumps(report, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     for e in report["errors"][:40]:
         print(f"FEHLER {e}")
     print(f"check_run: {'BESTANDEN' if passed else 'NICHT BESTANDEN'} ({len(report['errors'])} Fehler)")

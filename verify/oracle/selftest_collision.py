@@ -143,3 +143,36 @@ def test_interval_checker_matches_exact_distance():
             else:
                 assert iv.lb - 1e-6 <= d <= iv.ub + 1e-6
                 assert all(iv.lb >= t or iv.ub < t for t in T)
+
+
+def test_status_distance_relaxed_pair():
+    """d_status (SPEC §2, 19.10.2026): base_link <-> link_2 zaehlt nur unter d_hard; das Intervall des
+    Pruefers mit relaxed_below = d_hard enthaelt d_status und entscheidet alle Schwellen."""
+    from verify.oracle.collision_oracle import is_relaxed
+
+    assert is_relaxed(("link_2", "base_link")) and is_relaxed(("base_link", "link_2"))
+    assert not is_relaxed(("tool_body", "base_link")) and not is_relaxed(("link_2", "floor"))
+    part = box_part_mesh((600, 200, 400))
+    T_SP = np.eye(4)
+    T_SP[:3, 3] = [0.0, -50.0, 0.0]
+    o = CollisionOracle(part, T_WS @ T_SP, 10.0, 40.0)
+    T = [0.0, 10.0, 12.0, 49.0, 50.0, 62.0]
+    # Konstruktiv: base_link <-> link_2 liegt unter d_target, aber ueber d_hard
+    rel = o.distance(HOME_RAD, 0, depth=False, pairs=[("link_2", "base_link")]).d_mm
+    assert 10.0 < rel < 50.0
+    rng = np.random.default_rng(11)
+    ic = IntervalChecker(o, T, relaxed_below=10.0)
+    q = np.array(Q_PRINT, dtype=float)
+    for i in range(24):
+        q = q + rng.normal(0, 0.004, 6)
+        iv = ic.evaluate(q, 20)
+        if i % 4:
+            continue
+        c = o.status_contact(q, 20, 10.0, depth=False)
+        full = o.distance(q, 20, depth=False).d_mm
+        assert c.d_mm >= full - 1e-9 and not (is_relaxed(c.pair) and c.d_mm >= 10.0)
+        if c.d_mm < 0:
+            assert iv.collision
+        else:
+            assert iv.lb - 1e-6 <= c.d_mm <= iv.ub + 1e-6
+            assert all(iv.lb >= t or iv.ub < t for t in T)
