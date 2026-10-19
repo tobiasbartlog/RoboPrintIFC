@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 
+from roboprint.collision import status_of
 from roboprint.robot import HOME_Q
 
 from .backend import can_fork_pool, contacts_batch, contacts_parallel
@@ -102,9 +103,7 @@ class PlannedPath:
 def _status(c: Any, ok: bool, p: PlannerParams) -> str:
     if not ok:
         return "unreachable"
-    if c.d_mm < 0.0:
-        return "collision"
-    return "warn" if c.d_mm < p.d_target_mm else "ok"
+    return status_of(c, p.d_target_mm, p.d_target_printed_mm)
 
 
 class PartPlanner:

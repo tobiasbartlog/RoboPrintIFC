@@ -178,7 +178,9 @@ def _write(out: Path, b: _Builder, rings: list[np.ndarray], T_WP: np.ndarray, n_
         tool=SceneTool(
             mesh="tools/30gut.stl", T_FT=b.T_FT.tolist(), mesh_transform=frames.T_F_mesh(b.tool).tolist()
         ),
-        params=SceneParams(d_hard_mm=10.0, d_target_mm=50.0, r_free_mm=40.0, layer_height_mm=H),
+        params=SceneParams(
+            d_hard_mm=10.0, d_target_mm=50.0, d_target_printed_mm=20.0, r_free_mm=40.0, layer_height_mm=H
+        ),
     )
     summary = Summary(
         scenario_id="test_mini_rechteck", scenario_path="core/tests/drl_plan.py",

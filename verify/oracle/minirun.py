@@ -136,8 +136,7 @@ def build(out: Path, part_id: str = "box_0", size=SIZE, center=CENTER_S) -> Path
     traj = {k: [] for k in ("t_s", "q", "tcp", "layer", "ring", "kind", "branch", "status", "d_mm", "pair",
                             "witness", "psi_rad")}
     for i, s in enumerate(b.S):
-        c = world.status_contact(s["q"], s["layer"], 10.0, depth=False)  # d_status (SPEC §2)
-        st = "collision" if c.d_mm < 0 else ("warn" if c.d_mm < 50.0 else "ok")
+        st, c = world.status_of_pose(s["q"], s["layer"], 10.0, 50.0, 20.0)  # SPEC §2
         sg = b.r.branch_signs(s["q"])
         traj["t_s"].append(0.01 * i)
         traj["q"].append(s["q"].tolist())
@@ -172,7 +171,7 @@ def build(out: Path, part_id: str = "box_0", size=SIZE, center=CENTER_S) -> Path
         "rings": [{k: rg[k] for k in ("layer", "shell", "kind", "closed", "waypoints")} for rg in rings]})
     _dump(pdir / "trajectory.json", traj)
     params = {"layer_height_mm": H, "bead_width_mm": W_BEAD, "d_hard_mm": 10.0, "d_target_mm": 50.0,
-              "r_free_mm": 40.0}
+              "d_target_printed_mm": 20.0, "r_free_mm": 40.0}
     _dump(out / "summary.json", {
         "schema_version": "2", "scenario_id": "MINI", "scenario_path": "", "params": params,
         "assumptions": [], "walls": [{"wall_id": "box", "name": "box", "eligible": True, "reason": None,
@@ -187,7 +186,8 @@ def build(out: Path, part_id: str = "box_0", size=SIZE, center=CENTER_S) -> Path
                         "T_WS": b.T_WS.tolist()},
         "tool": {"mesh": "tools/30gut.stl", "T_FT": b.r.T_FT.tolist(),
                  "mesh_transform": b.r.T_F_toolmesh.tolist()},
-        "params": {**{k: params[k] for k in ("d_hard_mm", "d_target_mm", "r_free_mm", "layer_height_mm")}}})
+        "params": {**{k: params[k] for k in ("d_hard_mm", "d_target_mm", "d_target_printed_mm", "r_free_mm",
+                                                "layer_height_mm")}}})
     scen = out / "scenario.json"
     _dump(scen, {"schema_version": "1", "id": "MINI", "mode": "modul",
                  "source": {"kind": "box", "size_mm": list(size)}, "decompose": False, "params": {},

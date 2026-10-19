@@ -152,6 +152,12 @@ def test_status_distance_relaxed_pair():
 
     assert is_relaxed(("link_2", "base_link")) and is_relaxed(("base_link", "link_2"))
     assert not is_relaxed(("tool_body", "base_link")) and not is_relaxed(("link_2", "floor"))
+    # alle Gliedpaare mit genau einem Gelenk dazwischen (A6.4), ungeordnet
+    for i in range(5):
+        a, b = LINK_NAMES[i], LINK_NAMES[i + 2]
+        assert is_relaxed((a, b)) and is_relaxed((b, a))
+    assert not is_relaxed(("link_1", "link_4")) and not is_relaxed(("link_5", "link_6"))
+    assert not is_relaxed(("link_6", "printed")) and not is_relaxed(("link_3", "link_4"))
     part = box_part_mesh((600, 200, 400))
     T_SP = np.eye(4)
     T_SP[:3, 3] = [0.0, -50.0, 0.0]
@@ -176,3 +182,82 @@ def test_status_distance_relaxed_pair():
         else:
             assert iv.lb - 1e-6 <= c.d_mm <= iv.ub + 1e-6
             assert all(iv.lb >= t or iv.ub < t for t in T)
+
+
+#: Nur (link_2, link_4) und (link_4, link_6) liegen mit ~37 mm unter d_target, alles uebrige > 70 mm.
+Q_FOLD = np.deg2rad([103.7, 37.0, 4.3, -72.8, -107.1, -39.7])
+
+
+def test_neighbour_link_pair_below_target_is_ok():
+    """Pose, bei der nur ein i <-> i+2-Gliedpaar unter d_target liegt: Status ok (>= d_hard); mit
+    kuenstlich grossem d_hard zaehlt das Paar und der Status wird warn."""
+    from verify.oracle.collision_oracle import is_relaxed
+
+    o = CollisionOracle()
+    rel = {p: o.distance(Q_FOLD, 0, depth=False, pairs=[p]).d_mm for p in o.pairs if is_relaxed(p)}
+    near = [p for p, d in rel.items() if 10.0 <= d < 50.0]
+    assert near, rel
+    rest = min(o.distance(Q_FOLD, 0, depth=False, pairs=[p]).d_mm for p in o.pairs if not is_relaxed(p))
+    assert rest >= 50.0, rest  # nur das Gliedpaar liegt unter d_target
+    st, c = o.status_of_pose(Q_FOLD, 0, 10.0, 50.0, 20.0)
+    assert st == "ok" and abs(c.d_mm - rest) < 1e-9 and not is_relaxed(c.pair)
+    st, c = o.status_of_pose(Q_FOLD, 0, 100.0, 50.0, 20.0)  # d_hard = 100: das Paar zaehlt
+    assert st == "warn" and abs(c.d_mm - min(rel.values())) < 1e-9 and is_relaxed(c.pair)
+
+
+def test_printed_target_distance():
+    """Druckstand: Abstand 35 mm ist ok (>= 20), 15 mm warn; kein anderes Paar darf es aendern."""
+    from verify.oracle.collision_oracle import is_relaxed
+
+    o0 = CollisionOracle()
+    poses = o0.body_poses(Q_PRINT)
+    low = None
+    for n in (*LINK_NAMES, "tool_body"):
+        v = o0._body(n, 0).vertices @ poses[n][:3, :3].T + poses[n][:3, 3]
+        i = int(np.argmin(v[:, 2]))
+        if low is None or v[i, 2] < low[2]:
+            low = v[i]
+    for gap, expect in ((35.0, "ok"), (15.0, "warn")):
+        part, T_WP = _part_at(np.array([low[0], low[1], low[2] - gap - 20.0]), (60.0, 60.0, 20.0))
+        o = CollisionOracle(part, T_WP, 10.0, 40.0)
+        d_p = o.distance(Q_PRINT, 2, depth=False, pairs=[p for p in o.pairs if p[1] == "printed"]).d_mm
+        d_o = min(o.distance(Q_PRINT, 2, depth=False, pairs=[p]).d_mm for p in o.pairs
+                  if p[1] != "printed" and not is_relaxed(p))
+        assert abs(d_p - gap) < 1e-3
+        st, _ = o.status_of_pose(Q_PRINT, 2, 10.0, 50.0, 20.0)
+        want = "warn" if d_o < 50.0 else expect
+        assert st == want, (gap, d_p, d_o, st)
+        if d_o >= 50.0:
+            assert st == expect
+
+
+def test_interval_checker_normalised_distance():
+    """e = min(d_uebrige, d_Druckstand + 30) liegt in [lb_e, ub_e], die Statusschwellen sind entschieden."""
+    from verify.oracle.collision_oracle import is_relaxed
+
+    part = box_part_mesh((600, 200, 400))
+    T_SP = np.eye(4)
+    T_SP[:3, 3] = [0.0, -50.0, 0.0]
+    o = CollisionOracle(part, T_WS @ T_SP, 10.0, 40.0)
+    Te = [49.0, 50.0, 62.0]
+    rng = np.random.default_rng(13)
+    ic = IntervalChecker(o, [0.0, 10.0, 12.0], relaxed_below=10.0, status_thresholds=Te, printed_shift=30.0)
+    q = np.array(Q_PRINT, dtype=float)
+    for i in range(24):
+        q = q + rng.normal(0, 0.004, 6)
+        iv = ic.evaluate(q, 20)
+        if i % 3:
+            continue
+        ds = {}
+        for p in o.pairs:
+            d = o.distance(q, 20, depth=False, pairs=[p]).d_mm
+            if is_relaxed(p) and d >= 10.0:
+                continue
+            ds[p] = d + (30.0 if p[1] == "printed" else 0.0)
+        e = min(ds.values())
+        if e - 30.0 < 0 or min(d for p, d in ds.items() if p[1] != "printed") < 0:
+            continue
+        if iv.collision:
+            continue
+        assert iv.lb_e - 1e-6 <= e <= iv.ub_e + 1e-6, (iv.lb_e, e, iv.ub_e)
+        assert all(iv.lb_e >= t or iv.ub_e < t for t in Te)

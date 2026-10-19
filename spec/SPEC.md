@@ -70,6 +70,28 @@ Paars < d_hard, geht er doch in d_status ein. Das Paar zählt also weiter für `
 für d_hard, aber nicht für die d_target-Schwelle. In den Regeln oben steht d für d_status. Weitere
 Paare kommen nur nach Freigabe durch den Nutzer hinzu.
 
+*Erweiterung A6.4 (Nutzerentscheidung Tobias, 19.10.2026: „Nebeneinanderliegende Achsen können wir
+gerne rausnehmen, da sie ja eigentlich nicht kollidieren können.“):* Die Regel gilt für alle
+Gliedpaare mit genau einem Gelenk dazwischen, also i ↔ i+2 in der Kette `base_link`, `link_1`, …,
+`link_6`: (`base_link`, `link_2`), (`link_1`, `link_3`), (`link_2`, `link_4`), (`link_3`, `link_5`),
+(`link_4`, `link_6`), ungeordnet verglichen. Sie werden weiter geprüft (Sicherheitsnetz), zählen für
+`collision` und d_hard und gehen in d_status nur ein, wenn ihr Abstand < d_hard ist; sonst lösen sie
+kein `warn` aus. Weiter entfernte Gliedpaare, Werkzeugkörper, Düsenspitze und Umgebung zählen
+unverändert voll.
+
+*Nachtrag Sollabstand Druckstand (Nutzerentscheidung Tobias, 19.10.2026, „ja stimme zu“):* Der
+Werkzeugkörper beginnt per Definition außerhalb der Freizone r_free = 40 mm um den TCP und liegt beim
+Drucken deshalb konstruktiv ≈ 41 mm vom Druckstand entfernt; 50 mm wären dort nie erreichbar. Gegen das
+Hindernis `printed` gilt für die Warnschwelle daher d_target_printed = 20 mm statt d_target = 50 mm.
+d_hard = 10 mm gilt unverändert für alle Paare, `collision` (d < 0) ebenso. Statusregel damit:
+`collision`, wenn irgendein geprüftes Paar d < 0 hat; sonst `warn`, wenn ein zählendes Paar unter
+seinem Sollabstand liegt (Druckstand: d_target_printed; Umgebung, Werkzeug und entfernte Glieder:
+d_target; die i ↔ i+2-Gliedpaare nur, wenn < d_hard); sonst `ok`. `d_mm`, `pair` und `witness` gehören
+zum Paar mit dem kleinsten Abstand unter den zählenden Paaren (d_status). Der Status ist deshalb
+nicht allein aus `d_mm` ablesbar: Ist das Paar des Minimums der Druckstand, gilt `warn` ⇔ d_mm <
+d_target_printed oder ein anderes Paar < d_target. `d_target_printed_mm` steht in `params`,
+`summary.params` und `scene.json params`.
+
 **IK-Zweig:** drei Bits (Schulter, Ellbogen, Handgelenk), Index 0–7. Die Zuordnung definiert
 `roboprint.robot` und dokumentiert sie im Docstring. Gleiche Bits müssen dieselbe Bedeutung
 haben wie `sol` im Doosan-`ikin` (docs/doosan-drl.md).
@@ -146,7 +168,7 @@ in P1 überzeugt (§5.2).
 Zeugenpunkte in W.
 
 *Nachtrag 19.10.2026 (Nutzerentscheidung 19.10.2026):* Für den Status zählt d_status nach §2
-(`base_link` ↔ `link_2` nur, wenn < d_hard). Die Paarliste oben bleibt unverändert; G2 vergleicht
+(i ↔ i+2-Gliedpaare nur, wenn < d_hard; Druckstand mit d_target_printed). Die Paarliste oben bleibt unverändert; G2 vergleicht
 weiter die Abstände über alle Paare.
 
 ### 5.2 Planer (`planner`)
@@ -334,6 +356,7 @@ DRL-Programms und in `summary.json`.
 | r_blend | min(2 mm, ½ Segmentlänge) | A |
 | d_hard | 10 mm, hartes Abnahmekriterium | A |
 | d_target | 50 mm (`safety_min_distance_mm` der Workstation) | |
+| d_target_printed | 20 mm, Sollabstand gegen den Druckstand (§2 Nachtrag 19.10.2026) | Nutzer |
 | r_free | 40 mm | aus v1 |
 | τ_max | 0° | A |
 | Δψ-Raster | 15° | |

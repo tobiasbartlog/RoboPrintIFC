@@ -114,7 +114,8 @@ def _prepare(task) -> dict:
     np.save(qpath, P.q)
     np.save(lpath, P.layer)
     out.update(N=P.N, verts=np.asarray(P.mesh.vertices), faces=np.asarray(P.mesh.faces), T_WP=P.T_WP,
-               part=P.part, status=_codes(P.status), kind=_codes(P.kind), d_mm=P.d_mm, mask=mask,
+               part=P.part, status=_codes(P.status), kind=_codes(P.kind), d_mm=P.d_mm,
+               on_printed=P.on_printed, mask=mask,
                qpath=str(qpath), lpath=str(lpath))
     return out
 
@@ -128,15 +129,17 @@ def _eval(task):
         mesh = trimesh.Trimesh(verts, faces, process=False)
         _CUR[qpath] = (CollisionOracle(mesh, T_WP, prm.h, prm.r_free), np.load(qpath), np.load(lpath))
     oracle, q, layer = _CUR[qpath]
-    ic = IntervalChecker(oracle, prm.thresholds(), relaxed_below=prm.d_hard if relaxed else None)
+    ic = IntervalChecker(oracle, prm.thresholds(), relaxed_below=prm.d_hard if relaxed else None,
+                         status_thresholds=prm.status_thresholds(), printed_shift=prm.printed_shift)
     lb = np.empty(len(idx))
     ub = np.empty(len(idx))
+    lbe = np.empty(len(idx))
     pc = np.full(len(idx), -1, dtype=np.int16)
     for n, i in enumerate(idx):
         iv = ic.evaluate(q[i], int(layer[i]))
-        lb[n], ub[n] = iv.lb, iv.ub
+        lb[n], ub[n], lbe[n] = iv.lb, iv.ub, iv.lb_e
         pc[n] = _PAIR_CODE.get(tuple(iv.pair) if iv.pair is not None else None, -1)
-    return pid, idx, lb, ub, pc
+    return pid, idx, lb, ub, pc, lbe
 
 
 def _blocks(idx: np.ndarray, jobs: int) -> list[np.ndarray]:
@@ -178,6 +181,7 @@ def params_for(scenario: dict, ws: dict) -> Params:
     return Params(h=float(p.get("layer_height_mm", 10.0)), w=float(p.get("bead_width_mm", 30.0)),
                   shells=int(p.get("shells", 2)), d_hard=float(p.get("d_hard_mm", 10.0)),
                   d_target=float(p.get("d_target_mm", ws.get("safety_min_distance_mm", 50.0))),
+                  d_target_printed=float(p.get("d_target_printed_mm", 20.0)),
                   r_free=float(p.get("r_free_mm", 40.0)), tau_max_deg=float(p.get("tau_max_deg", 0.0)))
 
 
@@ -196,7 +200,8 @@ def check_run_level(run: Path, scenario: dict, prm: Params, F: Findings):
             F.err(f"summary.json: scenario_id {summary.get('scenario_id')!r} != {scenario.get('id')!r}")
         sp = summary.get("params", {})
         for key, val in (("layer_height_mm", prm.h), ("bead_width_mm", prm.w), ("d_hard_mm", prm.d_hard),
-                         ("d_target_mm", prm.d_target), ("r_free_mm", prm.r_free)):
+                         ("d_target_mm", prm.d_target),
+                         ("d_target_printed_mm", prm.d_target_printed), ("r_free_mm", prm.r_free)):
             if key in sp and abs(float(sp[key]) - val) > 1e-9:
                 F.err(f"summary.params.{key} = {sp[key]}, erwartet {val}")
             if key not in sp:
@@ -215,6 +220,7 @@ def check_run_level(run: Path, scenario: dict, prm: Params, F: Findings):
                     F.err(f"scene.json: {name} weicht von den Assets ab")
             sp = scene["params"]
             for key, val in (("d_hard_mm", prm.d_hard), ("d_target_mm", prm.d_target),
+                             ("d_target_printed_mm", prm.d_target_printed),
                              ("r_free_mm", prm.r_free), ("layer_height_mm", prm.h)):
                 if abs(float(sp[key]) - val) > 1e-9:
                     F.err(f"scene.params.{key} = {sp[key]}, erwartet {val}")
@@ -293,13 +299,13 @@ def check_placement(P: PartData, F: Findings) -> None:
         F.err(f"{P.pid}: Teil schneidet die Roboterbasis (base_link)")
 
 
-def _status_part(prep: dict, lb, ub, pc, prm: Params, PF: Findings) -> None:
+def _status_part(prep: dict, lb, ub, pc, lbe, prm: Params, PF: Findings) -> None:
     su, sc = prep["status"]
     ku, kc = prep["kind"]
     lite = SimpleNamespace(pid=prep["pid"], status=[su[c] for c in sc], kind=[ku[c] for c in kc],
-                           d_mm=prep["d_mm"])
+                           d_mm=prep["d_mm"], on_printed=prep["on_printed"])
     pairs = [PAIRS[c] if c >= 0 else None for c in pc]
-    check_status(lite, lb, ub, pairs, prm, PF, prep["mask"])
+    check_status(lite, lb, ub, pairs, prm, PF, prep["mask"], lbe)
 
 
 def run(run_dir: Path, scenario_path: Path, jobs: int, legacy_status: bool = False) -> tuple[bool, dict]:
@@ -344,7 +350,7 @@ def run(run_dir: Path, scenario_path: Path, jobs: int, legacy_status: bool = Fal
                 part_findings[p.name] = Findings(list(pr["errors"]), dict(pr["metrics"]))
                 continue
             acc[p.name] = [np.full(pr["N"], np.nan), np.full(pr["N"], np.nan),
-                           np.full(pr["N"], -1, dtype=np.int16), 0]
+                           np.full(pr["N"], -1, dtype=np.int16), 0, np.full(pr["N"], np.nan)]
             for blk in _blocks(np.flatnonzero(pr["mask"]), jobs):
                 tasks.append((p.name, pr["qpath"], pr["lpath"], pr["verts"], pr["faces"], pr["T_WP"], prm,
                               not legacy_status, blk))
@@ -352,23 +358,23 @@ def run(run_dir: Path, scenario_path: Path, jobs: int, legacy_status: bool = Fal
 
         def finish(pid: str) -> None:
             pr = preps.pop(pid)
-            lb, ub, pc, _ = acc.pop(pid)
+            lb, ub, pc, _, lbe = acc.pop(pid)
             PF = Findings(list(pr["errors"]), dict(pr["metrics"]))
             if mode == "s3":
                 m = pr["mask"]
                 PF.metrics["n_roboprint_collision"] = int(m.sum())
                 PF.metrics["n_confirmed_collision"] = int(np.sum(m & (ub < 0)))
             else:
-                _status_part(pr, lb, ub, pc, prm, PF)
+                _status_part(pr, lb, ub, pc, lbe, prm, PF)
             part_findings[pid] = PF
             lites[pid] = PartLite(pid, pr["N"], trimesh.Trimesh(pr["verts"], pr["faces"], process=False),
                                   pr["T_WP"], pr["part"])
 
         for pid in [k for k, v in acc.items() if v[3] == 0]:
             finish(pid)
-        for pid, idx, lb, ub, pc in pool.imap_unordered(_eval, tasks):
+        for pid, idx, lb, ub, pc, lbe in pool.imap_unordered(_eval, tasks):
             a = acc[pid]
-            a[0][idx], a[1][idx], a[2][idx] = lb, ub, pc
+            a[0][idx], a[1][idx], a[2][idx], a[4][idx] = lb, ub, pc, lbe
             a[3] -= 1
             if a[3] == 0:
                 finish(pid)

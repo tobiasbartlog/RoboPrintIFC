@@ -62,7 +62,7 @@ Righty, Bit 1 (Wert 2) = Ellbogen Above, Bit 0 (Wert 1) = Handgelenk Flip. 0 = L
 ### summary.json
 ```
 schema_version, scenario_id, scenario_path, params {…alle Werte aus SPEC §10, Schlüssel in
-snake_case mit Einheit, z. B. layer_height_mm, bead_width_mm, d_hard_mm, d_target_mm, r_free_mm},
+snake_case mit Einheit, z. B. layer_height_mm, bead_width_mm, d_hard_mm, d_target_mm, d_target_printed_mm, r_free_mm},
 assumptions [Text…], walls [{wall_id, name, eligible, reason|null, length_mm, thickness_mm,
 height_mm, volume_mm3, part_ids[]}], parts [{part_id, wall_id, status, d_min_mm|null,
 n_collision, n_unreachable}], timings_s {stage: Sekunden}, provenance {git_commit, created,
@@ -73,7 +73,7 @@ command}
 ### scene.json
 ```
 schema_version, robot {urdf}, workstation {mesh, T_WB, T_WS},
-tool {mesh, T_FT, mesh_transform}, params {d_hard_mm, d_target_mm, r_free_mm, layer_height_mm}
+tool {mesh, T_FT, mesh_transform}, params {d_hard_mm, d_target_mm, d_target_printed_mm, r_free_mm, layer_height_mm}
 ```
 `mesh_transform` ist die 4×4-Pose des Werkzeugmeshes im Flansch-Frame F (Mesh in mm).
 
@@ -100,10 +100,18 @@ zweig_wechsel_in_ringen}`. Bei `unreachable` sind `d_mm`, `pair` und `witness` n
 die letzte gültige Lösung nur zur Anzeige und wird nicht geprüft.
 
 Nachtrag 19.10.2026 (Nutzerentscheidung): `status`, `d_mm`, `pair`, `witness` und `summary.d_min_mm`
-beziehen sich auf d_status nach SPEC §2: Minimum über alle Paare außer (`base_link`, `link_2`), dieses
-Paar nur, wenn sein Abstand < d_hard ist. Die Paarreihenfolge im Artefakt ist beliebig
-(`["link_2", "base_link"]` oder umgekehrt). Die G2-Schnittstelle `World.distance` liefert weiter das
-Minimum über alle Paare.
+beziehen sich auf d_status nach SPEC §2: Minimum über alle Paare außer den Gliedpaaren mit genau einem
+Gelenk dazwischen ((`base_link`, `link_2`), (`link_1`, `link_3`), (`link_2`, `link_4`), (`link_3`,
+`link_5`), (`link_4`, `link_6`)); diese Paare nur, wenn ihr Abstand < d_hard ist (Nutzerentscheidung
+Tobias, 19.10.2026: „Nebeneinanderliegende Achsen können wir gerne rausnehmen, da sie ja eigentlich
+nicht kollidieren können.“). Die Paarreihenfolge im Artefakt ist beliebig (`["link_2", "base_link"]`
+oder umgekehrt). `World.distance` liefert d_status ebenfalls.
+
+Sollabstand Druckstand (Nutzerentscheidung Tobias, 19.10.2026, „ja stimme zu“): `warn` gilt, wenn ein
+zählendes Paar unter seinem Sollabstand liegt, gegen `printed` unter `d_target_printed_mm` (20 mm),
+sonst unter `d_target_mm` (50 mm); `collision` bei d < 0. `d_mm` ist das Minimum über die zählenden
+Paare, der Status daher nicht allein aus `d_mm` ablesbar. `d_target_printed_mm` steht in
+`scene.json params`, `summary.json params` und `scenario.params`.
 
 ### DRL
 `program.v2.drl`, `program.v3.drl`. Gelenkziele stehen als `posj(...)`, kartesische Ziele als

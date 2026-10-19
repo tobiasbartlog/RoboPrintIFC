@@ -26,6 +26,7 @@ export const NUM_PARAMS: NumParamDef[] = [
   { key: 'r_blend_mm', label: 'Überschleifradius', unit: 'mm', default: 2, step: 0.5, assumption: true },
   { key: 'd_hard_mm', label: 'Mindestabstand hart', unit: 'mm', default: 10, step: 1, assumption: true },
   { key: 'd_target_mm', label: 'Sollabstand', unit: 'mm', default: 50, step: 5, assumption: false },
+  { key: 'd_target_printed_mm', label: 'Sollabstand Druckstand', unit: 'mm', default: 20, step: 5, assumption: false },
   { key: 'r_free_mm', label: 'Freiraumradius', unit: 'mm', default: 40, step: 5, assumption: false },
   { key: 'tau_max_deg', label: 'Düsenneigung höchstens', unit: '°', default: 0, step: 1, assumption: true },
   { key: 'psi_step_deg', label: 'Winkelraster ψ', unit: '°', default: 15, step: 1, assumption: false },

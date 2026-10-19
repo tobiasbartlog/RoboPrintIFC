@@ -35,11 +35,19 @@ TOOL_BODY = "tool_body"
 NOZZLE_TIP = "nozzle_tip"
 FLOOR, TABLE, PRINTED = "floor", "table", "printed"
 R_FREE_MM = 40.0  # SPEC §10
-D_HARD_MM = 10.0  # SPEC §10; ab dieser Schwelle zaehlt das konstruktive Paar CONST_PAIR doch
-#: Konstruktiv konstantes Paar (~31-33 mm): zaehlt fuer `collision` und d_hard, nicht fuer d_target.
-#: Statusregel (Nutzerentscheidung 2026-10-19): d_status = min ueber alle Paare ausser CONST_PAIR;
-#: liegt dessen Abstand unter d_hard, geht er trotzdem ein.
-CONST_PAIR = ("link_2", "base_link")
+D_TARGET_MM = 50.0  # SPEC §10
+D_HARD_MM = 10.0  # SPEC §10; ab dieser Schwelle zaehlt die Paare CONST_PAIRS doch
+#: Gliedpaare mit genau einem Gelenk dazwischen (i <-> i+2): koennen nicht kollidieren, base_link <->
+#: link_2 liegt konstruktiv bei ~31-33 mm. Sie zaehlen fuer `collision` und d_hard, nicht fuer d_target.
+#: Statusregel (Nutzerentscheidung 2026-10-19, erweitert A6.4): d_status = min ueber alle Paare ausser
+#: CONST_PAIRS; liegt deren Abstand unter d_hard, geht er trotzdem ein. Ungeordnet verglichen.
+CONST_PAIRS = frozenset(frozenset((LINKS[i], LINKS[i + 2])) for i in range(len(LINKS) - 2))
+
+
+def is_const_pair(pair) -> bool:
+    """Gehoert das (ungeordnete) Paar zu CONST_PAIRS?"""
+    return frozenset(pair) in CONST_PAIRS
+
 _BLOCK = 256  # Posen je vektorisiertem Block in `distance_batch`
 
 _FLOOR_TABLE = ("link_2", "link_3", "link_4", "link_5", "link_6", TOOL_BODY, NOZZLE_TIP)
@@ -61,6 +69,29 @@ class Contact:
     d_mm: float  # vorzeichenbehaftet, < 0 bei Durchdringung
     pair: tuple[str, str]  # (Glied, Hindernis)
     witness_W: tuple[np.ndarray, np.ndarray]  # Zeugenpunkte in W, mm  # noqa: N815
+    #: Kleinster Abstand der zaehlenden Paare gegen den Druckstand bzw. alle uebrigen. Nur fuer
+    #: Schwellenvergleiche (Statusregel): ein Wert ist exakt, wenn er unter seiner Schwelle liegt,
+    #: sonst eine untere Schranke. None: Backend ohne Klassentrennung (dann gilt d_mm nach `pair`).
+    d_printed_mm: float | None = None  # noqa: N815
+    d_other_mm: float | None = None  # noqa: N815
+
+
+def status_of(c: Contact, d_target_mm: float, d_target_printed_mm: float) -> str:
+    """Status eines erreichbaren Samples (SPEC §2, Nutzerentscheidung 19.10.2026).
+
+    collision: d < 0; warn: ein zaehlendes Paar unter seinem Sollabstand (Druckstand:
+    d_target_printed, uebrige: d_target); sonst ok."""
+    if c.d_mm < 0.0:
+        return "collision"
+    d_p, d_o = getattr(c, "d_printed_mm", None), getattr(c, "d_other_mm", None)
+    if d_p is None and d_o is None:
+        pair = getattr(c, "pair", ())
+        on_printed = len(pair) == 2 and pair[1] == PRINTED
+        d_p, d_o = (c.d_mm, np.inf) if on_printed else (np.inf, c.d_mm)
+    else:
+        d_p = np.inf if d_p is None else d_p
+        d_o = np.inf if d_o is None else d_o
+    return "warn" if (d_o < d_target_mm or d_p < d_target_printed_mm) else "ok"
 
 
 class CollisionBackend(Protocol):
@@ -209,8 +240,10 @@ class _LayerScene:
         self.pb = np.concatenate(pb) if pb else np.zeros(0, dtype=np.int64)
         self.pid = np.concatenate(pid) if pid else np.zeros(0, dtype=np.int64)
         # Teilpaare des konstruktiv konstanten Paars (zaehlen nur unter d_hard)
-        const = np.array([n == CONST_PAIR for n in self.pair_names], dtype=bool)
+        const = np.array([is_const_pair(n) for n in self.pair_names], dtype=bool)
         self.k_const = const[self.pid] if self.pid.size else np.zeros(0, dtype=bool)
+        printed = np.array([n[1] == PRINTED for n in self.pair_names], dtype=bool)
+        self.k_printed = printed[self.pid] if self.pid.size else np.zeros(0, dtype=bool)
         # Statische Hindernisteile (Frame W): achsparallele Box (mit Aufmass) als engere Schranke.
         w = frame_index["W"]
         lo = np.vstack([p.vertices.min(axis=0) for b in bodies for p in b.parts])
@@ -245,7 +278,9 @@ class World:
         root: Path = REPO_ROOT,
         r_free_mm: float = R_FREE_MM,
         d_hard_mm: float = D_HARD_MM,
+        d_target_mm: float = D_TARGET_MM,
     ) -> None:
+        self.d_target_mm = float(d_target_mm)  # nur Suchhinweis: bis hierher sind die Klassenminima exakt
         self.root = Path(root).resolve()
         self.d_hard_mm = float(d_hard_mm)
         self.h = float(layer_height_mm)
@@ -329,7 +364,8 @@ class World:
             sc = self._scene(int(k))
             for s in range(0, len(idx), _BLOCK):
                 ii = idx[s : s + _BLOCK]
-                for i, c in zip(ii, self._distance_block(F[ii], sc, lim, self.d_hard_mm), strict=True):
+                cs = self._distance_block(F[ii], sc, lim, self.d_hard_mm, self.d_target_mm)
+                for i, c in zip(ii, cs, strict=True):
                     out[i] = c
         return out  # type: ignore[return-value]
 
@@ -363,6 +399,7 @@ class World:
         sc: _LayerScene,
         lim: float,
         d_hard: float = D_HARD_MM,
+        d_hint: float = D_TARGET_MM,
     ) -> list[Contact]:
         """Branch-and-Bound fuer einen Block von Posen (F: (M, 8, 4, 4) Frames in W).
 
@@ -371,11 +408,13 @@ class World:
         Koerper- und Teilebene; zusaetzlich faellt ein Teil weg, dessen Schranke gegen die Huelle
         des anderen Koerpers schon >= best ist (spart das volle Teilpaar-Kreuzprodukt).
 
-        Statusregel: Teilpaare von CONST_PAIR gehen nur ein, wenn ihr Abstand < d_hard ist; sonst
+        Statusregel: Teilpaare von CONST_PAIRS gehen nur ein, wenn ihr Abstand < d_hard ist; sonst
         bleibt d das Minimum der uebrigen Paare (d_status).
         """
         M = len(F)  # noqa: N806
         best = np.full(M, np.inf)
+        best_p = np.full(M, np.inf)  # kleinster zaehlender Abstand gegen den Druckstand
+        best_o = np.full(M, np.inf)  # ... gegen alles uebrige (Boden, Tisch, Glieder, Werkzeug)
         best_k = np.full(M, -1, dtype=np.int64)  # Teilpaar des Minimums, -1: Boden
         wit: list[tuple[np.ndarray, np.ndarray] | None] = [None] * M
 
@@ -395,13 +434,14 @@ class World:
             order = np.lexsort((zj, m_i))
             first = order[np.r_[True, m_i[order][1:] != m_i[order][:-1]]]
             best[m_i[first]] = zj[first]
+            best_o[m_i[first]] = zj[first]
             floor_p[m_i[first]] = fpart[p_i[first]]
             floor_j[m_i[first]] = j[first]
 
         if len(sc.pa):
             objs, pa, pb, mg, pfr = sc.objs, sc.pa, sc.pb, sc.margins, sc.part_frame
             req = self._req
-            k_const = sc.k_const
+            k_const, k_printed = sc.k_const, sc.k_printed
             tfs: list[dict[int, fcl.Transform]] = [{} for _ in range(M)]
 
             def place(m: int, part: int) -> None:
@@ -420,6 +460,9 @@ class World:
                 d = fcl.distance(objs[a], objs[b], req, res) - mg[a] - mg[b]
                 if d >= d_hard and k_const[k]:
                     return
+                cls = best_p if k_printed[k] else best_o
+                if d < cls[m]:
+                    cls[m] = d
                 if d < best[m]:
                     best[m] = d
                     best_k[m] = k
@@ -436,15 +479,24 @@ class World:
             for m, k in zip(*bb.seeds(2), strict=True):
                 if k != warm:
                     evaluate(m, k)
-            cand_m, cand_k, cand_lb = bb.candidates(np.minimum(best, lim))
+            # Suchgrenzen: Druckstand-Paare nur unter dem Gesamtminimum (d_mm); die uebrigen Paare
+            # zusaetzlich bis d_hint, weil sie die Warnung ausloesen koennen, auch wenn ein
+            # Druckstand-Paar naeher liegt. Bei Kollision am Druckstand zaehlt nur noch d_mm.
+            def cut_other(m: int) -> float:
+                bp = best_p[m]
+                return min(best_o[m], lim, bp if bp < 0.0 else max(bp, d_hint))
+
+            cand_m, cand_k, cand_lb = bb.candidates(
+                np.maximum(np.minimum(best, lim), [cut_other(m) for m in range(M)])
+            )
             if cand_m.size:
                 order = np.lexsort((cand_lb, cand_m))
                 starts = np.searchsorted(cand_m[order], np.arange(M + 1))
                 ks, lbs = cand_k[order].tolist(), cand_lb[order].tolist()
                 for m in range(M):
                     for i in range(int(starts[m]), int(starts[m + 1])):
-                        if lbs[i] >= min(best[m], lim):
-                            break
+                        if lbs[i] >= (min(best[m], lim) if k_printed[ks[i]] else cut_other(m)):
+                            continue
                         if k_const[ks[i]] and lbs[i] >= d_hard:
                             continue
                         if ks[i] != warm:
@@ -472,7 +524,7 @@ class World:
                 d = lim
             if not np.isfinite(d):
                 d = 1e9
-            out.append(Contact(d, pair, w))  # type: ignore[arg-type]
+            out.append(Contact(d, pair, w, float(best_p[m]), float(best_o[m])))  # type: ignore[arg-type]
         return out
 
 
