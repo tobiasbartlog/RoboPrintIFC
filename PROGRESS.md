@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T06:44:34+02:00 · Session: orchestrator · Phase: P5
+Herzschlag: 2026-10-19T07:00:49+02:00 · Session: orchestrator · Phase: P5
 
 # PROGRESS — Nachtlauf v2
 
@@ -308,3 +308,9 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   wurde (1048 s, Exit −9). S2 run-scenario 1132,8 s, S1 33,6 s. G5 prüfte alle 172 S2-Programme + S1 (954,6 s).
 - Commit: adec38b
 - Nachweis-Lauf: check_run je Wand bzw. in Blöcken zu 20 Modulen und S3 separat (läuft).
+
+### 2026-10-19 07:00 P5 Abschluss
+- S2-Nachweis in Teilmengen (unveränderter Prüfer): 172/172 Module ohne Fehler je Modul; Giebelwand komplett
+  bestanden; Blockvolumina summieren sich zum Wandvolumen. S3 separat BESTANDEN (61 010 bestätigte Kollisionen).
+- README v2 und MORGENBERICHT.md committet, Draft-PR v2-nachtlauf → main geöffnet (nicht gemerged).
+- Endstand Gate-Runner: G1, G2, G3, G5, G6, G7, G8 grün; G4 rot (Prüfer-Speicher, siehe Gate-Einwände).

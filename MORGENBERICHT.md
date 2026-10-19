@@ -27,7 +27,20 @@ liefert für alle drei geeigneten Wände nur machbare Module, und alle DRL-Progr
 Der Prüfer lädt alle Teile eines Laufs gleichzeitig (gemessen 3,6 GB für 20 Module, hochgerechnet ~30 GB für 172).
 Deshalb wurde S2 zusätzlich in Teilmengen mit demselben, unveränderten Prüfer geprüft:
 
-<!-- S2-BLOECKE -->
+| Wand | Module | Prüfung | Fehler je Modul | Wandprüfung |
+|---|---|---|---|---|
+| house right front (Giebel) | 30 | komplett in einem Lauf | 0 | bestanden (Volumen, Überlappung, Überhang) |
+| house right back | 42 | 3 Blöcke à 14 | 0 | Blockvolumen 6,014 + 6,014 + 5,829 = 17,86e8 mm³ = Wandvolumen 1,786e9 mm³ |
+| house left | 100 | 5 Blöcke à 20 | 0 | 5 × 8,462e8 mm³ = Wandvolumen 4,231e9 mm³ |
+| plumbing wall | 0 | – | – | ungeeignet: „Wand zu dünn: 24 mm < 60 mm“ |
+
+Also besteht jedes der 172 Module alle G3-Kriterien des Prüfers, liegt auf der Arbeitsfläche und schneidet die
+Roboterbasis nicht. Nicht gezeigt ist die Überlappung zwischen Modulen verschiedener Blöcke derselben Wand
+(innerhalb jedes Blocks geprüft); die Blockvolumina summieren sich aber exakt zum Wandvolumen. Ein Block mit
+allen 42 Modulen der Rückwand lief ebenfalls in den Speicherengpass und wurde abgebrochen.
+Die Fehlermeldungen „Teile fehlen (0/0)“ für die jeweils anderen Wände entstehen nur durch die Teilmenge.
+Skript und Logs: `experiments/s2_blockpruefung/`. Teilmengen-Laufordner mit Symlinks auf `runs/verify/S2/parts`, unveränderter Aufruf
+`python -m verify.check_run <block> --scenario spec/scenarios/S2_beispiel_ifc_modul.json`.
 
 S3 (Negativfall) separat: `check_run` **BESTANDEN**. roboprint meldet 61 011 von 61 350 Samples als `collision`,
 der Prüfer bestätigt 61 010 davon. Der Gate-Runner kam nicht bis S3, weil er G4 nach dem S2-Abbruch beendet.
