@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T11:35:24+02:00 · Session: orchestrator · Phase: P6 abgeschlossen
+Herzschlag: 2026-10-19T16:35:00+02:00 · Session: cloud-verify · Phase: P6 abgeschlossen, Nutzertest nachgeprüft
 
 # PROGRESS — Nachtlauf v2
 
@@ -10,12 +10,12 @@ Ablauf und Regeln stehen in `spec/NACHTLAUF.md`, die Gates in `spec/SPEC.md` §1
 |---|---|---|---|
 | G1 Kinematik | grün | 2000 FK + 2000 IK gegen Pinocchio | P0 Ende |
 | G2 Kollision | grün | 500 Posen; d_rp ≥ 0,5 mm unter d_coal, |Δ| ≤ 4,3 mm (beide ≥ 0) | P1 A1.4 |
-| G3 Referenzmodul S1 | grün | d_min 10,83 mm; 90,2 % ok / 9,8 % warn; 0 coll/unreach | P6 |
-| G4 Beispiel-IFC S2 + S3 | grün | S2 172 Module (4 geprüft), check_run 55 s; S3 bestätigt | P6 |
-| G5 DRL | grün | fake_drcf S1 + S2 28,7 s | P6 |
-| G6 Viewer | grün | e2e 8 passed (53 s), Uhr-Invariante 50 t S1+S3 | P3 A3.5 |
-| G7 Laufzeit | grün | S1 36,2 s, S2 225,8 s | P6 |
-| G8 Qualität | grün | ruff, pytest core, web lint/typecheck/test | P4 voller Lauf |
+| G3 Referenzmodul S1 | grün | d_min 10,83 mm; 90,5 % ok / 9,5 % warn; 0 coll/unreach | Cloud-verify 19.10. (Basis gedreht) |
+| G4 Beispiel-IFC S2 + S3 | grün | S2 172 Module (4 geprüft), check_run 58 s; S3 bestätigt | Cloud-verify 19.10. |
+| G5 DRL | grün | fake_drcf S1 + S2 36,5 s | Cloud-verify 19.10. |
+| G6 Viewer | grün | e2e 8 passed (57 s), Uhr-Invariante 50 t S1+S3 | Cloud-verify 19.10. |
+| G7 Laufzeit | grün | S1 76,9 s, S2 330,5 s | Cloud-verify 19.10. |
+| G8 Qualität | grün | ruff, pytest core, web lint/typecheck/test | Cloud-verify 19.10. |
 
 ## Ausgangslage (Vorbereitung 2026-10-18)
 
@@ -70,6 +70,12 @@ Diagnose von v1 durch sechs Review-Agenten, Kurzfassung:
   Vorschlag: Prüfer nach Nutzerfreigabe härten und M1–M7 als Selbsttests aufnehmen. Systemseitig prüft A4.2 diese
   Punkte zusätzlich selbst.
 
+- **Mini-Lauf `verify/oracle/minirun.py` an die alte Basislage gebunden (Cloud-verify 19.10.):** Seit der Drehung der
+  Basis (1acdd9d) erzeugt der Mini-Lauf (Seed J1 = −90°, Teil bei (0, −100) in S) 1183 von 1598 Samples `collision`
+  (link_3/link_2 ↔ Tisch, d_min −0,001 mm), meldet im Summary aber weiter `machbar` mit n_collision 0. Kein Gate nutzt
+  ihn, nur die Selbstprüfungs-Tests (`core/tests/test_selfcheck.py`), die keine Kollision prüfen. Vorschlag: Seed
+  J1 = 90° (Arm zur Arbeitsfläche), Nutzerentscheidung, verify/ gesperrt. G2 nutzt denselben Seed nur für Zufallsposen
+  und bleibt aussagekräftig (Abstandsvergleich, grün).
 - **check_run auf S2 nicht ausführbar (Speicher):** `verify/check_run.py` lädt alle Teile gleichzeitig. Gemessen
   3,6 GB Spitze für 20 der 172 S2-Module, hochgerechnet ~30 GB; auf der 16-GB-VM beendet der OOM-Killer den
   Prüfer nach 1086 s (Exit −9, dmesg: anon-rss 13,9 GB). Systemseitig verkleinert A4.6 die Trajektorien; eine
@@ -414,3 +420,32 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   S2 259,9 s (172/172 machbar), check_run S2 47,1 s, S3 bestätigt, fake_drcf 24,0 s, e2e 45,9 s.
 - Testfix b02740f: DRL- und Selbstprüfungstest lasen fest kodierte Werte aus der alten Basisorientierung.
 - Commit: b02740f
+
+### 2026-10-19 16:35 Cloud-verify nach Nutzertest
+- Anlass: Basis um 180° gedreht (1acdd9d), Transfer-Mindesthöhe (55124ee), `module_height_max_mm` und `h_verify`
+  (7e42743), API/Viewer (39340a5, 5019db7). Lauf auf der Cloud-VM (4 vCPU), Python `/opt/fgc-venv`.
+- Parallel lief eine zweite Session (anderer Container, Eintrag 16:21, Testfix b02740f) mit demselben Befund; ihre
+  Teständerungen und Screenshots sind übernommen, sie entsprechen meinen.
+- Vorab `pytest core -n 2`: **2 rot**, beide Testannahmen der alten Basislage, kein Produktfehler:
+  - `test_drl.py::test_checker_rejects_bad_programs` suchte den ZYZ-Text `180, 180, 0`; mit gedrehter Basis lautet
+    die Düsenorientierung in B `0, 180, 0`. Die Mutation versetzt jetzt den ersten ZYZ-Winkel der ersten passenden
+    `posx` um 180° (Basislage-unabhängig); der Prüfer schlägt weiter an.
+  - `test_selfcheck.py::test_e_kein_home_start` setzte nach dem Abschneiden n_collision = 0 fest; der Mini-Lauf aus
+    `verify/` hat seit der Drehung Kollisionssamples (siehe Gate-Einwände), also widersprach das Summary den Arrays.
+    Der Test zählt die Status jetzt aus den Arrays; geprüft wird weiter Check (e).
+- Danach `ruff` grün, web lint/typecheck/test grün (57 Tests).
+- **Voller verify-Lauf: G1–G8 grün** (907 s gesamt, Bericht `runs/verify/report.json`):
+
+| Gate | Ergebnis | Laufzeit | Kernzahlen |
+|---|---|---|---|
+| G1 | grün | 8,9 s | FK/IK gegen Pinocchio |
+| G2 | grün | 43,5 s | 500 Posen gegen Coal |
+| G3 | grün | 76,9 s, check 22,9 s | S1 machbar, d_min 10,83 mm, 90,5 % ok / 9,5 % warn, 0 coll/unreach, 40 718 Samples |
+| G4 | grün | S2 330,5 s, check 57,6 s; S3 42,0 s, check 63,0 s | S2 172 Teile, alle machbar (168 Kopien), höchstes Modul 380 mm, d_min 10,83 mm; S3 nicht machbar, Prüfer bestätigt |
+| G5 | grün | 36,5 s | fake_drcf S1 und S2, 0 Fehler |
+| G6 | grün | 57,0 s | e2e 8 passed; Screenshots unter `web/e2e/screenshots/` aktualisiert |
+| G7 | grün | — | S1 76,9 s (≤ 180), S2 330,5 s (≤ 1800) |
+| G8 | grün | 168 s | ruff, pytest core (151,7 s), web lint/typecheck/test |
+
+- Gegenüber 2a43c6b (falsche Ausrichtung) S1 36 → 77 s, S2 226 → 331 s (Lauf 16:21: 59 s / 260 s, Streuung der VMs):
+  andere Platzierungen und volle H*-Bestätigung (`h_verify`). S1 weiter d_min 10,83 mm.
