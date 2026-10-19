@@ -62,6 +62,63 @@ def _follow(Qc: np.ndarray, okc: np.ndarray, q0: np.ndarray) -> np.ndarray:  # n
     return out
 
 
+def _uniform_u(m: np.ndarray) -> np.ndarray:
+    """m[s] gleichmaessige Schritte je Segment s; global u = s + i/m[s], i = 1..m[s]."""
+    seg = np.repeat(np.arange(len(m)), m)
+    frac = np.concatenate([np.arange(1, k + 1) / k for k in m])
+    return seg + frac
+
+
+def _adaptive_u(
+    kin: Kin,
+    P: np.ndarray,  # noqa: N803
+    psi: np.ndarray,
+    dpsi: np.ndarray,
+    seg_len: np.ndarray,
+    q_a: np.ndarray,
+    br: np.ndarray,
+    params: PlannerParams,
+) -> np.ndarray:
+    """Bahnparameter so dicht wie die Regel verlangt, nicht dichter (A4.6).
+
+    Eine Vorabtastung (halbe TCP-Schrittweite) liefert je Schritt den Bedarf
+    c = max(TCP-Weg / dense_tcp_mm, max|dq| / dense_dq_rad). Je Segment ergibt die Summe die
+    Sampleanzahl n = ceil(sum c); die Samples liegen bei gleichen Anteilen des kumulierten
+    Bedarfs, also dicht, wo die Gelenke schnell laufen, und weit, wo nur der TCP-Weg zaehlt.
+    Segmentenden (Toolpath-Wegpunkte) bleiben exakt Samples. Die anschliessende Pruefschleife
+    in `movel_chain` faengt Restverletzungen durch Nichtlinearitaet ab.
+    """
+    m_p = np.maximum(2, np.ceil(seg_len / (0.5 * params.dense_tcp_mm)).astype(int))
+    up = _uniform_u(m_p)
+    s_i = np.minimum(np.floor(up - 1e-12).astype(int), len(P) - 2)
+    f = up - s_i
+    pts = P[s_i] + f[:, None] * (P[s_i + 1] - P[s_i])
+    Qn, okn = kin.ik(pts, psi[s_i] + f * dpsi[s_i])  # noqa: N806
+    b = br[s_i + 1]
+    ok = okn[np.arange(len(b)), b]
+    q = _follow(Qn[np.arange(len(b)), b], ok, q_a)
+    prev = np.vstack([q_a[None], q[:-1]])
+    prev_ok = np.concatenate([[True], ok[:-1]])
+    dq = np.abs(q - prev).max(axis=1)
+    dp = np.repeat(seg_len / m_p, m_p)
+    # Reserve 3 % auf die Gelenkgrenze: zwischen den Vorabsamples ist q nicht exakt linear.
+    c = np.maximum(dp / params.dense_tcp_mm, np.where(ok & prev_ok, dq / (0.97 * params.dense_dq_rad), 0.0))
+    c = c + 1e-9
+    starts = np.concatenate([[0], np.cumsum(m_p)[:-1]])
+    c_seg = np.add.reduceat(c, starts)
+    n_seg = np.maximum(1, np.ceil(c_seg - 1e-6).astype(int))
+    G = np.concatenate([[0.0], np.cumsum(c)])  # noqa: N806
+    xu = np.concatenate([[0.0], up])
+    seg = np.repeat(np.arange(len(n_seg)), n_seg)
+    frac = np.concatenate([np.arange(1, k + 1) / k for k in n_seg])
+    level = G[starts][seg] + frac * c_seg[seg]
+    u = np.interp(level, G, xu)
+    u = np.clip(u, seg + 1e-9, seg + 1.0)
+    ends = np.cumsum(n_seg) - 1
+    u[ends] = np.arange(len(n_seg)) + 1.0  # Wegpunkte exakt
+    return u
+
+
 def movel_chain(
     kin: Kin,
     P: np.ndarray,  # noqa: N803
@@ -83,10 +140,7 @@ def movel_chain(
     br = np.broadcast_to(np.asarray(branch, int), (n,))
     dpsi = wrap_pi(psi[1:] - psi[:-1])
     seg_len = np.linalg.norm(P[1:] - P[:-1], axis=1)
-    m = np.maximum(1, np.ceil(seg_len / params.dense_tcp_mm).astype(int))
-    seg = np.repeat(np.arange(n - 1), m)
-    frac = np.concatenate([np.arange(1, k + 1) / k for k in m])
-    u = seg + frac  # global, aufsteigend
+    u = _adaptive_u(kin, P, psi, dpsi, seg_len, q_a, br, params)
     Qc = np.zeros((0, 6))  # noqa: N806
     okc = np.zeros(0, bool)
     new = np.ones(len(u), bool)
