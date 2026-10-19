@@ -449,3 +449,28 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 
 - Gegenüber 2a43c6b (falsche Ausrichtung) S1 36 → 77 s, S2 226 → 331 s (Lauf 16:21: 59 s / 260 s, Streuung der VMs):
   andere Platzierungen und volle H*-Bestätigung (`h_verify`). S1 weiter d_min 10,83 mm.
+
+### 2026-10-19 17:35 Laufzeitmessung Giebelwand, Modulhöhe höchstens 1000 mm (Cloud, 4 vCPU)
+- Szenario `/tmp/giebel_h1000.json`: Kopie von S2, nur Wand `1AQAupaRP1txwK1AGiN61V`, `module_height_max_mm` = 1000,
+  `expect` = {}. Lauf `timeout 3600 … run-scenario … --out runs/local/giebel_h1000`, Start 14:33 UTC.
+- **Ergebnis: Timeout nach 3600 s (Exit 124), kein Ergebnis**, 0 Teile, kein höchstes Modul. Der Lauf kam nicht über
+  die H*-Suche der ersten Wand hinaus (`choose_grid` → `HStar._confirm`); es wurde noch kein Teil geplant.
+- Wo die Zeit hängt (py-spy-Stichprobe alle 30 s, Stack des Hauptprozesses; Quader 600 × 200 × h, 3 Kandidaten):
+
+| Zeit (UTC) | Schritt `_verified_ok` | Phase | Dauer | Ergebnis |
+|---|---|---|---|---|
+| 14:33–14:37 | h = 1000 | Double-Planung, Kandidat 1–3 | ~4 min | keiner machbar |
+| 14:37–14:48 | h = 1000 | Nachplanung (`replan_at`), Kandidat 1–3 | ~11 min | nicht machbar |
+| 14:48–14:49 | h = 550 | Double-Planung, Kandidat 1–2 | ~1,5 min | machbar (Kandidat 2) |
+| 14:49–14:59 | h = 750 | Double-Planung, Kandidat 1–3 | ~10 min | keiner machbar |
+| 14:59–15:33 | h = 750 | Nachplanung Kandidat 1 | > 33 min | beim Timeout offen |
+
+- Befund: Die Bestätigung bisektiert 1000 → 550 → 750 → …; jeder Schritt über der Grenze kostet bis zu 3 Double-Planungen
+  **plus** 3 Nachplanungen mit der echten Welt. Die Nachplanung ist der Engpass: bei h = 1000 scheitert sie früh
+  (~3,5 min je Kandidat), bei h = 750 nahe an der Grenze plant sie tief und brauchte für einen einzigen Kandidaten
+  über 33 min. Bis zur 50-mm-Genauigkeit folgen noch mindestens 2–3 weitere Schritte (650/700/800), danach erst die
+  Zellplanung der Wand. Die Erwartung „Grenze bei ~800 mm“ ließ sich in 1 h nicht bestätigen; sicher ist nur
+  550 machbar, 1000 nicht machbar, 750 offen.
+- Nur gemessen, nichts getunt. Ansatzpunkte für später (Nutzerentscheidung): Nachplanung in der H*-Bestätigung
+  weglassen oder auf einen Kandidaten begrenzen, Bisektion bei der Quader-Höhe aus dem Höhenexperiment (800 mm)
+  beginnen, Zeitlimit je Bestätigungsschritt.
