@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T04:06:09+02:00 · Session: orchestrator · Phase: P4
+Herzschlag: 2026-10-19T04:24:10+02:00 · Session: orchestrator · Phase: P4
 
 # PROGRESS — Nachtlauf v2
 
@@ -12,7 +12,7 @@ Ablauf und Regeln stehen in `spec/NACHTLAUF.md`, die Gates in `spec/SPEC.md` §1
 | G2 Kollision | grün | 500 Posen; d_rp ≥ 0,5 mm unter d_coal, |Δ| ≤ 4,3 mm (beide ≥ 0) | P1 A1.4 |
 | G3 Referenzmodul S1 | grün | d_min 10,83 mm, 62 112 Samples, 0 coll/unreach | P2 A2.1 |
 | G4 Beispiel-IFC S2 + S3 | rot | — | |
-| G5 DRL | grün (nur S1) | fake_drcf v2+v3 S1 | P2 A2.1 |
+| G5 DRL | grün | fake_drcf v2+v3 S1 + S2 (172 Teile, 1071 s) | P4 |
 | G6 Viewer | grün | e2e 8 passed (53 s), Uhr-Invariante 50 t S1+S3 | P3 A3.5 |
 | G7 Laufzeit | rot | — | |
 | G8 Qualität | grün | ruff, pytest 17, web lint/typecheck/test | P0 A0.1 |
@@ -69,6 +69,11 @@ Diagnose von v1 durch sechs Review-Agenten, Kurzfassung:
   - Reserve Schicht 0 = h + 1,85 mm (Düsenmesh endet 1,85 mm vor dem TCP): bei h < 8,15 mm ist jedes Teil unmachbar.
   Vorschlag: Prüfer nach Nutzerfreigabe härten und M1–M7 als Selbsttests aufnehmen. Systemseitig prüft A4.2 diese
   Punkte zusätzlich selbst.
+
+- **check_run auf S2 nicht ausführbar (Speicher):** `verify/check_run.py` lädt alle Teile gleichzeitig. Gemessen
+  3,6 GB Spitze für 20 der 172 S2-Module, hochgerechnet ~30 GB; auf der 16-GB-VM beendet der OOM-Killer den
+  Prüfer nach 1086 s (Exit −9, dmesg: anon-rss 13,9 GB). Systemseitig verkleinert A4.6 die Trajektorien; eine
+  Prüfung Teil für Teil im Prüfer wäre die eigentliche Lösung (Nutzerentscheidung, verify/ gesperrt).
 
 ## Annahmen, die der Nutzer bestätigen muss
 
@@ -276,3 +281,12 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Commit: d5b0bc1
 - Vorlauf des Agenten (vor dem Rebase, alter Planer): S2 mit 172 Modulen, alle machbar; plumbing wall ungeeignet
   mit Grund; Zerlegung 1100 s. Gate G4/G7 läuft jetzt mit dem aktuellen Stand.
+
+### 2026-10-19 04:24 P4 G4/G5/G7-Lauf mit S2
+- Ergebnis: S2 run-scenario **1271,9 s** (Grenze 1800 s), 172 Module, alle machbar, plumbing wall ungeeignet mit Grund.
+  **G5 grün** inkl. S2 (fake_drcf, 1071 s). **G4 rot:** check_run vom OOM-Killer beendet (siehe Gate-Einwände).
+  G7 rot nur, weil S1 in diesem Teil-Lauf nicht gemessen wurde.
+- Stichprobe check_run (20 Module der Giebelwand): echte Funde – Abdeckung < 95 % in den obersten Schichten der
+  Giebelmodule `house_right_front_r9_c0/_c1` (Schicht 27–29: 0 %), weil die Schalen-Offsets im schmalen
+  Querschnitt verschwinden.
+- Aufgaben: A4.5 (Slicer, Schmalstellen-Abdeckung), A4.6 (adaptive Verdichtung, weniger Samples → weniger Speicher).
