@@ -8,7 +8,9 @@ Ablauf (`decompose_wall`):
    machbar einstuft. Bisektion auf `h_step_mm` (10 mm) mit Cache ueber (b, T, H). Der Cache
    nutzt zusaetzlich Monotonie: machbar bei (b', H') => machbar fuer b <= b', H <= H';
    nicht machbar bei (b', H') => nicht machbar fuer b >= b', H >= H'. So kommen spaetere
-   Breiten mit wenigen Aufrufen aus.
+   Breiten mit wenigen Aufrufen aus. Mit `scan` (Hoehensuche der vollen Planung) wird das
+   Ergebnis der optimistischen Vorpruefung danach in einem Durchgang bestaetigt: ein Plan von
+   unten bis zu dieser Hoehe, H* ist die Oberkante der letzten Schicht, die geht.
 4. Raster: Spalten gleicher Breite L/n mit n = ceil(L/b), b aus {300, 400, ..., 1200} mm,
    b <= b_max. Reihen je Spalte von unten nach oben zwischen den Pflicht-Schnitten, jeweils
    ceil(s/H*) gleich hohe Reihen (moeglichst auf Vielfache der Schichthoehe). Ziel
@@ -69,6 +71,8 @@ class Feasibility:
 
 
 FeasibleFn = Callable[[trimesh.Trimesh], Any]
+#: Hoehensuche: (Breite, Dicke, Obergrenze) -> groesste machbare Hoehe <= Obergrenze, 0 wenn keine
+ScanFn = Callable[[float, float, float], float]
 
 
 def as_feasibility(res: Any) -> Feasibility:
@@ -91,8 +95,6 @@ class DecomposeParams:
     h_step_mm: float = 10.0  # Genauigkeit der H*-Bisektion
     h_min_mm: float = 100.0  # kleinste sinnvolle Modulhoehe fuer H*
     h_upper_mm: float | None = None  # obere Schranke fuer H* (None: Wandhoehe)
-    h_verify: bool = False  # H* der Vorpruefung mit der vollen Planung bestaetigen (HStar.verify)
-    h_verify_step_mm: float = 50.0  # Genauigkeit dieser Bestaetigung
     min_cell_width_mm: float = 150.0  # Mindestgroesse beim Verfeinern
     min_cell_height_mm: float = 50.0
     max_refine_depth: int = 4  # hoechstens so oft halbieren
@@ -230,9 +232,10 @@ def box_mesh_P(width: float, thickness: float, height: float) -> trimesh.Trimesh
 class HStar:
     """H*(Breite) per Bisektion auf `step` mm mit Cache ueber (Breite, Dicke, Hoehe).
 
-    Mit `verify` (volle Planung) wird das Ergebnis der schnellen Vorpruefung `check` bestaetigt:
-    Die Vorpruefung ist optimistisch und haelt zu hohe Quader fuer machbar. Scheitert die volle
-    Planung, sucht eine zweite Bisektion auf `verify_step` mm die echte Grenze darunter.
+    Mit `scan` (Hoehensuche der vollen Planung) wird das Ergebnis der schnellen Vorpruefung
+    `check` bestaetigt: Die Vorpruefung ist optimistisch und haelt zu hohe Quader fuer machbar.
+    Die Hoehensuche plant den Quader einmal von unten bis zu dieser Hoehe und liefert die Oberkante
+    der letzten Schicht, die geht.
     """
 
     def __init__(
@@ -240,8 +243,7 @@ class HStar:
         check: FeasibleFn,
         step: float = 10.0,
         h_min: float = 100.0,
-        verify: FeasibleFn | None = None,
-        verify_step: float = 50.0,
+        scan: ScanFn | None = None,
         note: Callable[[str], None] | None = None,
     ) -> None:
         self.check = check
@@ -250,9 +252,8 @@ class HStar:
         self.cache: dict[tuple[float, float, float], Feasibility] = {}
         self.calls = 0
         self.hits = 0
-        self.verify = verify
-        self.verify_step = float(verify_step)
-        self.verified: dict[tuple[float, float, float], bool] = {}
+        self.scan = scan
+        self.scanned: dict[tuple[float, float], tuple[float, float]] = {}  # (b, t) -> (Obergrenze, H)
         self.note = note or (lambda msg: None)
 
     @staticmethod
@@ -296,42 +297,24 @@ class HStar:
     def __call__(self, b: float, t: float, h_upper: float) -> float:
         """Groesste machbare Hoehe <= h_upper; 0, wenn schon h_min scheitert."""
         h = self._pre(b, t, float(h_upper))
-        if self.verify is None or h <= _EPS:
+        if self.scan is None or h <= _EPS:
             return h
-        return self._confirm(b, t, h)
+        return self._scanned(b, t, h)
 
-    def _verified_ok(self, b: float, t: float, h: float) -> bool:
-        """Volle Planung des Quaders, gecacht und per Monotonie in Breite und Hoehe ergaenzt."""
-        k = kb, kt, kh = self._key(b, t, h)
-        if k in self.verified:
-            return self.verified[k]
-        for (cb, ct, ch), ok in self.verified.items():
-            if ct == kt and ok and cb >= kb and ch >= kh:
-                return True
-            if ct == kt and not ok and cb <= kb and ch <= kh:
-                return False
-        assert self.verify is not None
-        self.note(f"Modulhoehe pruefen: {b:.0f} x {t:.0f} x {h:.0f} mm voll planen")
-        ok = as_feasibility(self.verify(box_mesh_P(b, t, h))).feasible
-        self.verified[k] = ok
-        return ok
-
-    def _confirm(self, b: float, t: float, h_pre: float) -> float:
-        """Groesste von der vollen Planung bestaetigte Hoehe <= h_pre (auf `verify_step` genau)."""
-        if self._verified_ok(b, t, h_pre):
-            return h_pre
-        lo, hi = min(self.h_min, h_pre), h_pre
-        while hi - lo > self.verify_step + _EPS:
-            mid = math.floor((lo + hi) / 2 / self.verify_step) * self.verify_step
-            if mid <= lo + _EPS:
-                mid = lo + self.verify_step
-            if mid >= hi - _EPS:
-                break
-            if self._verified_ok(b, t, mid):
-                lo = mid
-            else:
-                hi = mid
-        return lo  # h_min ungeprueft: Die Zellplanung verfeinert notfalls
+    def _scanned(self, b: float, t: float, h: float) -> float:
+        """Hoehensuche bis h, gecacht: Ein Ergebnis unter seiner Obergrenze ist die echte Grenze und
+        gilt fuer jede hoehere Obergrenze; darunter ist jede Hoehe machbar (Praefix des Plans)."""
+        k = (round(b, 3), round(t, 3))
+        if k in self.scanned:
+            upper, res = self.scanned[k]
+            if h <= res + _EPS:
+                return h
+            if res < upper - _EPS:
+                return res
+        self.note(f"Modulhoehe: {b:.0f} x {t:.0f} mm bis {h:.0f} mm schichtweise planen")
+        res = float(self.scan(b, t, h))
+        self.scanned[k] = (h, res)
+        return res
 
     def _pre(self, b: float, t: float, h_upper: float) -> float:
         """Bisektion mit der Vorpruefung auf `step` genau."""
@@ -639,9 +622,11 @@ def decompose_walls(
     stats: DecomposeStats | None = None,
     hstar: HStar | None = None,
     part_cache: dict[str, Feasibility] | None = None,
+    scan: ScanFn | None = None,
 ) -> list[Part]:
     """Zerlegt mehrere Waende (SPEC §5.4); H*-Cache und Geometrie-Cache gelten wanduebergreifend,
-    die volle Pruefung laeuft je Runde fuer alle Waende gebuendelt (`feasible_many`)."""
+    die volle Pruefung laeuft je Runde fuer alle Waende gebuendelt (`feasible_many`). `scan`
+    bestaetigt H* mit der Hoehensuche der vollen Planung (`HStar`)."""
     p = DecomposeParams.from_any(params)
     st = stats if stats is not None else DecomposeStats()
     prog = progress or (lambda stage, frac, msg: None)
@@ -650,13 +635,7 @@ def decompose_walls(
     checker = _PartChecker(feasible, st, part_cache, feasible_many)
     if hstar is None:
         check = prefeasible or feasible or (lambda m: feasible_many([m])[0])  # type: ignore[misc]
-        # Bestaetigung nur, wenn die Vorpruefung nicht schon die volle Planung ist; die vollen
-        # Plaene landen im Teile-Cache und gelten fuer gleich grosse Zellen mit.
-        verify = (lambda m: checker.check_all([m])[0]) if p.h_verify and prefeasible is not None else None
-        hstar = HStar(
-            check, p.h_step_mm, p.h_min_mm, verify=verify, verify_step=p.h_verify_step_mm,
-            note=lambda msg: prog("decompose", 0.0, msg),
-        )  # fmt: skip
+        hstar = HStar(check, p.h_step_mm, p.h_min_mm, scan=scan, note=lambda msg: prog("decompose", 0.0, msg))
     cells: list[_Cell] = []
     for i, wall in enumerate(walls):
         short = wall_short_name(wall)
