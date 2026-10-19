@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T05:24:50+02:00 · Session: orchestrator · Phase: P4
+Herzschlag: 2026-10-19T05:29:06+02:00 · Session: orchestrator · Phase: P4
 
 # PROGRESS — Nachtlauf v2
 
@@ -11,11 +11,11 @@ Ablauf und Regeln stehen in `spec/NACHTLAUF.md`, die Gates in `spec/SPEC.md` §1
 | G1 Kinematik | grün | 2000 FK + 2000 IK gegen Pinocchio | P0 Ende |
 | G2 Kollision | grün | 500 Posen; d_rp ≥ 0,5 mm unter d_coal, |Δ| ≤ 4,3 mm (beide ≥ 0) | P1 A1.4 |
 | G3 Referenzmodul S1 | grün | d_min 10,83 mm, 62 112 Samples, 0 coll/unreach | P2 A2.1 |
-| G4 Beispiel-IFC S2 + S3 | rot | — | |
+| G4 Beispiel-IFC S2 + S3 | rot (Prüfer OOM) | S2 172 Module machbar; check_run −9 nach 1048 s | P4 voller Lauf |
 | G5 DRL | grün | fake_drcf v2+v3 S1 + S2 (172 Teile, 1071 s) | P4 |
 | G6 Viewer | grün | e2e 8 passed (53 s), Uhr-Invariante 50 t S1+S3 | P3 A3.5 |
-| G7 Laufzeit | rot | — | |
-| G8 Qualität | grün | ruff, pytest 17, web lint/typecheck/test | P0 A0.1 |
+| G7 Laufzeit | grün | S1 33,6 s, S2 1132,8 s | P4 voller Lauf |
+| G8 Qualität | grün | ruff, pytest core, web lint/typecheck/test | P4 voller Lauf |
 
 ## Ausgangslage (Vorbereitung 2026-10-18)
 
@@ -302,3 +302,9 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   nicht der 5-mm-Schritt. G3 grün, Prüfer-Untergrenze d 10,014 mm. Speicherspitze check_run S1 642 → 623 MB:
   der Speicherbedarf je Teil im Prüfer hängt kaum an der Samplezahl. Das S2-OOM ist systemseitig nicht lösbar.
 - Commit: 59b01d0
+
+### 2026-10-19 05:29 P4 voller verify-Lauf
+- Ergebnis: G1, G2, G3, G5, G6, G7, G8 **grün**; G4 **rot**, weil check_run auf S2 erneut vom OOM-Killer beendet
+  wurde (1048 s, Exit −9). S2 run-scenario 1132,8 s, S1 33,6 s. G5 prüfte alle 172 S2-Programme + S1 (954,6 s).
+- Commit: adec38b
+- Nachweis-Lauf: check_run je Wand bzw. in Blöcken zu 20 Modulen und S3 separat (läuft).
