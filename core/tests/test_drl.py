@@ -167,9 +167,14 @@ def _mutated(run, old: str, new: str, count: int = 1) -> list[str]:
 def test_checker_rejects_bad_programs(run):
     assert _mutated(run, "set_analog_output(ch=1, val=5.000)", "set_analog_output(ch=0, val=5.000)")
     assert _mutated(run, "set_analog_output(ch=1, val=5.000)", "set_analog_output(ch=1, val=12.000)")
-    assert _mutated(
-        run, "180.000000, 180.000000, 0.000000)", "0.000000, 180.000000, 0.000000)"
-    )  # Duese 180 Grad
+    # Duese 180 Grad um die eigene Achse verdreht: A des ersten posx um 180 Grad versetzen (der Wert
+    # haengt von der Basisorientierung der Workstation ab, deshalb aus dem Programm gelesen)
+    text = (run / "program.v2.drl").read_text(encoding="ascii")
+    m = re.search(r"posx\((-?\d+\.\d+), (-?\d+\.\d+), (-?\d+\.\d+), (-?\d+\.\d+), ", text)
+    assert m
+    a_flip = (float(m.group(4)) + 360.0) % 360.0 - 180.0
+    old = m.group(0)
+    assert _mutated(run, old, old.replace(f"{m.group(4)}, ", f"{a_flip:.6f}, "))
     assert _mutated(run, "radius=0.0000", "radius=2.0000")
     assert _mutated(run, "set_velj([36.000", "set_velj([136.000")
     text = (run / "program.v2.drl").read_text(encoding="ascii")

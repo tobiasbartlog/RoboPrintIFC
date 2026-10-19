@@ -117,7 +117,11 @@ def test_e_kein_home_start(copy: Path) -> None:
         tr[a] = tr[a][j:]
     st = tr["status"]
     tr["summary"].update(
-        n=len(st), n_ok=st.count("ok"), n_warn=st.count("warn"), n_collision=0, n_unreachable=0
+        n=len(st),
+        n_ok=st.count("ok"),
+        n_warn=st.count("warn"),
+        n_collision=st.count("collision"),
+        n_unreachable=st.count("unreachable"),
     )
     _save(p, tr)
     assert "e" in _checks(copy)
