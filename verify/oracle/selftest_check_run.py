@@ -127,3 +127,62 @@ def test_table_outline_and_coverage():
     inner = np.array([[-55, -5], [55, -5], [55, 5], [-55, 5], [-55, -5]], dtype=float)
     cov_two, _ = coverage(sec, [ring, inner], 2, 30.0)
     assert cov_two >= 0.95
+
+
+# --------------------------------------------------------------------------- Teil fuer Teil, Inhalts-Cache
+
+
+def _duplicate(run_dir: Path, src: str = "box_0", dst: str = "box_1") -> Path:
+    """Kopie eines Teils unter neuer part_id (wie identische Module einer Wand)."""
+    import shutil
+
+    sdir, ddir = run_dir / "parts" / src, run_dir / "parts" / dst
+    shutil.copytree(sdir, ddir)
+    for name in ("part.json", "toolpath.json", "trajectory.json"):  # nur die part_id im Text tauschen
+        text = (ddir / name).read_text(encoding="utf-8")
+        assert text.count(f'"{src}"') == 1
+        (ddir / name).write_text(text.replace(f'"{src}"', f'"{dst}"'), encoding="utf-8")
+    summ = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    entry = next(p for p in summ["parts"] if p["part_id"] == src)
+    summ["parts"].append({**entry, "part_id": dst})
+    _save(run_dir / "summary.json", summ)
+    return ddir
+
+
+def test_duplicate_checked_once(minirun_copy):
+    _duplicate(minirun_copy)
+    ok, rep = _check(minirun_copy)
+    assert ok, rep["errors"]
+    assert rep["dedup"] == {"parts": 2, "checked": 1}
+    assert rep["parts"]["box_1"]["same_as"] == "box_0"
+    assert "same_as" not in rep["parts"]["box_0"]
+
+
+def test_manipulated_duplicate_not_cached(minirun_copy):
+    """Kleine Abweichung in der Trajektorie: das Duplikat wird eigenstaendig geprueft und faellt durch."""
+    ddir = _duplicate(minirun_copy)
+    tr = json.loads((ddir / "trajectory.json").read_text(encoding="utf-8"))
+    i = tr["kind"].index("print") + 10
+    tr["tcp"][i][0] += 0.2
+    _save(ddir / "trajectory.json", tr)
+    ok, rep = _check(minirun_copy)
+    assert not ok and rep["dedup"] == {"parts": 2, "checked": 2}
+    assert "same_as" not in rep["parts"]["box_1"]
+    bad = [e for e in rep["errors"] if "tcp[i] != FK(q[i])" in e]
+    assert bad and all(e.startswith("box_1") for e in bad), rep["errors"]
+
+
+def test_hardlinked_duplicate_and_parallel(minirun_copy):
+    """Hardlinks zaehlen als identisch; jobs = 2 (Pool, Teil fuer Teil) liefert dasselbe wie jobs = 1."""
+    import os
+
+    ddir = _duplicate(minirun_copy)
+    src = minirun_copy / "parts" / "box_0"
+    for name in ("trajectory.json", "toolpath.json", "part.stl"):
+        (ddir / name).unlink()
+        os.link(src / name, ddir / name)
+    ok1, rep1 = _check(minirun_copy)
+    ok2, rep2 = run(minirun_copy, minirun_copy / "scenario.json", jobs=2)
+    assert ok1 and ok2, (rep1["errors"], rep2["errors"])
+    assert rep1["dedup"]["checked"] == rep2["dedup"]["checked"] == 1
+    assert rep1["parts"] == rep2["parts"]

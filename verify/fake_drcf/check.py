@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import multiprocessing as mp
 import traceback
 from pathlib import Path
 
 import numpy as np
 
 from verify.fake_drcf.controller import DrlError, InjectedFault, State, make_namespace
+from verify.oracle.content_hash import drl_key, retag, trajectory_key
 from verify.oracle.robot_oracle import HOME_RAD, ROBOT_JSON, default_robot, load_json, rot_angle, zyz_to_R
 
 POSJ_TOL_DEG = 1e-3
@@ -46,10 +48,14 @@ def execute(text: str, dialect: str, fault_at_motion: int | None = None) -> tupl
 class Trajectory:
     def __init__(self, path: Path):
         tr = json.loads(Path(path).read_text(encoding="utf-8"))
-        self.q = np.array(tr["q"], dtype=float)
-        self.kind = list(tr["kind"])
-        self.ring = np.array(tr["ring"], dtype=int)
-        self.reach = np.array([s != "unreachable" for s in tr["status"]])
+        try:
+            self.q = np.array(tr["q"], dtype=float)
+            interned = {k: k for k in ("print", "approach", "retract", "lift", "transfer", "lower")}
+            self.kind = [interned.get(k, k) for k in tr["kind"]]
+            self.ring = np.array(tr["ring"], dtype=int)
+            self.reach = np.array([s != "unreachable" for s in tr["status"]])
+        finally:
+            tr.clear()  # Roh-Listen sofort freigeben
         self.N = len(self.q)
         r = default_robot()
         self.T_BT = np.array([r.fk_tcp(q) for q in self.q])
@@ -196,7 +202,39 @@ def check_program(path: Path, dialect: str, traj: Trajectory, tcp_name: str = "F
     return [e for e in errs[:30]]
 
 
-def check_rundir(run_dir: Path) -> tuple[list[str], dict]:
+def _part_key(pdir: Path, tcp_name: str) -> str | None:
+    """Gleiche Trajektorie (ohne part_id) und gleicher Programmtext ohne Kommentarzeilen beider Dialekte
+    -> gleiches Ergebnis. None: Datei fehlt, das Teil wird einzeln geprueft."""
+    try:
+        keys = [trajectory_key(pdir / "trajectory.json")]
+        keys += [drl_key(pdir / f"program.{d}.drl") for d in ("v2", "v3")]
+    except (OSError, UnicodeDecodeError):
+        return None
+    return "|".join([tcp_name, *keys])
+
+
+def _check_part(task) -> tuple[list[str], dict]:
+    pdir, tcp_name = task
+    errs: list[str] = []
+    stats: dict = {}
+    tj = pdir / "trajectory.json"
+    if not tj.is_file():
+        return [f"{pdir.name}: trajectory.json fehlt"], stats
+    traj = Trajectory(tj)
+    for dialect in ("v2", "v3"):
+        prog = pdir / f"program.{dialect}.drl"
+        if not prog.is_file():
+            errs.append(f"{pdir.name}: program.{dialect}.drl fehlt")
+            continue
+        e = check_program(prog, dialect, traj, tcp_name)
+        stats[f"{pdir.name}/{prog.name}"] = "ok" if not e else f"{len(e)} Fehler"
+        errs += e
+    return errs, stats
+
+
+def check_rundir(run_dir: Path, jobs: int = 1) -> tuple[list[str], dict]:
+    """Prueft jedes Teil; Teile mit identischer Trajektorie und identischem Programm (bis auf Kommentare)
+    einmal, das Ergebnis gilt mit Vermerk `(wie <Teil>)` auch fuer die Duplikate."""
     errs: list[str] = []
     stats: dict = {}
     run_dir = Path(run_dir)
@@ -206,18 +244,25 @@ def check_rundir(run_dir: Path) -> tuple[list[str], dict]:
     tcp_name = "FGC_30GUT"
     if (run_dir / "summary.json").is_file():
         tcp_name = load_json(run_dir / "summary.json").get("params", {}).get("tcp_name", tcp_name)
+    first: dict[str, str] = {}
+    rep_of = {}
     for pdir in parts:
-        tj = pdir / "trajectory.json"
-        if not tj.is_file():
-            errs.append(f"{pdir.name}: trajectory.json fehlt")
-            continue
-        traj = Trajectory(tj)
-        for dialect in ("v2", "v3"):
-            prog = pdir / f"program.{dialect}.drl"
-            if not prog.is_file():
-                errs.append(f"{pdir.name}: program.{dialect}.drl fehlt")
-                continue
-            e = check_program(prog, dialect, traj, tcp_name)
-            stats[f"{pdir.name}/{prog.name}"] = "ok" if not e else f"{len(e)} Fehler"
-            errs += e
+        key = _part_key(pdir, tcp_name)
+        rep_of[pdir.name] = pdir.name if key is None else first.setdefault(key, pdir.name)
+    reps = [p for p in parts if rep_of[p.name] == p.name]
+    tasks = [(p, tcp_name) for p in reps]
+    if jobs > 1 and len(tasks) > 1:
+        with mp.get_context("fork").Pool(jobs) as pool:
+            out = pool.map(_check_part, tasks, chunksize=1)
+        results = dict(zip([p.name for p in reps], out, strict=True))
+    else:
+        results = {p.name: _check_part(t) for p, t in zip(reps, tasks, strict=True)}
+    for pdir in parts:
+        rep = rep_of[pdir.name]
+        e, st = results[rep]
+        if rep != pdir.name:
+            e = retag(e, rep, pdir.name)
+            st = {k.replace(rep, pdir.name, 1): f"{v} (wie {rep})" for k, v in st.items()}
+        stats.update(st)
+        errs += e
     return errs, stats

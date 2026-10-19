@@ -99,6 +99,12 @@ und `summary {n, n_ok, n_warn, n_collision, n_unreachable, d_min_mm, dauer_s,
 zweig_wechsel_in_ringen}`. Bei `unreachable` sind `d_mm`, `pair` und `witness` null; `q` trägt dann
 die letzte gültige Lösung nur zur Anzeige und wird nicht geprüft.
 
+Nachtrag 19.10.2026 (Nutzerentscheidung): `status`, `d_mm`, `pair`, `witness` und `summary.d_min_mm`
+beziehen sich auf d_status nach SPEC §2: Minimum über alle Paare außer (`base_link`, `link_2`), dieses
+Paar nur, wenn sein Abstand < d_hard ist. Die Paarreihenfolge im Artefakt ist beliebig
+(`["link_2", "base_link"]` oder umgekehrt). Die G2-Schnittstelle `World.distance` liefert weiter das
+Minimum über alle Paare.
+
 ### DRL
 `program.v2.drl`, `program.v3.drl`. Gelenkziele stehen als `posj(...)`, kartesische Ziele als
 `posx(...)` mit `ref=DR_BASE`. Die Posen sind T_BT (Basis B, TCP), also nicht in W.

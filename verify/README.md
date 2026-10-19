@@ -85,8 +85,21 @@ innerer Puffer shells·w, Druckbahnen mit w/2 gepuffert, shapely), Summen in `tr
   Überlappung in L ≤ 0,1 % (manifold3d), Teil steht bei z_S = 0 ± 0,5 mm, Grundriss in der Tischplatte
   (Schnitt der Tisch-STL bei z = 900), kein Schnitt mit `base_link`, Sturzlinien auf einer Teil-Unterkante
   (± 1 mm). S3: roboprint meldet ≥ 1 `collision`, der Prüfer bestätigt ≥ 1 davon.
-- Laufzeit: Intervall-Prüfung parallel (`--jobs`, Default min(3, CPUs − 1), Umgebungsvariable
-  `VERIFY_JOBS`), Geometrie wird vor dem Fork einmal gebaut (~10 s).
+- Statusregel (SPEC §2, Nachtrag 19.10.2026): Der Prüfer rechnet das Intervall von d_status. Das Paar
+  `base_link` ↔ `link_2` (`RELAXED_PAIRS` in `collision_oracle.py`) wird zuerst gegen d_hard
+  entschieden und fällt darüber aus dem Minimum heraus. `--old-status-rule` prüft mit der alten Regel
+  (alle Paare), nur zum Vergleich alter Läufe.
+- Laufzeit und Speicher: Teil für Teil. Je Arbeitsprozess wird ein Teil geladen (Trajektorie sofort in
+  numpy-Arrays, Listen verworfen), geprüft und freigegeben; die Abstände laufen danach in Blöcken
+  (`--jobs`, Default min(4, CPUs), Umgebungsvariable `VERIFY_JOBS`), der Orakel-Cache je Prozess hält
+  höchstens zwei Teile. Wandprüfungen nutzen nur `part.stl`, `T_LP` und `T_WP` je Teil. Geometrie wird
+  vor dem Fork einmal gebaut (~10 s).
+- Inhalts-Cache (`oracle/content_hash.py`): Teile mit gleichem SHA-256 über `part.stl`,
+  `trajectory.json` und `toolpath.json` (Wert von `part_id` ausgenommen) und `part.json` (ohne
+  `part_id`, `wall_id`, `T_LP`, die nur die Wandprüfung liest) werden einmal geprüft; Duplikate
+  übernehmen Fehler und Kennzahlen mit `same_as`. Jede andere Abweichung prüft das Teil einzeln.
+  `fake_drcf` ebenso: gleiche Trajektorie und gleicher DRL-Text bis auf Kommentarzeilen (Zeilennummern
+  bleiben) → einmal ausführen, Vermerk `(wie <Teil>)`; `--jobs` wie oben.
 
 **fake_drcf (G5).** DRL wird mit `exec` in einem Namensraum ausgeführt, der nur die in
 `docs/doosan-drl.md` belegten Befehle (posj, posx, movej/amovej, movel/amovel, movesx/amovesx nur v3,

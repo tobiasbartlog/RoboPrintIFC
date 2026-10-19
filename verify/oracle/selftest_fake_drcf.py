@@ -118,3 +118,40 @@ def test_blend_radius_too_large_rejected(minirun_copy):
     p.write_text(text.replace("radius=2.0", "radius=40.0", 1), encoding="utf-8")
     errs = _check(minirun_copy)
     assert any("halbe Segmentlaenge" in e for e in errs), errs
+
+
+def _dup(run_dir: Path, dst: str = "box_1") -> Path:
+    """Kopie von box_0 mit anderer part_id und anderer Kommentar-Kopfzeile im DRL."""
+    import shutil
+
+    d = run_dir / "parts" / dst
+    shutil.copytree(run_dir / "parts" / "box_0", d)
+    tj = d / "trajectory.json"
+    tj.write_text(tj.read_text(encoding="utf-8").replace('"box_0"', f'"{dst}"'), encoding="utf-8")
+    for dialect in ("v2", "v3"):  # Kopfkommentar je Teil (gleiche Zeile, anderer Text)
+        for name in ("box_0", dst):
+            p = run_dir / "parts" / name / f"program.{dialect}.drl"
+            p.write_text(f"# Teil: {name}\n" + p.read_text(encoding="utf-8"), encoding="utf-8")
+    return d
+
+
+def test_duplicate_executed_once(minirun_copy):
+    from verify.fake_drcf.check import check_rundir
+
+    _dup(minirun_copy)
+    errs, stats = check_rundir(minirun_copy)
+    assert errs == [], errs
+    assert stats["box_1/program.v2.drl"] == "ok (wie box_0)"
+    assert stats["box_0/program.v3.drl"] == "ok"
+
+
+def test_manipulated_duplicate_not_cached_drl(minirun_copy):
+    """Gleiche Trajektorie, aber ein Befehl im Duplikat geaendert: eigene Ausfuehrung, eigener Fehler."""
+    from verify.fake_drcf.check import check_rundir
+
+    d = _dup(minirun_copy)
+    p = d / "program.v2.drl"
+    p.write_text(p.read_text(encoding="utf-8").replace("ch=1", "ch=0", 1), encoding="utf-8")
+    errs, stats = check_rundir(minirun_copy, jobs=2)
+    assert errs and all(e.startswith("box_1/program.v2.drl") for e in errs), errs
+    assert "wie" not in stats["box_1/program.v2.drl"] and stats["box_0/program.v2.drl"] == "ok"

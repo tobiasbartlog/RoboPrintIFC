@@ -52,6 +52,16 @@ TOOL_DIR = ROOT / "tools"
 MOVING_FLOOR_TABLE = ("link_2", "link_3", "link_4", "link_5", "link_6", "tool_body", "nozzle_tip")
 MOVING_PRINTED = (*LINK_NAMES, "tool_body")
 
+# Statusregel (SPEC §2, Nutzerentscheidung 19.10.2026): Diese Paare liegen konstruktiv konstant bei
+# ~33 mm < d_target. Sie zaehlen fuer collision und d_hard, nicht fuer die d_target-Schwelle.
+# Weitere Paare nur nach Freigabe durch den Nutzer (SPEC §2).
+RELAXED_PAIRS = frozenset({frozenset(("base_link", "link_2"))})
+
+
+def is_relaxed(pair) -> bool:
+    """Gehoert das (ungeordnete) Paar zu den Paaren mit gelockerter Statusregel?"""
+    return pair is not None and frozenset(pair) in RELAXED_PAIRS
+
 
 def checked_pairs() -> list[tuple[str, str]]:
     """Genau die Paare aus SPEC §5.1 als (Glied, Hindernis)."""
@@ -302,13 +312,28 @@ class CollisionOracle:
                 "printed": self.printed(k) if name == "printed" else None}.get(name)
 
     # Abstand -----------------------------------------------------------------
-    def distance(self, q, layer: int, cap: float | None = None, depth: bool = True) -> Contact:
+    def status_contact(self, q, layer: int, d_hard: float, depth: bool = True) -> Contact:
+        """d_status nach SPEC §2 (Nutzerentscheidung 19.10.2026): Minimum ueber alle Paare ausser
+        RELAXED_PAIRS; deren Abstand zaehlt nur, wenn er < d_hard ist."""
+        main = [p for p in self.pairs if not is_relaxed(p)]
+        rel = [p for p in self.pairs if is_relaxed(p)]
+        c = self.distance(q, layer, depth=depth, pairs=main)
+        if rel:
+            r = self.distance(q, layer, depth=depth, pairs=rel)
+            if r.d_mm < d_hard and r.d_mm < c.d_mm:
+                return r
+        return c
+
+    def distance(self, q, layer: int, cap: float | None = None, depth: bool = True,
+                 pairs: list[tuple[str, str]] | None = None) -> Contact:
         """Kleinster vorzeichenbehafteter Abstand aller Paare aus SPEC §5.1 fuer Pose q, k = layer.
 
         - `cap`: Die Suche darf abbrechen, sobald feststeht, dass d >= cap ist; dann ist
           `exact = False` und `d_mm` eine untere Schranke >= cap.
         - `depth=False`: Bei Durchdringung wird nur das Vorzeichen bestimmt (d = -1e-3 mm), ohne
-          Eindringtiefe. Fuer die Statusvergabe genuegt das."""
+          Eindringtiefe. Fuer die Statusvergabe genuegt das.
+        - `pairs`: nur diese Paare (Default alle aus SPEC §5.1)."""
+        use = self.pairs if pairs is None else pairs
         poses = self.body_poses(q)
         I4 = np.eye(4)
         bound = np.inf if cap is None else float(cap)
@@ -317,7 +342,7 @@ class CollisionOracle:
         best_w = (np.full(3, np.nan), np.full(3, np.nan))
 
         # Boden: exakt ueber die Huellpunkte (Minimum einer linearen Funktion liegt in einer Ecke)
-        for a, b in self.pairs:
+        for a, b in use:
             if b != "floor":
                 continue
             A = self._body(a, layer)
@@ -341,7 +366,7 @@ class CollisionOracle:
         # Paarebene: Huellkugeln, dann konvexe Huellen; Reihenfolge aufsteigend nach Huellenabstand
         centers: dict[str, np.ndarray] = {}
         cand = []
-        for a, b in self.pairs:
+        for a, b in use:
             if b == "floor":
                 continue
             A, B = self._body(a, layer), self._body(b, layer)

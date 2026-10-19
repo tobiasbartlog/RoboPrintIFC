@@ -136,7 +136,7 @@ def build(out: Path, part_id: str = "box_0", size=SIZE, center=CENTER_S) -> Path
     traj = {k: [] for k in ("t_s", "q", "tcp", "layer", "ring", "kind", "branch", "status", "d_mm", "pair",
                             "witness", "psi_rad")}
     for i, s in enumerate(b.S):
-        c = world.distance(s["q"], s["layer"], depth=False)
+        c = world.status_contact(s["q"], s["layer"], 10.0, depth=False)  # d_status (SPEC §2)
         st = "collision" if c.d_mm < 0 else ("warn" if c.d_mm < 50.0 else "ok")
         sg = b.r.branch_signs(s["q"])
         traj["t_s"].append(0.01 * i)
