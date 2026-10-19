@@ -1,4 +1,4 @@
-import { Badge, Button, FileButton, Group, Loader, Paper, Radio, Stack, Text, Title } from '@mantine/core';
+import { Badge, Button, FileButton, Group, Loader, Paper, Radio, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { useEffect } from 'react';
 import type { WallEntry } from '../contracts';
 import { useAppStore, useSteps } from '../state/storeContext';
@@ -36,19 +36,30 @@ export function ModelStep() {
           Beispiel öffnen oder IFC-Datei hochladen
         </Text>
         {examples.map((ex) => (
-          <Button key={ex.id} variant="default" justify="flex-start" disabled={busy} onClick={() => void openExample(ex.path)} data-testid={`example-${ex.id}`}>
-            {ex.name}
-            {ex.description ? (
-              <Text span size="xs" c="dimmed" ml="xs">
-                {ex.description}
+          <UnstyledButton
+            key={ex.id}
+            disabled={busy}
+            onClick={() => void openExample(ex.path)}
+            data-testid={`example-${ex.id}`}
+            style={{ opacity: busy ? 0.6 : 1 }}
+          >
+            {/* Mehrzeilig statt abgeschnitten: Name und Beschreibung umbrechen im schmalen Panel. */}
+            <Paper withBorder p="xs" px="sm">
+              <Text size="sm" fw={600}>
+                {ex.name}
               </Text>
-            ) : null}
-          </Button>
+              {ex.description ? (
+                <Text size="xs" c="dimmed" lineClamp={1} title={ex.description}>
+                  {ex.description}
+                </Text>
+              ) : null}
+            </Paper>
+          </UnstyledButton>
         ))}
         <FileButton accept=".ifc" onChange={(f) => f && void openFile(f)}>
           {(props) => (
             <Button {...props} variant="light" disabled={busy} data-testid="upload-ifc">
-              IFC-Datei hochladen
+              Eigene IFC-Datei hochladen
             </Button>
           )}
         </FileButton>
@@ -75,22 +86,24 @@ export function ModelStep() {
                     disabled={!w.eligible}
                     data-testid={`wall-select-${w.wall_id}`}
                     label={
-                      <Group gap="xs">
+                      <Stack gap={2}>
                         <Text size="sm" fw={500}>
                           {w.name}
                         </Text>
+                        <Group gap="xs">
                         <Text size="xs" c="dimmed" data-testid={`wall-dims-${w.wall_id}`}>
-                          {dims(w)}
+                          L × H × D {dims(w)}
                         </Text>
                         <Badge size="sm" color={w.eligible ? 'green' : 'red'} variant="light" data-testid={`wall-eligible-${w.wall_id}`}>
                           {w.eligible ? 'geeignet' : 'ungeeignet'}
                         </Badge>
-                      </Group>
+                        </Group>
+                      </Stack>
                     }
                   />
                   {w.reason ? (
                     <Text size="xs" c="red" mt={4} data-testid={`wall-reason-${w.wall_id}`}>
-                      {w.reason}
+                      {w.eligible ? w.reason : `${w.reason.trim().replace(/\.$/, '')}. Andere Wand wählen.`}
                     </Text>
                   ) : null}
                 </Paper>

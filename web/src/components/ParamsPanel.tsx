@@ -37,6 +37,11 @@ export function ParamsPanel() {
                   label={
                     <Group gap={4}>
                       <span>{d.label}</span>
+                      {isChanged ? (
+                        <Badge size="xs" color="blue" variant="light" data-testid={`param-changed-${d.key}`}>
+                          geändert
+                        </Badge>
+                      ) : null}
                       {d.assumption ? (
                         <Badge size="xs" color="yellow" variant="light" data-testid={`param-assumption-${d.key}`}>
                           {d.provisional ? 'Annahme, provisorisch' : 'Annahme'}
@@ -44,7 +49,7 @@ export function ParamsPanel() {
                       ) : null}
                     </Group>
                   }
-                  description={`Standard ${d.default}${d.unit ? ' ' + d.unit : ''}${d.hint ? ' · ' + d.hint : ''}`}
+                  description={`Standard ${d.default.toLocaleString('de-DE')}${d.unit ? ' ' + d.unit : ''}${d.hint ? ' · ' + d.hint : ''}`}
                   rightSection={<Text size="xs" c="dimmed">{d.unit}</Text>}
                   rightSectionWidth={44}
                   step={d.step}
@@ -54,9 +59,12 @@ export function ParamsPanel() {
                   styles={isChanged ? { input: { borderColor: 'var(--mantine-color-yellow-6)' } } : undefined}
                   data-testid={`param-${d.key}`}
                 />
-                <Button variant="subtle" size="compact-xs" disabled={!isChanged} onClick={() => resetParam(d.key)} data-testid={`param-reset-${d.key}`}>
-                  Zurücksetzen
-                </Button>
+                {/* Nur bei geändertem Wert: kein deaktivierter Knopf ohne Grund. */}
+                {isChanged ? (
+                  <Button variant="subtle" size="compact-xs" onClick={() => resetParam(d.key)} data-testid={`param-reset-${d.key}`}>
+                    Zurücksetzen
+                  </Button>
+                ) : null}
               </Group>
             );
           })}

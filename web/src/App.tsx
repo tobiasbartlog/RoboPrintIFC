@@ -1,4 +1,4 @@
-import { ActionIcon, AppShell, Box, Group, MantineProvider, ScrollArea, Stack, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, AppShell, Box, Group, MantineProvider, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { useEffect, useMemo, useRef } from 'react';
 import { DecomposeStep } from './components/DecomposeStep';
 import { ExportStep } from './components/ExportStep';
@@ -43,6 +43,22 @@ function StepPanel() {
   }
 }
 
+/** Leerzustand der 3D-Ansicht: sagt, wann dort etwas erscheint. */
+function SceneEmptyHint() {
+  const hasRun = useAppStore((s) => s.run !== null);
+  if (hasRun) return null;
+  return (
+    <Box
+      data-testid="scene-empty-hint"
+      style={{ position: 'absolute', top: 16, left: 16, right: 16, pointerEvents: 'none', display: 'flex', justifyContent: 'center' }}
+    >
+      <Text size="sm" c="dimmed" ta="center" maw={520}>
+        Hier erscheinen nach „Zerlegen & prüfen“ der Roboter am Doosantisch und das gewählte Modul.
+      </Text>
+    </Box>
+  );
+}
+
 /** Direkteinstieg: `/?run=<run_id>&part=<part_id>` öffnet die Simulation eines vorhandenen Laufs. */
 function useDirectEntry() {
   const store = useAppStoreApi();
@@ -74,15 +90,17 @@ function Shell() {
       <AppShell.Main>
         <Stack gap="md" h="calc(100vh - 56px - 2 * var(--mantine-spacing-md))" style={{ minWidth: 0 }}>
           <StepperBar />
-          <Box style={{ flex: 1, minHeight: 0 }}>
+          <Box style={{ flex: 1, minHeight: 0, position: 'relative' }}>
             <PlayerScene />
+            <SceneEmptyHint />
           </Box>
         </Stack>
       </AppShell.Main>
       <AppShell.Aside p="md">
-        <ScrollArea h="100%" data-testid="side-panel">
+        {/* Nur senkrecht scrollen: breite Inhalte (DRL-Vorschau) scrollen in ihrem eigenen Kasten. */}
+        <Box h="100%" data-testid="side-panel" style={{ overflowY: 'auto', overflowX: 'hidden', paddingRight: 4 }}>
           <StepPanel />
-        </ScrollArea>
+        </Box>
       </AppShell.Aside>
     </AppShell>
   );

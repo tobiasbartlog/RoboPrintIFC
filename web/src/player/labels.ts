@@ -55,6 +55,15 @@ export const STATUS_COLOR: Record<Status, string> = {
 
 export const STATUS_BADGE: Record<Status, string> = { ok: 'green', warn: 'yellow', collision: 'red', unreachable: 'gray' };
 
+/** Spielzeit als m:ss,s (z. B. 21:49,0), lesbarer als 1.309,0 s. */
+export function clock(seconds: number): string {
+  const sign = seconds < 0 ? '−' : '';
+  const tenths = Math.round(Math.abs(seconds) * 10);
+  const m = Math.floor(tenths / 600);
+  const s = (tenths % 600) / 10;
+  return `${sign}${m}:${s < 10 ? '0' : ''}${fmt(s)}`;
+}
+
 export function fmt(x: number, digits = 1): string {
   return x.toLocaleString('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }

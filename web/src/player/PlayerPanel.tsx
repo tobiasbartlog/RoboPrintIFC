@@ -3,7 +3,7 @@ import { ErrorNote } from '../components/common';
 import { useAppStore } from '../state/storeContext';
 import { duration, sampleAt } from './clock';
 import { CollisionList } from './CollisionList';
-import { KIND_LABEL, STATUS_BADGE, STATUS_LABEL, fmt, linkLabel, obstacleLabel } from './labels';
+import { KIND_LABEL, STATUS_BADGE, STATUS_LABEL, clock, fmt, linkLabel, obstacleLabel } from './labels';
 import { Timeline } from './Timeline';
 
 const SPEEDS = ['0.25', '0.5', '1', '2', '5', '10', '25'];
@@ -63,7 +63,7 @@ export function PlayerPanel() {
             Wiedergabe
           </Text>
           <Text size="sm" ff="monospace" data-testid="player-time">
-            {fmt(t)} / {fmt(end)} s
+            {clock(t)} / {clock(end)} min
           </Text>
         </Group>
         <Group gap="xs" wrap="nowrap">
@@ -99,7 +99,7 @@ export function PlayerPanel() {
           step={Math.max(end / 2000, 0.001)}
           value={Math.min(t, end)}
           onChange={scrub}
-          label={(v) => `${fmt(v)} s`}
+          label={(v) => `${clock(v)} min`}
           aria-label="Zeit"
           data-testid="player-scrubber"
         />
@@ -108,7 +108,7 @@ export function PlayerPanel() {
         <Table withRowBorders={false} verticalSpacing={2} fz="sm" data-testid="player-readout" data-index={i} data-status={status}>
           <Table.Tbody>
             <Table.Tr>
-              <Table.Td c="dimmed">Status</Table.Td>
+              <Table.Td c="dimmed" w={100}>Status</Table.Td>
               <Table.Td>
                 <Badge color={STATUS_BADGE[status]} variant="filled" data-testid="player-status">
                   {STATUS_LABEL[status]}
@@ -116,30 +116,30 @@ export function PlayerPanel() {
               </Table.Td>
             </Table.Tr>
             <Table.Tr>
-              <Table.Td c="dimmed">Abstand d</Table.Td>
+              <Table.Td c="dimmed" w={100}>Abstand</Table.Td>
               <Table.Td data-testid="player-distance">
                 {typeof d === 'number' ? `${fmt(d)} mm` : 'keiner (unerreichbar)'}
                 {pair ? ` · ${linkLabel(pair[0])} ↔ ${obstacleLabel(pair[1])}` : ''}
               </Table.Td>
             </Table.Tr>
             <Table.Tr>
-              <Table.Td c="dimmed">Schicht</Table.Td>
+              <Table.Td c="dimmed" w={100}>Schicht</Table.Td>
               <Table.Td data-testid="player-layer">{tr.layer[i] ?? 0} fertig</Table.Td>
             </Table.Tr>
             <Table.Tr>
-              <Table.Td c="dimmed">Ring · Art</Table.Td>
+              <Table.Td c="dimmed" w={100}>Ring</Table.Td>
               <Table.Td data-testid="player-ring">
                 {tr.ring[i] ?? 0} · {KIND_LABEL[tr.kind[i] ?? 'print']}
               </Table.Td>
             </Table.Tr>
             <Table.Tr>
-              <Table.Td c="dimmed">IK-Zweig</Table.Td>
+              <Table.Td c="dimmed" w={100}>Armstellung</Table.Td>
               <Table.Td data-testid="player-branch">{tr.branch[i] ?? '–'}</Table.Td>
             </Table.Tr>
             <Table.Tr>
-              <Table.Td c="dimmed">Sample</Table.Td>
+              <Table.Td c="dimmed" w={100}>Bahnpunkt</Table.Td>
               <Table.Td data-testid="player-index">
-                {i + 1} von {tr.t_s.length}
+                {(i + 1).toLocaleString('de-DE')} von {tr.t_s.length.toLocaleString('de-DE')}
               </Table.Td>
             </Table.Tr>
           </Table.Tbody>

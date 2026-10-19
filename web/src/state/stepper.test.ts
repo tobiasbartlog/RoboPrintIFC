@@ -30,6 +30,12 @@ describe('Stepper-Logik', () => {
     expect(isRunStale({ ...i, params: { ...DEFAULT_PARAMS } })).toBe(false);
   });
 
+  it('direkt geöffneter Lauf: Zerlegen ist ohne Modell betretbar (kein Grün auf gesperrtem Schritt)', () => {
+    const i: StepInputs = { ...base, runBasis: { projectId: '', wallId: '', paramsKey: '', direct: true } };
+    expect(stepStatuses(i)).toMatchObject({ model: 'fehlt', decompose: 'aktuell' });
+    expect(stepBlockedReason('decompose', i)).toBeNull();
+  });
+
   it('nextStep', () => {
     expect(nextStep('model')).toBe('decompose');
     expect(nextStep('export')).toBeNull();

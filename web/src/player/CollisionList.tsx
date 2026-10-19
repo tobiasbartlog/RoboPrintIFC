@@ -2,7 +2,7 @@ import { Paper, Stack, Text, UnstyledButton } from '@mantine/core';
 import { memo, useMemo } from 'react';
 import type { Trajectory } from '../contracts';
 import { collisionRanges, statusSegments, type CollisionRange } from './clock';
-import { fmt, linkLabel, obstacleLabel } from './labels';
+import { clock, fmt, linkLabel, obstacleLabel } from './labels';
 
 interface CollisionListProps {
   trajectory: Trajectory;
@@ -18,7 +18,7 @@ const Item = memo(function Item({ c, k, active, onSelect }: { c: CollisionRange;
           {linkLabel(c.link)} ↔ {obstacleLabel(c.obstacle)}
         </Text>
         <Text size="xs" c="dimmed">
-          {c.layer} Schichten fertig · min d {Number.isNaN(c.dMin) ? 'unbekannt' : `${fmt(c.dMin)} mm`} · {fmt(c.t0)}–{fmt(c.t1)} s
+          {c.layer} Schichten fertig · min d {Number.isNaN(c.dMin) ? 'unbekannt' : `${fmt(c.dMin)} mm`} · {clock(c.t0)}–{clock(c.t1)} min
         </Text>
       </Paper>
     </UnstyledButton>
@@ -66,9 +66,9 @@ export function CollisionList({ trajectory, onSelect, activeT }: CollisionListPr
       )}
       {other.warn > 0 || other.unr > 0 ? (
         <Text size="xs" c="dimmed" data-testid="status-digest">
-          {other.warn > 0 ? `${other.warn} Bereiche mit Warnung (unter Zielabstand)` : ''}
+          {other.warn > 0 ? `${other.warn} ${other.warn === 1 ? 'Bereich' : 'Bereiche'} mit Warnung (Abstand unter Sollwert)` : ''}
           {other.warn > 0 && other.unr > 0 ? ' · ' : ''}
-          {other.unr > 0 ? `${fmt(other.unrShare * 100, other.unrShare < 0.1 ? 1 : 0)} % der Bahn unerreichbar (${other.unr} Bereiche)` : ''}
+          {other.unr > 0 ? `${fmt(other.unrShare * 100, other.unrShare < 0.1 ? 1 : 0)} % der Bahn unerreichbar (${other.unr} ${other.unr === 1 ? 'Bereich' : 'Bereiche'})` : ''}
         </Text>
       ) : null}
     </Stack>

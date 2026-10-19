@@ -52,6 +52,8 @@ export function stepBlockedReason(step: StepId, i: StepInputs): string | null {
     case 'model':
       return null;
     case 'decompose':
+      // Ein direkt geöffneter Lauf zeigt seine Teile auch ohne Modell; nur neu rechnen braucht eine Wand.
+      if (i.runBasis?.direct) return null;
       if (!i.projectId) return 'Erst ein Modell wählen.';
       if (!i.wallId) return 'Erst eine Wand wählen.';
       return null;
