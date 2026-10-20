@@ -37,6 +37,8 @@ REPORT = ROOT / "runs" / "verify_muster" / "report.json"
 SECTIONS = ["600x200", "1000x200", "1000x300", "1000x365"]
 BASELINE = "schalen"
 OPEN = "offen"
+#: Status eines senkrechten Schichtwechsels in `preview()["layer_change"]` (metrics.py)
+VERTICAL = "vertical"
 
 #: Kurzdoku je Mustername
 DOC_OF = {
@@ -79,7 +81,7 @@ def measure_one(preset: dict[str, Any], section: str) -> dict[str, Any]:
     ln, th = parse_section(section)
     try:
         data = preview(preset, (ln, th), 0)
-    except Exception as exc:  # Muster nicht machbar für diesen Querschnitt
+    except Exception as exc:  # noqa: BLE001 - jede Planungsausnahme heißt: nicht machbar
         return {"error": f"{type(exc).__name__}: {exc}"[:300]}
     m = data["metrics"]
     spans = [c["span_mm"] for c in m["cells"]]
@@ -140,14 +142,18 @@ def _flatten(d: Any, prefix: str = "") -> dict[str, Any]:
     return out
 
 
-def _pick(flat: dict[str, Any], key: str) -> Any:
+def _pick(flat: dict[str, Any], key: str) -> tuple[str, Any]:
+    """(gefundener Feldname, Wert); ("", None), wenn kein Alias passt."""
     for alias in ALIASES[key]:
         for k, v in flat.items():
             if k.split(".")[-1].lower() == alias and v is not None:
                 if alias.endswith("_ms") and isinstance(v, int | float):
-                    return v / 1000.0
-                return v
-    return None
+                    return alias, v / 1000.0
+                return alias, v
+    return "", None
+
+
+ID_KEYS = ("name", "scenario", "id", "pattern", "preset", "muster")
 
 
 def _label(e: dict[str, Any], i: Any) -> str:
@@ -176,33 +182,53 @@ def load_robot_report(path: Path) -> list[dict[str, Any]]:
     for label, e in entries:
         flat = _flatten(e)
         flat["_label"] = label
-        flat["_text"] = " ".join([label] + [str(v) for v in flat.values() if isinstance(v, str)]).lower()
+        # Zuordnung nur über identifizierende Felder, nicht über Freitext (Beschreibungen nennen
+        # z. B. "Schalen" und würden sonst jedem Muster zugeordnet).
+        ids = [str(v) for k, v in flat.items() if k.split(".")[-1].lower() in ID_KEYS and isinstance(v, str)]
+        flat["_text"] = " ".join([label, *ids]).lower()
         out.append(flat)
     return out
 
 
-def fmt_robot(key: str, v: Any) -> str:
+def fmt_robot(key: str, v: Any, field: str = "") -> str:
     if isinstance(v, bool):
         return "ja" if v else "nein"
     if isinstance(v, str):
         return {"true": "ja", "false": "nein", "pass": "ja", "fail": "nein"}.get(v.lower(), v)
     if key == "vertical" and isinstance(v, int | float):
+        if field.endswith("_changes"):  # Anzahl, kein Anteil
+            return str(int(v)) if float(v).is_integer() else f"{v:.1f}".replace(".", ",")
+        if field.endswith("_pct"):
+            return f"{v:.0f} %"
         return f"{v * 100:.0f} %" if v <= 1.0 else f"{v:.0f} %"
     if isinstance(v, float):
         return f"{v:.2f}".replace(".", ",")
     return str(v)
 
 
-def robot_rows(entries: list[dict[str, Any]], preset: str) -> list[dict[str, str]]:
-    key = preset.lower()
+def _mentions(text: str, name: str) -> bool:
+    """`name` steht als eigenes Wort in `text` (`_` trennt, Buchstaben und Ziffern nicht)."""
+    return re.search(rf"(?<![a-z0-9]){re.escape(name.lower())}(?![a-z0-9])", text) is not None
+
+
+def owner(text: str, known: list[str]) -> str | None:
+    """Das spezifischste bekannte Muster im Text: "fugenwand_raute" schlägt "fugenwand"."""
+    hits = [n for n in known if _mentions(text, n)]
+    return max(hits, key=len) if hits else None
+
+
+def robot_rows(
+    entries: list[dict[str, Any]], preset: str, known: list[str] | None = None
+) -> list[dict[str, str]]:
+    names = sorted(set(known or []) | {preset})
     rows = []
     for e in entries:
-        if key not in e["_text"]:
+        if owner(e["_text"], names) != preset:
             continue
         row = {"label": e["_label"]}
         for k in ALIASES:
-            v = _pick(e, k)
-            row[k] = OPEN if v is None else fmt_robot(k, v)
+            field, v = _pick(e, k)
+            row[k] = OPEN if v is None else fmt_robot(k, v, field)
         rows.append(row)
     return rows
 
@@ -281,14 +307,14 @@ def doc_section(doc: str) -> str | None:
         return None
     text = p.read_text(encoding="utf-8")
     for head in DOC_HEADS:
-        m = re.search(rf"^## {re.escape(head)}\s*\n(.*?)(?=^## |\Z)", text, re.S | re.M)
+        m = re.search(rf"^## {re.escape(head)}\s*\n(.*?)(?=^## |\Z)", text, re.DOTALL | re.MULTILINE)
         if m:
             return m.group(1).strip()
     return None
 
 
 def pros_cons(
-    res: dict[str, dict[str, Any]], base: dict[str, dict[str, Any]], secs: list[str]
+    res: dict[str, dict[str, Any]], base: dict[str, dict[str, Any]], secs: list[str], w_mm: float = 30.0
 ) -> tuple[list[str], list[str]]:
     pros: list[str] = []
     cons: list[str] = []
@@ -310,11 +336,11 @@ def pros_cons(
     ]
     if mats:
         lo, hi = min(mats), max(mats)
-        txt = f"Material {lo:.2f}- bis {hi:.2f}-fach gegenüber „schalen“.".replace(".", ",")
+        txt = f"Material {num(lo, 2)}- bis {num(hi, 2)}-fach gegenüber „schalen“."
         (pros if hi <= 1.05 else cons).append(txt)
     cpm = max(res[s]["contacts_per_m"] for s in ok)
     if cpm >= 6:
-        pros.append(f"Viele Kontaktzonen (bis {cpm:.1f} je m) verzahnen Schalen und Füllung.".replace(".", ","))
+        pros.append(f"Viele Kontaktzonen (bis {num(cpm, 1)} je m) verzahnen Schalen und Füllung.")
     elif cpm == 0:
         cons.append("Keine Kontaktzonen: Schalen und Füllung sind nur über den Strang verbunden.")
     spans = [res[s]["max_cell_span_mm"] for s in ok if res[s]["max_cell_span_mm"] is not None]
@@ -323,11 +349,11 @@ def pros_cons(
     elif spans and max(spans) > 400:
         cons.append(f"Große Zellen (Spannweite bis {max(spans):.0f} mm).")
     radii = [res[s]["min_radius_mm"] for s in ok if res[s]["min_radius_mm"] is not None]
-    if radii and min(radii) < 30:
-        cons.append(f"Kleinster Radius {min(radii):.1f} mm liegt unter der Strangbreite (M6-Warnung).".replace(".", ","))
+    if radii and min(radii) < w_mm:
+        cons.append(f"Kleinster Radius {num(min(radii), 1)} mm liegt unter der Strangbreite (M6-Warnung).")
     if max(res[s]["strands"] for s in ok) == 1:
         pros.append("Ein Strang je Schicht und Insel (M1).")
-    lc = {res[s]["layer_change"] for s in ok} - {"ok", None}
+    lc = {res[s]["layer_change"] for s in ok} - {VERTICAL, None}
     if lc:
         cons.append(f"Schichtwechsel nicht überall senkrecht ({', '.join(sorted(map(str, lc)))}).")
     for s in ok:
@@ -350,17 +376,19 @@ def draft_recommendation(summary: list[dict[str, Any]], secs: list[str]) -> str:
     lines = ["**Entwurf aus den Zahlen (nicht abgestimmt; der Orchestrator schreibt ihn um).**", ""]
     for k, s in enumerate(sorted(cand, key=score)[:3], 1):
         lines.append(
-            f"{k}. **{s['name']}**: Material im Mittel {s['material']:.2f}-fach gegenüber „schalen“, "
-            f"bis {s['contacts']:.1f} Kontaktzonen je m, größte Zelle {s['span']:.0f} mm, "
-            f"Druckzeit {s['time']:.0f} s je Schicht auf {secs[0]}.".replace(".", ",")
+            f"{k}. **{s['name']}**: Material im Mittel {num(s['material'], 2)}-fach gegenüber „schalen“, "
+            f"bis {num(s['contacts'], 1)} Kontaktzonen je m, größte Zelle {num(s['span'], 0)} mm, "
+            f"Druckzeit {num(s['time'], 0)} s je Schicht auf {secs[0]}."
         )
     nr = [s["name"] for s in summary if s["name"] != BASELINE and not s["clean_all"]]
     if nr:
         lines += ["", f"Nicht auf allen Querschnitten regelkonform: {', '.join(nr)}."]
     lines += [
         "",
-        "Rangfolge nach Materialverbrauch, Kontaktzonen und Zellgröße. Erreichbarkeit und Kollision "
-        "des Roboters fließen nicht ein, solange die Roboterspalten „offen“ sind.",
+        (
+            "Rangfolge nach Materialverbrauch, Kontaktzonen und Zellgröße. Erreichbarkeit und Kollision "
+            "des Roboters fließen nicht ein, solange die Roboterspalten „offen“ sind."
+        ),
     ]
     return "\n".join(lines)
 
@@ -392,13 +420,15 @@ def build(
         comp += [
             f"**{s} mm** (Schicht 0)",
             "",
-            "| Muster | Status | Pfad mm | Zeit s | Material rel. | Kontakte/m | Zelle mm "
-            "| gerade Außen mm | R min mm | Roboter machbar |",
+            (
+                "| Muster | Status | Pfad mm | Zeit s | Material rel. | Kontakte/m | Zelle mm "
+                "| gerade Außen mm | R min mm | Roboter machbar |"
+            ),
             "|---|---|---|---|---|---|---|---|---|---|",
         ]
         for name in presets:
             r = results[name][s]
-            rob = robot_summary(robot_rows(entries, name))
+            rob = robot_summary(robot_rows(entries, name, list(presets)))
             if "error" in r:
                 comp.append(f"| {name} | nicht machbar | – | – | – | – | – | – | – | {rob} |")
                 continue
@@ -431,8 +461,10 @@ def build(
     block1 = [
         "## Vergleich",
         "",
-        "Material je m relativ zu „schalen“ (zwei Schalen ohne Infill = 1,00). Zeit und Pfad je Schicht. "
-        "Die Spalte „Roboter machbar“ kommt aus `runs/verify_muster/report.json` (sonst „offen“).",
+        (
+            "Material je m relativ zu „schalen“ (zwei Schalen ohne Infill = 1,00). Zeit und Pfad je Schicht. "
+            "Die Spalte „Roboter machbar“ kommt aus `runs/verify_muster/report.json` (sonst „offen“)."
+        ),
         "",
         *comp,
         "### Entwurf der Empfehlung",
@@ -452,7 +484,7 @@ def build(
             else:
                 det += [f"![{name} {s}](bilder/katalog/{name}_{s}.svg)", ""]
         det += ["Kennzahlen (Schicht 0):", "", kennzahlen_table(results[name], base, secs), ""]
-        rob = robot_rows(entries, name)
+        rob = robot_rows(entries, name, list(presets))
         det += ["Roboter (aus `verify_muster`):", ""]
         if rob:
             det += [
@@ -470,7 +502,8 @@ def build(
                 f"Druckzeit {OPEN}, Planerlaufzeit {OPEN}."
             )
         det.append("")
-        pros, cons = pros_cons(results[name], base, secs)
+        w_mm = float((preset.get("params") or {}).get("bead_width_mm", 30.0))
+        pros, cons = pros_cons(results[name], base, secs, w_mm)
         det += ["**Vorteile**", "", *(f"- {p}" for p in (pros or ["–"])), ""]
         det += ["**Nachteile**", "", *(f"- {c}" for c in (cons or ["–"])), ""]
         pat = preset.get("pattern", "")
@@ -518,7 +551,7 @@ def block(name: str, body: str) -> str:
 
 def render(existing: str | None, b1: str, b2: str) -> str:
     def repl(text: str, name: str, body: str) -> str:
-        pat = re.compile(rf"<!-- KATALOG:{name}:BEGIN -->.*?<!-- KATALOG:{name}:END -->", re.S)
+        pat = re.compile(rf"<!-- KATALOG:{name}:BEGIN -->.*?<!-- KATALOG:{name}:END -->", re.DOTALL)
         return pat.sub(lambda m: block(name, body), text, count=1)
 
     if existing and "KATALOG:VERGLEICH:BEGIN" in existing and "KATALOG:DETAILS:BEGIN" in existing:

@@ -77,9 +77,9 @@ Material je m relativ zu „schalen“ (zwei Schalen ohne Infill = 1,00). Zeit u
 
 **Entwurf aus den Zahlen (nicht abgestimmt; der Orchestrator schreibt ihn um).**
 
-1, **fugenwand_versetzt**: Material im Mittel 1,38-fach gegenüber „schalen“, bis 60,0 Kontaktzonen je m, größte Zelle 411 mm, Druckzeit 35 s je Schicht auf 600x200,
-2, **fugenwand_gurt**: Material im Mittel 1,38-fach gegenüber „schalen“, bis 50,0 Kontaktzonen je m, größte Zelle 411 mm, Druckzeit 36 s je Schicht auf 600x200,
-3, **fugenwand_foto**: Material im Mittel 1,37-fach gegenüber „schalen“, bis 36,0 Kontaktzonen je m, größte Zelle 481 mm, Druckzeit 35 s je Schicht auf 600x200,
+1. **fugenwand_versetzt**: Material im Mittel 1,38-fach gegenüber „schalen“, bis 60,0 Kontaktzonen je m, größte Zelle 411 mm, Druckzeit 35 s je Schicht auf 600x200.
+2. **fugenwand_gurt**: Material im Mittel 1,38-fach gegenüber „schalen“, bis 50,0 Kontaktzonen je m, größte Zelle 411 mm, Druckzeit 36 s je Schicht auf 600x200.
+3. **fugenwand_foto**: Material im Mittel 1,37-fach gegenüber „schalen“, bis 36,0 Kontaktzonen je m, größte Zelle 481 mm, Druckzeit 35 s je Schicht auf 600x200.
 
 Rangfolge nach Materialverbrauch, Kontaktzonen und Zellgröße. Erreichbarkeit und Kollision des Roboters fließen nicht ein, solange die Roboterspalten „offen“ sind.
 <!-- KATALOG:VERGLEICH:END -->
@@ -131,14 +131,13 @@ machbar offen, d_min offen, Stränge je Schicht offen, senkrechte Schichtwechsel
 **Vorteile**
 
 - Regelkonform (keine M1–M7-Fehler) auf 600x200, 1000x200, 1000x300, 1000x365.
-- Material 1,00- bis 1,00-fach gegenüber „schalen“,
-- Viele Kontaktzonen (bis 8,3 je m) verzahnen Schalen und Füllung,
+- Material 1,00- bis 1,00-fach gegenüber „schalen“.
+- Viele Kontaktzonen (bis 8,3 je m) verzahnen Schalen und Füllung.
 - Ein Strang je Schicht und Insel (M1).
 
 **Nachteile**
 
 - Große Zellen (Spannweite bis 909 mm).
-- Schichtwechsel nicht überall senkrecht (vertical).
 - Auf 600x200 verläuft die Außenhaut ungegliedert gerade (510 mm): Rissgefahr beim Trocknen.
 
 Keine Kurzdoku vorhanden; Vor- und Nachteile aus den Zahlen.
@@ -182,14 +181,13 @@ machbar offen, d_min offen, Stränge je Schicht offen, senkrechte Schichtwechsel
 **Vorteile**
 
 - Regelkonform (keine M1–M7-Fehler) auf 600x200, 1000x200, 1000x300, 1000x365.
-- Viele Kontaktzonen (bis 14,0 je m) verzahnen Schalen und Füllung,
+- Viele Kontaktzonen (bis 14,0 je m) verzahnen Schalen und Füllung.
 - Ein Strang je Schicht und Insel (M1).
 
 **Nachteile**
 
-- Material 0,95- bis 1,18-fach gegenüber „schalen“,
-- Kleinster Radius 27,0 mm liegt unter der Strangbreite (M6-Warnung),
-- Schichtwechsel nicht überall senkrecht (vertical).
+- Material 0,95- bis 1,18-fach gegenüber „schalen“.
+- Kleinster Radius 27,0 mm liegt unter der Strangbreite (M6-Warnung).
 
 Kurzdoku: [fugenwand.md](fugenwand.md)
 
@@ -246,15 +244,14 @@ machbar offen, d_min offen, Stränge je Schicht offen, senkrechte Schichtwechsel
 **Vorteile**
 
 - Regelkonform (keine M1–M7-Fehler) auf 600x200, 1000x200, 1000x300, 1000x365.
-- Viele Kontaktzonen (bis 36,0 je m) verzahnen Schalen und Füllung,
+- Viele Kontaktzonen (bis 36,0 je m) verzahnen Schalen und Füllung.
 - Ein Strang je Schicht und Insel (M1).
 
 **Nachteile**
 
-- Material 1,35- bis 1,41-fach gegenüber „schalen“,
+- Material 1,35- bis 1,41-fach gegenüber „schalen“.
 - Große Zellen (Spannweite bis 481 mm).
-- Kleinster Radius 20,0 mm liegt unter der Strangbreite (M6-Warnung),
-- Schichtwechsel nicht überall senkrecht (vertical).
+- Kleinster Radius 20,0 mm liegt unter der Strangbreite (M6-Warnung).
 
 Kurzdoku: [fugenwand.md](fugenwand.md)
 
@@ -297,15 +294,14 @@ machbar offen, d_min offen, Stränge je Schicht offen, senkrechte Schichtwechsel
 **Vorteile**
 
 - Regelkonform (keine M1–M7-Fehler) auf 600x200, 1000x200, 1000x300, 1000x365.
-- Viele Kontaktzonen (bis 50,0 je m) verzahnen Schalen und Füllung,
+- Viele Kontaktzonen (bis 50,0 je m) verzahnen Schalen und Füllung.
 - Ein Strang je Schicht und Insel (M1).
 
 **Nachteile**
 
-- Material 1,34- bis 1,42-fach gegenüber „schalen“,
+- Material 1,34- bis 1,42-fach gegenüber „schalen“.
 - Große Zellen (Spannweite bis 411 mm).
-- Kleinster Radius 21,0 mm liegt unter der Strangbreite (M6-Warnung),
-- Schichtwechsel nicht überall senkrecht (vertical).
+- Kleinster Radius 21,0 mm liegt unter der Strangbreite (M6-Warnung).
 
 Kurzdoku: [fugenwand.md](fugenwand.md)
 
@@ -348,14 +344,13 @@ machbar offen, d_min offen, Stränge je Schicht offen, senkrechte Schichtwechsel
 **Vorteile**
 
 - Regelkonform (keine M1–M7-Fehler) auf 600x200, 1000x200, 1000x300, 1000x365.
-- Viele Kontaktzonen (bis 14,0 je m) verzahnen Schalen und Füllung,
+- Viele Kontaktzonen (bis 14,0 je m) verzahnen Schalen und Füllung.
 - Ein Strang je Schicht und Insel (M1).
 
 **Nachteile**
 
-- Material 0,95- bis 1,18-fach gegenüber „schalen“,
-- Kleinster Radius 27,0 mm liegt unter der Strangbreite (M6-Warnung),
-- Schichtwechsel nicht überall senkrecht (vertical).
+- Material 0,95- bis 1,18-fach gegenüber „schalen“.
+- Kleinster Radius 27,0 mm liegt unter der Strangbreite (M6-Warnung).
 
 Kurzdoku: [fugenwand.md](fugenwand.md)
 
@@ -398,15 +393,14 @@ machbar offen, d_min offen, Stränge je Schicht offen, senkrechte Schichtwechsel
 **Vorteile**
 
 - Regelkonform (keine M1–M7-Fehler) auf 600x200, 1000x200, 1000x300, 1000x365.
-- Viele Kontaktzonen (bis 60,0 je m) verzahnen Schalen und Füllung,
+- Viele Kontaktzonen (bis 60,0 je m) verzahnen Schalen und Füllung.
 - Ein Strang je Schicht und Insel (M1).
 
 **Nachteile**
 
-- Material 1,35- bis 1,42-fach gegenüber „schalen“,
+- Material 1,35- bis 1,42-fach gegenüber „schalen“.
 - Große Zellen (Spannweite bis 411 mm).
-- Kleinster Radius 21,0 mm liegt unter der Strangbreite (M6-Warnung),
-- Schichtwechsel nicht überall senkrecht (vertical).
+- Kleinster Radius 21,0 mm liegt unter der Strangbreite (M6-Warnung).
 
 Kurzdoku: [fugenwand.md](fugenwand.md)
 
@@ -449,15 +443,14 @@ machbar offen, d_min offen, Stränge je Schicht offen, senkrechte Schichtwechsel
 **Vorteile**
 
 - Regelkonform (keine M1–M7-Fehler) auf 600x200, 1000x200, 1000x300, 1000x365.
-- Viele Kontaktzonen (bis 16,7 je m) verzahnen Schalen und Füllung,
+- Viele Kontaktzonen (bis 16,7 je m) verzahnen Schalen und Füllung.
 - Kleine Zellen (Spannweite höchstens 230 mm).
 - Ein Strang je Schicht und Insel (M1).
 
 **Nachteile**
 
-- Material 1,24- bis 1,46-fach gegenüber „schalen“,
-- Kleinster Radius 26,5 mm liegt unter der Strangbreite (M6-Warnung),
-- Schichtwechsel nicht überall senkrecht (vertical).
+- Material 1,24- bis 1,46-fach gegenüber „schalen“.
+- Kleinster Radius 26,5 mm liegt unter der Strangbreite (M6-Warnung).
 - Auf 600x200 verläuft die Außenhaut ungegliedert gerade (510 mm): Rissgefahr beim Trocknen.
 
 Kurzdoku: [wellen.md](wellen.md)
@@ -513,13 +506,12 @@ machbar offen, d_min offen, Stränge je Schicht offen, senkrechte Schichtwechsel
 **Vorteile**
 
 - Regelkonform (keine M1–M7-Fehler) auf 600x200, 1000x200, 1000x300, 1000x365.
-- Viele Kontaktzonen (bis 16,7 je m) verzahnen Schalen und Füllung,
+- Viele Kontaktzonen (bis 16,7 je m) verzahnen Schalen und Füllung.
 - Ein Strang je Schicht und Insel (M1).
 
 **Nachteile**
 
-- Material 1,21- bis 1,27-fach gegenüber „schalen“,
-- Schichtwechsel nicht überall senkrecht (vertical).
+- Material 1,21- bis 1,27-fach gegenüber „schalen“.
 - Auf 600x200 verläuft die Außenhaut ungegliedert gerade (510 mm): Rissgefahr beim Trocknen.
 
 Kurzdoku: [wellen.md](wellen.md)
@@ -563,14 +555,13 @@ machbar offen, d_min offen, Stränge je Schicht offen, senkrechte Schichtwechsel
 **Vorteile**
 
 - Regelkonform (keine M1–M7-Fehler) auf 600x200, 1000x200, 1000x300, 1000x365.
-- Viele Kontaktzonen (bis 16,7 je m) verzahnen Schalen und Füllung,
+- Viele Kontaktzonen (bis 16,7 je m) verzahnen Schalen und Füllung.
 - Kleine Zellen (Spannweite höchstens 257 mm).
 - Ein Strang je Schicht und Insel (M1).
 
 **Nachteile**
 
-- Material 1,22- bis 1,41-fach gegenüber „schalen“,
-- Schichtwechsel nicht überall senkrecht (vertical).
+- Material 1,22- bis 1,41-fach gegenüber „schalen“.
 - Auf 600x200 verläuft die Außenhaut ungegliedert gerade (510 mm): Rissgefahr beim Trocknen.
 
 Kurzdoku: [wellen.md](wellen.md)
@@ -614,15 +605,14 @@ machbar offen, d_min offen, Stränge je Schicht offen, senkrechte Schichtwechsel
 **Vorteile**
 
 - Regelkonform (keine M1–M7-Fehler) auf 600x200, 1000x200, 1000x300, 1000x365.
-- Viele Kontaktzonen (bis 16,7 je m) verzahnen Schalen und Füllung,
+- Viele Kontaktzonen (bis 16,7 je m) verzahnen Schalen und Füllung.
 - Kleine Zellen (Spannweite höchstens 260 mm).
 - Ein Strang je Schicht und Insel (M1).
 
 **Nachteile**
 
-- Material 1,21- bis 1,39-fach gegenüber „schalen“,
-- Kleinster Radius 29,9 mm liegt unter der Strangbreite (M6-Warnung),
-- Schichtwechsel nicht überall senkrecht (vertical).
+- Material 1,21- bis 1,39-fach gegenüber „schalen“.
+- Kleinster Radius 29,9 mm liegt unter der Strangbreite (M6-Warnung).
 - Auf 600x200 verläuft die Außenhaut ungegliedert gerade (510 mm): Rissgefahr beim Trocknen.
 
 Kurzdoku: [wellen.md](wellen.md)
