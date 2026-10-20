@@ -22,7 +22,10 @@ class PlannerParams:
     z_lift_mm: float = 30.0
     approach_mm: float = 20.0
     v_pump_v: float = 5.0
-    t_tot_s: float = 3.0
+    t_tot_s: float = 3.0  # Pumpen-Vorlauf, einmal je Strang am Strangbeginn (SPEC §5.5)
+    # Verbinder (SPEC §5.3, Nutzer 20.10.2026): laengste gedruckte Gerade zwischen zwei Ringen eines
+    # Strangs; 0 schaltet Verbinder ab (je Ring ein Strang, alter Ablauf)
+    link_max_mm: float = 60.0
     r_blend_mm: float = 2.0
     d_hard_mm: float = 10.0
     d_target_mm: float = 50.0
@@ -50,6 +53,9 @@ class PlannerParams:
     lambda_psi: float = 0.05
     lambda_branch: float = 5.0
     lambda_transfer: float = 0.2
+    # Verbinder: Gewicht der Gelenkdistanz vom Ende des vorigen Rings zum Start des naechsten (wie
+    # eine Kante im Ring, damit der Verbinder ohne grosse Drehung auskommt)
+    lambda_link: float = 1.0
     # Travel: Hoehen des Zwischenpunkts ueber dem Druckstand (SPEC §5.3)
     via_heights_mm: tuple[float, ...] = (150.0, 300.0, 500.0)
 

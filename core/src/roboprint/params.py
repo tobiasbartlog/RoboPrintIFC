@@ -3,7 +3,8 @@
 Die Zeitachse in `trajectory.json` soll dieselben Geschwindigkeiten abbilden, die das DRL-Programm
 kommandiert. Deshalb stehen die Standardwerte und die Zuordnung Bewegungsart -> (v, a) nur hier:
 
-- `print`, `approach`, `retract`: v_print / a_print (im DRL die Vorgaben von `set_velx`/`set_accx`).
+- `print`, `link`, `approach`, `retract`: v_print / a_print (im DRL die Vorgaben von
+  `set_velx`/`set_accx`). Verbinder (`link`) laufen im Strang mit der Druckgeschwindigkeit.
 - `lift`, `lower`: v_travel / a_travel (im DRL als explizites `vel=`/`acc=` am `movel`).
 - `transfer` (`movej`): gelenklinear mit `joint_speed_fraction` der Achsgrenzen
   (`roboprint.robot.JOINT_VEL_LIMITS`), Gelenkbeschleunigung = `JOINT_ACC_FACTOR` x Gelenkgeschwindigkeit.
@@ -19,7 +20,7 @@ JOINT_SPEED_FRACTION = 0.30  # A, Gelenke <= 30 % der Grenzen
 JOINT_ACC_FACTOR = 4.0  # Gelenkbeschleunigung = Faktor x Gelenkgeschwindigkeit (1/s)
 
 # Bewegungsarten mit der Druckgeschwindigkeit bzw. der Travel-Geschwindigkeit (kartesisch, `movel`).
-PRINT_SPEED_KINDS = ("print", "approach", "retract")
+PRINT_SPEED_KINDS = ("print", "link", "approach", "retract")
 TRAVEL_SPEED_KINDS = ("lift", "lower")
 CARTESIAN_KINDS = PRINT_SPEED_KINDS + TRAVEL_SPEED_KINDS
 

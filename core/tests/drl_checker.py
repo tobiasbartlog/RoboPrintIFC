@@ -13,8 +13,13 @@ Geprueft:
   AO-Wechsel steht die Bewegung (radius 0);
 - jedes `posj` ist ein geplantes q (<= 0,001 Grad), jedes `posx` = FK(geplantes q) (<= 0,1 mm,
   <= 0,05 Grad), in der Reihenfolge der Trajektorie; das letzte Ziel ist das letzte Sample;
-- Pumpe ist nur an, waehrend Druck-Samples angefahren werden, und alle Druck-Ziele laufen mit
-  Pumpe; jeder Toolpath-Wegpunkt wird mit Pumpe an erreicht.
+- die geplanten Samples zwischen zwei Zielen liegen auf der Bahn des Befehls: `movel` auf der Geraden
+  (<= 0,5 mm, damit auch jeder Verbinder als Gerade), `movej` auf der Gelenkgeraden (<= 1e-4 rad);
+- Strang (SPEC §5.3/§5.6, G5): Pumpe nur an, solange `print`- und `link`-Samples gefahren werden, und
+  dort immer; Einschalten nur im Stillstand am Strangbeginn (Ziel vor `print`, nicht im Strang),
+  Ausschalten nur im Stillstand am Strangende (Druckende, danach kein `link`), also nie zwischen
+  `print` und `link`; im Strang kein Halt (radius 0 nur am Strangende); `wait` nur direkt nach dem
+  Einschalten; jeder Toolpath-Wegpunkt wird mit Pumpe an erreicht.
 """
 
 from __future__ import annotations
@@ -25,13 +30,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
-import pinocchio as pin
 
 REPO = Path(__file__).resolve().parents[2]
 POSJ_TOL_DEG = 1e-3
 POSX_TOL_MM = 0.1
 POSX_TOL_DEG = 0.05
 WAYPOINT_TOL_MM = 0.5
+MOVEL_PATH_TOL_MM = 0.5
+MOVEJ_PATH_TOL_RAD = 1e-4
+STRAND = ("print", "link")
 TCP_SPEED_MAX = 1000.0
 VEL_DEG = np.array([120.0, 120.0, 180.0, 225.0, 225.0, 225.0])
 
@@ -65,6 +72,7 @@ class State:
     ao: dict[int, float] = field(default_factory=dict)
     ao_mode: set[int] = field(default_factory=set)
     ao_log: list[tuple[int, float, int]] = field(default_factory=list)  # (ch, val, n_motions davor)
+    waits: list[tuple[float, int, bool]] = field(default_factory=list)  # (t, n_motions davor, Pumpe an)
     tcp: str | None = None
     singularity: str | None = None
 
@@ -184,8 +192,10 @@ def _env(dialect: str, st: State, fail_at: int | None) -> dict:
         st.ao_log.append((ch, v, len(st.motions)))
 
     def wait(t):
-        if num(t)[0] < 0:
+        (v,) = num(t)
+        if v < 0:
             raise DrlError("wait < 0")
+        st.waits.append((v, len(st.motions), any(x > 0 for x in st.ao.values())))
 
     env = {
         k: v for k, v in locals().items() if k not in ("num", "vel_x", "motion", "dialect", "st", "fail_at")
@@ -217,6 +227,9 @@ def run_program(text: str, dialect: str, fail_at: int | None = None) -> State:
 
 class _Plan:
     def __init__(self, part_dir: Path) -> None:
+        # erst hier: `run_program` (Stub-Interpreter) laeuft auch ohne Pinocchio
+        import pinocchio as pin
+
         run = part_dir.parent.parent
         self.traj = json.loads((part_dir / "trajectory.json").read_text())
         self.tp = json.loads((part_dir / "toolpath.json").read_text())
@@ -252,6 +265,71 @@ class _Plan:
         return int(start + hit[0]) if hit.size else -1
 
 
+def _check_path(st: State, idx: list[int], plan: _Plan) -> list[str]:
+    """Geplante Samples zwischen zwei Zielen liegen auf der Bahn des Befehls (movesx: Spline, frei)."""
+    errs: list[str] = []
+    P = plan.T[:, :3, 3]  # noqa: N806
+    for k in range(1, len(st.motions)):
+        a, b, m = idx[k - 1], idx[k], st.motions[k]
+        mid = np.arange(a + 1, b)
+        mid = mid[plan.valid[mid]]
+        if not len(mid) or m.cmd == "movesx":
+            continue
+        if m.cmd == "movej":
+            d = plan.Q[b] - plan.Q[a]
+            t = np.clip(((plan.Q[mid] - plan.Q[a]) @ d) / max(float(d @ d), 1e-12), 0.0, 1.0)
+            dev = float(np.abs(plan.Q[mid] - (plan.Q[a] + t[:, None] * d)).max())
+            if dev > MOVEJ_PATH_TOL_RAD:
+                errs.append(f"Bewegung {k}: Samples {a}..{b} nicht auf der Gelenkgeraden ({dev:.2e} rad)")
+        else:
+            d = P[b] - P[a]
+            t = np.clip(((P[mid] - P[a]) @ d) / max(float(d @ d), 1e-12), 0.0, 1.0)
+            dev = float(np.linalg.norm(P[mid] - (P[a] + t[:, None] * d), axis=1).max())
+            if dev > MOVEL_PATH_TOL_MM:
+                errs.append(f"Bewegung {k}: Samples {a}..{b} nicht auf der Geraden ({dev:.2f} mm)")
+    return errs
+
+
+def _check_strands(st: State, idx: list[int], plan: _Plan) -> list[str]:
+    """Pumpe an nur am Strangbeginn, aus nur am Strangende, kein Halt im Strang, wait nur direkt nach
+    dem Einschalten. Den Stillstand vor jedem AO-Wechsel (radius 0) prueft `check`."""
+    errs: list[str] = []
+    kinds = plan.traj["kind"]
+    n_samples = len(kinds)
+    P = plan.T[:, :3, 3]  # noqa: N806
+    ao: dict[int, float] = {}
+    on, on_at, off_at = False, set(), set()
+    for ch, v, n in st.ao_log:
+        ao[ch] = v
+        now = any(x > 0 for x in ao.values())
+        if now == on:
+            continue
+        on = now
+        if n == 0:
+            errs.append("Pumpe an vor der ersten Bewegung")
+            continue
+        i = idx[n - 1]
+        if now:
+            on_at.add(n)
+            if kinds[i] in STRAND or i + 1 >= n_samples or kinds[i + 1] != "print":
+                errs.append(f"Pumpe an bei Sample {i} ({kinds[i]}), nicht am Strangbeginn")
+            continue
+        off_at.add(n)
+        j = i + 1  # gleich liegende Druck-Samples am Ringende gehoeren noch zum Ziel
+        while j < n_samples and kinds[j] == "print" and np.linalg.norm(P[j] - P[i]) <= POSX_TOL_MM:
+            j += 1
+        if kinds[i] != "print" or (j < n_samples and kinds[j] in STRAND):
+            nxt = kinds[j] if j < n_samples else "Ende"
+            errs.append(f"Pumpe aus bei Sample {i} ({kinds[i]} -> {nxt}), nicht am Strangende")
+    for k, m in enumerate(st.motions):
+        if m.pump and m.radius == 0.0 and (k + 1) not in off_at:
+            errs.append(f"Bewegung {k}: Halt (radius 0) im Strang")
+    for t, n, pumping in st.waits:
+        if n not in on_at or not pumping:
+            errs.append(f"wait({t}) nach Bewegung {n - 1} steht nicht direkt nach Pumpe an (Strangbeginn)")
+    return errs
+
+
 def check(text: str, dialect: str, part_dir: Path) -> list[str]:
     """Liste der Verstoesse (leer = bestanden)."""
     try:
@@ -279,9 +357,15 @@ def check(text: str, dialect: str, part_dir: Path) -> list[str]:
         start = i
     if idx and idx[-1] != len(plan.Q) - 1:
         errs.append(f"letztes Ziel ist Sample {idx[-1]}, nicht das Trajektorienende {len(plan.Q) - 1}")
-    for m, i in zip(st.motions, idx, strict=True):
-        if m.pump != (kinds[i] == "print"):
-            errs.append(f"Bewegung {m.line} zu Sample {i} ({kinds[i]}) mit Pumpe {'an' if m.pump else 'aus'}")
+    for k, m in enumerate(st.motions):
+        # Samples, die diese Bewegung abfaehrt: (vorheriges Ziel, Ziel]
+        seg = sorted({kinds[i] for i in range(idx[k - 1] + 1, idx[k] + 1)}) if k else [kinds[idx[0]]]
+        if m.pump and set(seg) - set(STRAND):
+            errs.append(f"Bewegung {m.line} zu Sample {idx[k]}: Pumpe an waehrend {seg}")
+        if not m.pump and set(seg) & set(STRAND):
+            errs.append(f"Bewegung {m.line} zu Sample {idx[k]}: {seg} ohne Pumpe")
+    errs += _check_path(st, idx, plan)
+    errs += _check_strands(st, idx, plan)
     # Blending: Radius <= 2 mm und <= 1/2 der angrenzenden Segmente; vor AO-Wechsel Halt
     pos = [plan.T[i, :3, 3] for i in idx]
     ao_before = {n for _, _, n in st.ao_log}

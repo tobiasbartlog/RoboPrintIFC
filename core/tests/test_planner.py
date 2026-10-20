@@ -216,14 +216,20 @@ def test_niedrigeres_prisma_ist_praefix_des_hoeheren() -> None:
     low = plan_part(make_box([200, 100, 30], origin=[-100, -50, 0.0]), "b", P, placement=pl)
     cut = truncate_plan(tall, 3, P)
     assert low.path.feasible and cut.path.feasible
+    # Im hohen Plan fuehrt ein Verbinder in Schicht 3; der Ausschnitt endet mit dessen Strangende
+    links = zip(tall.path.ring, tall.path.kind, strict=True)
+    assert 3 in {tall.sliced.rings[r].layer for r, k in links if k == "link"}
     assert np.array_equal(cut.path.q, low.path.q) and cut.path.status == low.path.status
+    assert cut.path.kind == low.path.kind and cut.path.layer == low.path.layer
     assert [c and c.d_mm for c in cut.path.contacts] == [c and c.d_mm for c in low.path.contacts]
     assert cut.sliced.n_layers == 3 and len(cut.sliced.rings) == len(low.sliced.rings)
+    assert [r.link_next for r in cut.sliced.rings] == [r.link_next for r in low.sliced.rings]
 
 
 def test_hoehensuche_stoppt_an_der_ersten_schicht_die_nicht_geht() -> None:
-    """Ab k = 5 fertigen Schichten ist (kuenstlich) alles Kollision: Das Abheben nach Schicht 4
-    scheitert, also gehen 4 Schichten. Darueber wird nichts mehr geplant."""
+    """Ab k = 5 fertigen Schichten ist (kuenstlich) alles Kollision: Der Verbinder vom letzten Ring
+    der Schicht 4 in Schicht 5 und das Abheben danach scheitern, also gehen 4 Schichten. Darueber wird
+    nichts mehr geplant."""
     from dataclasses import replace
 
     from roboprint import frames
@@ -246,8 +252,9 @@ def test_hoehensuche_stoppt_an_der_ersten_schicht_die_nicht_geht() -> None:
 
     path = PartPlanner(kin, tasks, T_WP, P, screen, screen, True, height, Blocked(), stop_at_bad=True).run()
     assert path.layers_ok == 4
-    first_ring_l4 = next(r.index for r in tasks if r.layer == 4)
-    assert max(path.ring) == first_ring_l4 and not path.feasible
+    last_ring_l4 = max(r.index for r in tasks if r.layer == 4)
+    assert max(path.ring) == last_ring_l4 and not path.feasible
+    assert "link" in path.kind and path.kind[-1] == "lift"
     cut = truncate(path, _prefix_len(path, sliced, 4), P)
     assert cut.feasible and max(cut.layer) == 4 and cut.kind[-1] == "lift"
 
@@ -365,7 +372,7 @@ def test_trapez_und_monotonie() -> None:
     tcp = np.zeros((5, 3))  # Stillstand: trotzdem streng monoton
     ts = time_parametrize(q, tcp, ["transfer", "transfer", "print", "print", "lift"], [0, 0, 0, 0, 0])
     assert np.all(np.diff(ts) > 0)
-    assert ts[2] - ts[1] >= 3.0  # Verweilzeit t_tot vor dem ersten Druck-Sample
+    assert ts[2] - ts[1] >= 3.0  # Pumpen-Vorlauf t_tot am Strangbeginn (erstes Druck-Sample)
 
 
 # --------------------------------------------------------------------------- Ende-zu-Ende
@@ -406,6 +413,9 @@ def run_dir(tmp_path_factory) -> Path:
 
 def test_artefakte_validieren(run_dir: Path) -> None:
     summ = load_json(run_dir / "summary.json", Summary)
+    assert summ.params["link_max_mm"] == 60.0 and summ.params["t_tot_s"] == 3.0
+    assert any("Pumpen-Vorlauf am Strangbeginn" in a for a in summ.assumptions)
+    assert any("link_max_mm = 60 mm" in a for a in summ.assumptions)
     load_json(run_dir / "scene.json", Scene)
     pdir = run_dir / "parts" / summ.parts[0].part_id
     part = load_json(pdir / "part.json", PartArtifact)
@@ -414,7 +424,11 @@ def test_artefakte_validieren(run_dir: Path) -> None:
     assert part.status == "machbar" and summ.parts[0].status == "machbar"
     assert (pdir / "part.stl").is_file()
     for d in ("v2", "v3"):
-        assert "movej(posj(" in (pdir / f"program.{d}.drl").read_text(encoding="ascii")
+        text = (pdir / f"program.{d}.drl").read_text(encoding="ascii")
+        assert "movej(posj(" in text
+        # ein Strang: Pumpe einmal an (mit Vorlauf), einmal aus vor dem Abfahren
+        assert text.count("set_analog_output(ch=1, val=5.000)") == 1
+        assert sum(1 for ln in text.splitlines() if ln.strip().startswith("wait(")) == 1
 
 
 def test_ablauf_und_schichtsemantik(run_dir: Path) -> None:
@@ -423,26 +437,36 @@ def test_ablauf_und_schichtsemantik(run_dir: Path) -> None:
     tp = load_json(pdir / "toolpath.json", Toolpath)
     kind, ring, layer = tr.kind, tr.ring, tr.layer
     assert np.allclose(tr.q[0], HOME_Q) and kind[0] == "transfer" and layer[0] == 0
-    # Reihenfolge je Ring: (lift) -> transfer -> lower -> approach -> print -> retract
-    order = {"lift": 0, "transfer": 1, "lower": 2, "approach": 3, "print": 4, "retract": 5}
+    # Ablauf je Strang (ARTEFAKTE): je Ring ein Druckabschnitt, davor approach oder link desselben
+    # Rings, danach retract desselben Rings oder link des naechsten; link nur mit link_next
     runs = [(kind[0], ring[0])]
     for k, r in zip(kind[1:], ring[1:], strict=True):
         if (k, r) != runs[-1]:
             runs.append((k, r))
-    for r in range(len(tp.rings)):
-        seq = [k for k, rr in runs if rr == r and k != "lift"]
-        assert seq == sorted(seq, key=order.get) and seq[-1] == "retract"
-        assert {"transfer", "approach", "print", "retract"} <= set(seq)
+    prints = [j for j, (k, _) in enumerate(runs) if k == "print"]
+    assert [runs[j][1] for j in prints] == list(range(len(tp.rings)))
+    for j in prints:
+        r = runs[j][1]
+        assert runs[j - 1] in (("approach", r), ("link", r))
+        assert runs[j + 1] in (("retract", r), ("link", r + 1))
+    for j, (k, r) in enumerate(runs):
+        if k == "link":
+            assert tp.rings[r - 1].link_next
+            assert runs[j - 1] == ("print", r - 1) and runs[j + 1] == ("print", r)
+        if k == "retract":
+            assert runs[j + 1] == ("lift", r)
+        if k == "approach":
+            assert runs[j - 1] == ("lower", r) and runs[j - 2] == ("transfer", r)
     assert kind[-1] == "lift"
+    last_print = None
     for i in range(len(kind)):
         L = tp.rings[ring[i]].layer
-        if kind[i] in ("print", "approach", "retract"):
-            assert layer[i] == L
-        elif kind[i] == "lift":
-            assert layer[i] == L + 1
-        elif i > 0:  # transfer/lower vor Ring r: Schicht des vorigen Rings + 1 (erster Ring: 0)
-            prev = tp.rings[ring[i] - 1].layer + 1 if ring[i] > 0 else 0
-            assert layer[i] == prev
+        if kind[i] in ("print", "approach", "retract", "link"):
+            assert layer[i] == L  # link: Schicht des folgenden Rings
+        else:  # Travel nach einem Ring in Schicht L: L + 1, vor dem ersten Druck 0
+            assert layer[i] == (0 if last_print is None else last_print + 1)
+        if kind[i] == "print":
+            last_print = L
     assert all(np.diff(tr.t_s) > 0)
     st = Counter(tr.status)
     assert st["collision"] == 0 and st["unreachable"] == 0

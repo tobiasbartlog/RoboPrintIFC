@@ -118,7 +118,7 @@ scripts/      verify.py, dev.sh
 
 Mehrere Prozessparameter sind Annahmen (in SPEC §10 mit „A“ markiert, auch im Kopf jedes DRL-Programms
 und in `summary.json` aufgeführt): Schichthöhe, Strangbreite, Druck- und Fahrgeschwindigkeit, Pumpenwert,
-Verweilzeit, d_hard und τ_max. Hinzu kommen die Firmware-Version des Controllers, die Rotationssymmetrie der
+Pumpen-Vorlauf t_tot (einmal je Strang), d_hard und τ_max. Hinzu kommen die Firmware-Version des Controllers, die Rotationssymmetrie der
 Düse und der am Teach Pendant anzulegende TCP `FGC_30GUT`. Die vollständige Liste steht in SPEC §13 und
 muss vom Nutzer bestätigt werden. Kein DRL-Programm ist bisher an einem realen Controller gelaufen.
 

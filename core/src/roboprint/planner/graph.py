@@ -200,16 +200,23 @@ def _is_edge(g: RingGraph, i: int, s_from: int, s_to: int) -> bool:
 
 
 def start_costs(
-    g: RingGraph, params: PlannerParams, q_prev: np.ndarray | None, b_prev: int | None
+    g: RingGraph,
+    params: PlannerParams,
+    q_prev: np.ndarray | None,
+    b_prev: int | None,
+    w_start: float | None = None,
 ) -> np.ndarray:
+    """Kosten des Ringstarts: Zweig ungleich `b_prev` (lambda_branch) und gewichtete Gelenkdistanz
+    zu `q_prev` mal `w_start` (Standard lambda_transfer; Verbinder: lambda_link, wie eine Kante)."""
     S = g.Q.shape[1]
     c = np.zeros(S)
     br = np.arange(S) % N_BRANCH
     if b_prev is not None:
         c += params.lambda_branch * (br != b_prev)
     if q_prev is not None:
+        w = params.lambda_transfer if w_start is None else w_start
         dq = np.abs(joint_diff(g.Q[0], q_prev))
-        c += params.lambda_transfer * np.nan_to_num((dq * JOINT_WEIGHTS).sum(-1), nan=0.0)
+        c += w * np.nan_to_num((dq * JOINT_WEIGHTS).sum(-1), nan=0.0)
     return c
 
 
@@ -221,10 +228,11 @@ def solve_ring(
     b_prev: int | None,
     force_branch: int | None = None,
     max_iter: int = 12,
+    w_start: float | None = None,
 ) -> RingPath:
     """Viterbi mit lazy Pruefung der Pfadknoten gegen die echte Welt (`real`; None = ohne)."""
     collision_aware = real is not None
-    sc = start_costs(g, params, q_prev, b_prev)
+    sc = start_costs(g, params, q_prev, b_prev, w_start)
     if force_branch is not None:
         sc = sc + np.where(np.arange(len(sc)) % N_BRANCH == force_branch, 0.0, HARD)
     for _ in range(max_iter):

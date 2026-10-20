@@ -18,8 +18,14 @@ Festlegungen
 - Reihenfolge je Schicht: Schale 0 vor Schale 1 usw. (außen vor innen); innerhalb einer Schale
   nächster Nachbar (Startpunkt zum Ende des vorigen Rings, Schichtanfang: zum Ende der
   Vorschicht). `kind`: outer (Außenkontur, Schale 0), inner (Außenkontur, Schale > 0), hole.
-- An-/Abfahrt: Punkte 20 mm senkrecht über Ringstart bzw. -ende (Ringende == Ringstart).
+- An-/Abfahrt: Punkte approach_mm senkrecht über Ringstart bzw. -ende (Ringende == Ringstart).
 - Düse: +Z_T = -Z_W. Bei psi = 0 gilt X_T = +X_W, Y_T = -Y_W, Quaternion (w,x,y,z) = (0,1,0,0).
+- Verbinder (SPEC §5.3, Nutzerentscheidung 20.10.2026): `link_next` an Ring r erlaubt eine gedruckte
+  Gerade vom letzten Wegpunkt von r zum ersten Wegpunkt von r + 1, wenn link_max_mm > 0, Ring r + 1
+  in Schicht L(r) oder L(r) + 1 liegt, die waagrechte Länge <= link_max_mm ist und die waagrechte
+  Projektion im Querschnitt der Schicht L(r + 1) liegt, beim Schichtwechsel auch in dem von L(r)
+  (Toleranz LINK_TOL_MM). Ein Verbinder führt so nie über eine Öffnung oder zwischen zwei Inseln.
+  Die Reihenfolge der Ringe bleibt dieselbe; ob der Planer den Verbinder nutzt, zeigt die Trajektorie.
 """
 
 from __future__ import annotations
@@ -29,7 +35,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
-from shapely.geometry import LineString, MultiPolygon, Polygon
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
 
@@ -41,6 +47,8 @@ MITRE_LIMIT = 2.0
 #: Abdeckungsziel je Schicht (Prüfer: >= 95 %), mit Reserve für die Planer-Abtastung.
 COVER_TARGET = 0.97
 MAX_FILL_RINGS = 3
+#: Verbinder: waagrechte Projektion im Querschnitt bis auf diese Toleranz (Rundung der Offsets)
+LINK_TOL_MM = 0.01
 
 
 @dataclass(frozen=True)
@@ -50,6 +58,7 @@ class SliceParams:
     shells: int = 2
     step_mm: float = 20.0
     approach_mm: float = 20.0
+    link_max_mm: float = 60.0  # längster Verbinder (SPEC §5.3); <= 0: keine Verbinder
 
 
 @dataclass
@@ -58,8 +67,9 @@ class SlicedRing:
     shell: int
     kind: str  # outer | inner | hole
     points: np.ndarray  # (n, 3) in P, geschlossen
-    approach: np.ndarray  # (3,) 20 mm über Start
-    retract: np.ndarray  # (3,) 20 mm über Ende
+    approach: np.ndarray  # (3,) approach_mm über Start
+    retract: np.ndarray  # (3,) approach_mm über Ende
+    link_next: bool = False  # Verbinder zum nächsten Ring erlaubt (SPEC §5.3)
 
 
 @dataclass
@@ -201,8 +211,10 @@ def slice_part(part_mesh_P: Any, params: SliceParams | None = None) -> SlicedPar
     n = int(round(height / h))
     out = SlicedPart(h, p.bead_width_mm, n)
     cur: np.ndarray | None = None
+    sections: dict[int, Any] = {}
     for layer in range(n):
         polys = _section_polygons(part_mesh_P, (layer + 0.5) * h)
+        sections[layer] = unary_union(polys) if polys else Polygon()
         raw = _layer_rings(polys, layer, p)
         z = (layer + 1) * h
         for s in range(max((sh for sh, _, _ in raw), default=-1) + 1):
@@ -221,7 +233,26 @@ def slice_part(part_mesh_P: Any, params: SliceParams | None = None) -> SlicedPar
                 up = np.array([0.0, 0.0, p.approach_mm])
                 out.rings.append(SlicedRing(layer, s, kind, pts, pts[0] + up, pts[-1] + up))
                 cur = pts[-1, :2]
+    for a, b in zip(out.rings[:-1], out.rings[1:], strict=True):
+        a.link_next = link_allowed(a, b, sections, p.link_max_mm)
     return out
+
+
+def link_allowed(a: SlicedRing, b: SlicedRing, sections: dict[int, Any], link_max_mm: float) -> bool:
+    """Darf Ring `a` über einen Verbinder in den folgenden Ring `b` übergehen (SPEC §5.3)?
+
+    `sections[L]`: Querschnitt der Schicht L in P (Vereinigung der Polygone bei (L+0,5)*h)."""
+    if link_max_mm <= 0 or b.layer not in (a.layer, a.layer + 1):
+        return False
+    pa, pb = a.points[-1, :2], b.points[0, :2]
+    if float(np.linalg.norm(pb - pa)) > link_max_mm + 1e-9:
+        return False
+    geom = LineString([pa, pb]) if np.linalg.norm(pb - pa) > 1e-9 else Point(pa)
+    for L in {a.layer, b.layer}:
+        sec = sections.get(L)
+        if sec is None or sec.is_empty or not sec.buffer(LINK_TOL_MM).covers(geom):
+            return False
+    return True
 
 
 def to_toolpath(sliced: SlicedPart, T_WP: np.ndarray, part_id: str) -> Toolpath:
@@ -233,6 +264,10 @@ def to_toolpath(sliced: SlicedPart, T_WP: np.ndarray, part_id: str) -> Toolpath:
         w = pts_h(r.points)
         poses = [[*map(float, x), *NOZZLE_DOWN_QUAT] for x in w]
         poses[-1] = list(poses[0])
-        rings.append(Ring(layer=r.layer, shell=r.shell, kind=r.kind, closed=True, waypoints=poses))
+        rings.append(
+            Ring(
+                layer=r.layer, shell=r.shell, kind=r.kind, closed=True, link_next=r.link_next, waypoints=poses
+            )
+        )
     return Toolpath(part_id=part_id, layer_height_mm=sliced.layer_height_mm,
                     bead_width_mm=sliced.bead_width_mm, rings=rings)

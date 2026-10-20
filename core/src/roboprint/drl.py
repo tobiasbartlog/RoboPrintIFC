@@ -7,7 +7,8 @@ Grad gibt es nur hier. Schnittstelle::
     write_programs(part_dir) -> [program.v2.drl, program.v3.drl]
 
 `PlannedPart` ist ein schlanker Wrapper um die Vertraege `Trajectory`, `Toolpath`,
-`PartArtifact` und `Scene` plus Parameter (`DrlParams`, SPEC §10) und Provenienz.
+`PartArtifact` und `Scene` plus Parameter (`DrlParams`, SPEC §10) und Provenienz. Den
+dialektunabhaengigen Ablaufplan baut `roboprint.drl_steps`; hier entsteht der Text.
 
 **Bezug:** Jedes Bewegungsziel ist ein Sample der geplanten Trajektorie (genau der gepruefte
 Zweig). Nichts wird per IK neu gerechnet:
@@ -18,16 +19,26 @@ Zweig). Nichts wird per IK neu gerechnet:
   Ende jedes kartesisch linearen Stuecks;
 - `print` -> je Toolpath-Wegpunkt ein `movel` auf das Druck-Sample, das diesem Wegpunkt
   entspricht (monotone Zuordnung entlang des Rings, Toleranz `match_tol_mm`, Position aus
-  T_WB @ FK(q) @ T_FT).
+  T_WB @ FK(q) @ T_FT);
+- `link` (Verbinder) -> ein `movel` auf sein letztes Sample (= erster Wegpunkt des naechsten Rings).
 
-Je Ring: Pumpe an (`set_analog_output(ch, V_pump)` + `wait(t_tot)`) direkt vor dem ersten
-Druck-`movel`, Druck-`movel` mit `radius = min(r_blend_max, 1/2 der angrenzenden Segmente)` und
-`ra=DR_MV_RA_DUPLICATE`, der letzte Druckpunkt mit `radius=0` (Halt, damit die Pumpe am Ringende
-schaltet), danach Pumpe aus. Dialekt v3 kann den Druck optional als `movesx`-Bloecke
-(<= 100 Punkte, `vel_opt=DR_MVS_VEL_CONST`) ausgeben (`DrlParams.v3_movesx`); Default ist aus,
-weil `movesx` zwischen den Bloecken anhaelt und der Spline zwischen den Wegpunkten von den
-Geraden abweicht. Der Programmrumpf steht in `try/finally`, das den Analogausgang auf 0 setzt;
-zusaetzlich setzt die Abschlusssequenz am Programmende 0 V. Der Text ist reines ASCII.
+**Je Strang** (SPEC §5.3, Nutzerentscheidung 20.10.2026: Ringe ueber gedruckte Verbinder ohne
+Halt, Pumpe laeuft durch): Pumpe an (`set_analog_output(ch, V_pump)` + `wait(t_tot)`) einmal am
+Strangbeginn im Stillstand nach der Anfahrt; Druck- und Verbinder-`movel` mit
+`radius = min(r_blend_max, 1/2 der angrenzenden Segmente)` und `ra=DR_MV_RA_DUPLICATE`, auch an
+Ringende und Verbinder-Ecken; nur das letzte `movel` des Strangs mit `radius=0` (Halt, damit die
+Pumpe am Strangende schaltet), danach Pumpe aus. Ein Ring ohne Verbinder ist ein Strang aus einem
+Ring (alter Ablauf je Ring).
+
+Dialekt v3 kann den Druck optional als einen `movesx`-Block (`vel_opt=DR_MVS_VEL_CONST`) je Strang
+ausgeben (`DrlParams.v3_movesx`), aber nur fuer Straenge aus **einem** Ring mit hoechstens 100
+Zielen. Straenge mit Verbindern oder mehr Zielen bleiben auch in v3 `movel` mit Blending: `movesx`
+haelt am Blockende an (kein Online-Blending zum naechsten Befehl, docs/doosan-drl.md), mehrere
+Bloecke wuerden den Strang also mit laufender Pumpe anhalten, und der Spline durch die Ziele faehrt
+einen Verbinder nicht als Gerade (SPEC §5.3, G3: <= 0,5 mm neben der Geraden). Default ist aus,
+weil der Spline auch zwischen den Druck-Wegpunkten von den Geraden abweicht. Der Programmrumpf
+steht in `try/finally`, das den Analogausgang auf 0 setzt; zusaetzlich setzt die
+Abschlusssequenz am Programmende 0 V. Der Text ist reines ASCII.
 """
 
 from __future__ import annotations
@@ -42,6 +53,7 @@ import numpy as np
 
 from roboprint import params as speeds
 from roboprint.contracts import PartArtifact, Provenance, Scene, Summary, Toolpath, Trajectory, load_json
+from roboprint.drl_steps import STRAND_KINDS, Comment, Move, Pump, Step, plan_steps
 from roboprint.robot import JOINT_VEL_LIMITS, fk_batch
 
 Dialect = Literal["v2", "v3"]
@@ -53,12 +65,6 @@ AO_CHANNELS = (1, 2)
 AO_VOLT_RANGE = (0.0, 10.0)
 TCP_SPEED_MAX_MM_S = 1000.0  # Datenblatt M1013: max. TCP-Geschwindigkeit 1 m/s
 _JOINT_ACC_FACTOR = speeds.JOINT_ACC_FACTOR  # robots/doosan_m1013.json: ~ 4 x v_max (provisorisch)
-_LINEAR_TOL_MM = 0.01  # Abweichung, ab der ein kartesischer Knick ein neues movel ist
-_LINEAR_TOL_RAD = 1e-6  # dito fuer gelenklineare Transfers
-_SAME_MM = 1e-4
-_SAME_RAD = 1e-7
-
-_CARTESIAN_KINDS = ("lift", "lower", "approach", "retract")
 
 
 # --------------------------------------------------------------------------- ZYZ
@@ -136,7 +142,7 @@ class DrlParams:
     joint_speed_fraction: float = speeds.JOINT_SPEED_FRACTION  # A, Gelenke <= 30 % der Grenzen
     pump_channel: int = 1  # A, AO 1 = pump_a
     v_pump_v: float = 5.0  # A
-    t_tot_s: float = 3.0  # A, provisorisch
+    t_tot_s: float = 3.0  # A, provisorisch: Pumpen-Vorlauf einmal am Strangbeginn
     r_blend_mm: float = 2.0  # A, r_blend = min(r_blend_mm, 1/2 Segment)
     tcp_name: str = "FGC_30GUT"  # A, muss am Teach Pendant angelegt sein
     match_tol_mm: float = 1.0
@@ -148,6 +154,7 @@ class DrlParams:
     approach_mm: float = 20.0  # A
     d_hard_mm: float = 10.0  # A
     tau_max_deg: float = 0.0  # A
+    link_max_mm: float = 60.0  # Nutzer 20.10.2026, laengster Verbinder, 0 = aus (setzt der Slicer um)
 
     @classmethod
     def from_params(cls, params: Mapping[str, object] | None) -> DrlParams:
@@ -174,8 +181,8 @@ class DrlParams:
             v = getattr(self, name)
             if not 0.0 < v <= TCP_SPEED_MAX_MM_S:
                 raise ValueError(f"{name} = {v} ausserhalb (0, {TCP_SPEED_MAX_MM_S}]")
-        if self.t_tot_s < 0.0 or self.r_blend_mm < 0.0:
-            raise ValueError("t_tot_s und r_blend_mm muessen >= 0 sein")
+        if self.t_tot_s < 0.0 or self.r_blend_mm < 0.0 or self.link_max_mm < 0.0:
+            raise ValueError("t_tot_s, r_blend_mm und link_max_mm muessen >= 0 sein")
 
     def joint_vel_deg_s(self) -> list[float]:
         return [self.joint_speed_fraction * math.degrees(v) for v in JOINT_VEL_LIMITS]
@@ -201,178 +208,16 @@ class PlannedPart:
 # --------------------------------------------------------------------------- Ablaufplan
 
 
-@dataclass(frozen=True)
-class Move:
-    cmd: Literal["movej", "movel"]
-    sample: int
-    kind: str
-    ring: int
-    radius_mm: float = 0.0
-
-
-@dataclass(frozen=True)
-class Pump:
-    on: bool
-    ring: int
-
-
-@dataclass(frozen=True)
-class Comment:
-    text: str
-
-
-Step = Move | Pump | Comment
-
-
-def _linear_breaks(P: np.ndarray, start: np.ndarray, tol: float) -> list[int]:  # noqa: N803
-    """Indizes in P, an denen die Bahn start -> P[0] -> ... die Gerade verlaesst (Knick oder
-    Umkehr), plus der letzte Index. Jedes Stueck dazwischen ist eine Gerade."""
-    out: list[int] = []
-    seg0, d, reach = start, None, 0.0
-    for k in range(len(P)):
-        v = P[k] - seg0
-        if d is None:
-            n = float(np.linalg.norm(v))
-            if n > tol:
-                d, reach = v / n, n
-            continue
-        proj = float(v @ d)
-        if np.linalg.norm(v - proj * d) > tol or proj < reach - tol:
-            out.append(k - 1)
-            seg0 = P[k - 1]
-            v = P[k] - seg0
-            n = float(np.linalg.norm(v))
-            d, reach = (v / n, n) if n > tol else (None, 0.0)
-        else:
-            reach = max(reach, proj)
-    if len(P) and (not out or out[-1] != len(P) - 1):
-        out.append(len(P) - 1)
-    return out
-
-
-def _runs(kind: list[str], ring: list[int]) -> list[tuple[int, int]]:
-    """Zusammenhaengende Abschnitte gleicher (kind, ring) als (Start, Ende) inklusive."""
-    runs, s = [], 0
-    for i in range(1, len(kind) + 1):
-        if i == len(kind) or kind[i] != kind[s] or ring[i] != ring[s]:
-            runs.append((s, i - 1))
-            s = i
-    return runs
-
-
-def _match_waypoints(
-    cand: list[int],
-    P_W: np.ndarray,
-    waypoints: np.ndarray,
-    tol: float,
-    ring: int,  # noqa: N803
-) -> list[int]:
-    """Monotone Zuordnung Wegpunkt -> Sample (Index in `cand`): das erste Sample innerhalb `tol`,
-    dann weiter, solange der Abstand faellt."""
-    out: list[int] = []
-    j = 0
-    prev_wp = None
-    for w, wp in enumerate(waypoints):
-        if prev_wp is not None and np.linalg.norm(wp - prev_wp) < _SAME_MM:
-            continue
-        dist = np.linalg.norm(P_W[cand] - wp, axis=1)
-        k = j
-        while k < len(cand) and dist[k] > tol:
-            k += 1
-        if k == len(cand):
-            raise ValueError(
-                f"Ring {ring}: Wegpunkt {w} {np.round(wp, 3).tolist()} liegt auf keinem Druck-Sample "
-                f"(Toleranz {tol} mm)"
-            )
-        while k + 1 < len(cand) and dist[k + 1] < dist[k]:
-            k += 1
-        out.append(k)
-        j = k + 1
-        prev_wp = wp
-    return out
-
-
 def build_steps(pp: PlannedPart) -> tuple[list[Step], np.ndarray]:
-    """Ablaufplan (Bewegungen, Pumpe) aus der Trajektorie; liefert auch T_BT je Sample."""
+    """Ablaufplan (Bewegungen, Pumpe je Strang) aus der Trajektorie (`roboprint.drl_steps`);
+    liefert auch T_BT je Sample."""
     tr, prm = pp.trajectory, pp.params
-    n = len(tr.t_s)
-    if n == 0:
+    if len(tr.t_s) == 0:
         raise ValueError("Trajektorie ist leer")
-    Q = np.asarray(tr.q, dtype=float)  # noqa: N806
     T_FT = np.asarray(pp.scene.tool.T_FT, dtype=float)  # noqa: N806
     T_WB = np.asarray(pp.scene.workstation.T_WB, dtype=float)  # noqa: N806
-    T_BT = fk_batch(Q) @ T_FT  # noqa: N806
-    P_B = T_BT[:, :3, 3]  # noqa: N806
-    P_W = P_B @ T_WB[:3, :3].T + T_WB[:3, 3]  # noqa: N806
-
-    steps: list[Step] = []
-    cur = 0
-    printed: set[int] = set()
-
-    def add_move(cmd: Literal["movej", "movel"], i: int, radius: float = 0.0) -> None:
-        nonlocal cur
-        if tr.status[i] == "unreachable":
-            raise ValueError(f"Bewegungsziel Sample {i} ist unreachable")
-        same = (
-            np.max(np.abs(Q[i] - Q[cur])) < _SAME_RAD
-            if cmd == "movej"
-            else np.linalg.norm(P_B[i] - P_B[cur]) < _SAME_MM
-            and np.allclose(T_BT[i, :3, :3], T_BT[cur, :3, :3], atol=1e-9)
-        )
-        if same and i != 0:
-            cur = i
-            return
-        steps.append(Move(cmd, i, tr.kind[i], tr.ring[i], radius))
-        cur = i
-
-    steps.append(Comment("Start (Home)"))
-    steps.append(Move("movej", 0, tr.kind[0], tr.ring[0]))
-    last_ring = None
-    for s, e in _runs(list(tr.kind), list(tr.ring)):
-        idx = [i for i in range(s, e + 1) if i > cur]
-        if not idx:
-            continue
-        kind, ring = tr.kind[s], tr.ring[s]
-        if kind == "transfer" and ring != last_ring:
-            rp = pp.toolpath.rings[ring] if 0 <= ring < len(pp.toolpath.rings) else None
-            label = f"Ring {ring}" + (f": Schicht {rp.layer}, Schale {rp.shell}, {rp.kind}" if rp else "")
-            steps.append(Comment(label))
-            last_ring = ring
-        if kind == "transfer":
-            for k in _linear_breaks(Q[idx], Q[cur], _LINEAR_TOL_RAD):
-                add_move("movej", idx[k])
-        elif kind in _CARTESIAN_KINDS:
-            for k in _linear_breaks(P_B[idx], P_B[cur], _LINEAR_TOL_MM):
-                add_move("movel", idx[k])
-        elif kind == "print":
-            if ring in printed:
-                raise ValueError(f"Ring {ring}: Druck-Samples nicht zusammenhaengend")
-            if not 0 <= ring < len(pp.toolpath.rings):
-                raise ValueError(f"Ring {ring} fehlt im Toolpath")
-            printed.add(ring)
-            cand = [cur, *idx]
-            wps = np.asarray(pp.toolpath.rings[ring].waypoints, dtype=float)[:, :3]
-            ks = _match_waypoints(cand, P_W, wps, prm.match_tol_mm, ring)
-            if np.linalg.norm(P_W[idx[-1]] - wps[-1]) > prm.match_tol_mm:
-                raise ValueError(f"Ring {ring}: letztes Druck-Sample liegt nicht auf dem Ringende")
-            targets = [cand[k] for k in ks if k > 0]
-            pts = [P_B[cur]] + [P_B[i] for i in targets]
-            steps.append(Pump(True, ring))
-            for m, i in enumerate(targets):
-                if m == len(targets) - 1:
-                    r = 0.0
-                else:
-                    seg_in = float(np.linalg.norm(pts[m + 1] - pts[m]))
-                    seg_out = float(np.linalg.norm(pts[m + 2] - pts[m + 1]))
-                    r = math.floor(min(prm.r_blend_mm, 0.5 * seg_in, 0.5 * seg_out) * 1e4) / 1e4
-                steps.append(Move("movel", i, "print", ring, r))
-                cur = i
-            steps.append(Pump(False, ring))
-        else:
-            raise ValueError(f"unbekannte Sample-Art {kind!r}")
-    missing = sorted(set(range(len(pp.toolpath.rings))) - printed)
-    if missing:
-        raise ValueError(f"Ringe ohne Druck-Samples: {missing}")
+    T_BT = fk_batch(np.asarray(tr.q, dtype=float)) @ T_FT  # noqa: N806
+    steps = plan_steps(tr, pp.toolpath, T_BT, T_WB, prm.r_blend_mm, prm.match_tol_mm)
     return steps, T_BT
 
 
@@ -386,17 +231,25 @@ def _ascii(text: object) -> str:
     return s.encode("ascii", "replace").decode("ascii")
 
 
-def _header(pp: PlannedPart, dialect: str, n_moves: int) -> list[str]:
+def _header(pp: PlannedPart, dialect: str, steps: list[Step]) -> list[str]:
     prm, prov = pp.params, pp.provenance
     jv = ", ".join(_f(v, 1) for v in prm.joint_vel_deg_s())
+    n_moves = sum(isinstance(s, Move) for s in steps)
+    starts = [s for s in steps if isinstance(s, Pump) and s.on]
+    n_links = sum(s.links for s in starts)
     lines = [
         "RoboPrintIFC v2 - DRL-Programm fuer Doosan M1013 (Lehm-3D-Druck)",
         f"Dialekt: {dialect}"
         + (" (nur Befehle aus Firmware 2.x)" if dialect == "v2" else " (Befehle ab V3 erlaubt)")
-        + (", Druck als movesx" if dialect == "v3" and prm.v3_movesx else ", Druck als movel mit Blending"),
+        + (
+            ", Druck als movesx (Straenge aus einem Ring mit <= 100 Zielen, sonst movel mit Blending)"
+            if dialect == "v3" and prm.v3_movesx
+            else ", Druck als movel mit Blending"
+        ),
         f"Szenario: {pp.scenario_id}",
         f"Teil: {pp.part.part_id} (Wand {pp.part.wall_id}), Status: {pp.part.status}, "
-        f"{len(pp.toolpath.rings)} Ringe, {len(pp.trajectory.t_s)} Samples, {n_moves} Bewegungsbefehle",
+        f"{len(pp.toolpath.rings)} Ringe in {len(starts)} Straengen ({n_links} Verbinder), "
+        f"{len(pp.trajectory.t_s)} Samples, {n_moves} Bewegungsbefehle",
         "Provenienz: "
         + (
             f"git {prov.git_commit or 'unbekannt'}, erstellt {prov.created}, Kommando: {prov.command}"
@@ -405,11 +258,13 @@ def _header(pp: PlannedPart, dialect: str, n_moves: int) -> list[str]:
         ),
         "Posen: posx = T_BT (TCP in Roboterbasis B) in mm und Grad, Euler ZYZ, ref=DR_BASE;",
         "       posj in Grad, Doosan-Konvention. Alle Ziele stammen aus trajectory.json.",
+        "Strang: Ringe und Verbinder ohne Halt, die Pumpe laeuft durch. Pumpe an + wait(t_tot) nur am",
+        "        Strangbeginn, Pumpe aus nur am Strangende (letztes movel mit radius=0).",
         "",
         "ACHTUNG: Trockenlauf mit reduzierter Geschwindigkeit vor dem ersten Druck",
         "         (ohne Material, change_operation_speed 10..20 %).",
         "",
-        "Provisorische Werte (SPEC 10, A = Annahme, vom Nutzer zu bestaetigen):",
+        "Provisorische Werte (SPEC 10, A = Annahme, vom Nutzer zu bestaetigen; N = Nutzervorgabe):",
         f"  A Schichthoehe h            {prm.layer_height_mm} mm",
         f"  A Strangbreite w            {prm.bead_width_mm} mm",
         f"  A v_print                   {prm.v_print_mm_s} mm/s, {prm.w_print_deg_s} deg/s "
@@ -421,7 +276,10 @@ def _header(pp: PlannedPart, dialect: str, n_moves: int) -> list[str]:
         f"  A z_lift                    {prm.z_lift_mm} mm ueber Druckstand-Oberkante",
         f"  A An- und Abfahrt           senkrecht {prm.approach_mm} mm",
         f"  A V_pump                    {prm.v_pump_v} V konstant auf AO {prm.pump_channel} (pump_a)",
-        f"  A t_tot                     {prm.t_tot_s} s Verweilzeit am Ringstart (provisorisch)",
+        f"  A t_tot                     {prm.t_tot_s} s Pumpen-Vorlauf am Strangbeginn (provisorisch)",
+        f"  N link_max_mm               {prm.link_max_mm} mm, laengster Verbinder (0 = aus)"
+        if prm.link_max_mm > 0
+        else "  N link_max_mm               0 (Verbinder aus: je Ring ein Strang)",
         f"  A r_blend                   min({prm.r_blend_mm} mm, 1/2 Segmentlaenge)",
         f"  A d_hard                    {prm.d_hard_mm} mm",
         f"  A tau_max                   {prm.tau_max_deg} deg",
@@ -447,8 +305,7 @@ def _render(pp: PlannedPart, dialect: str, steps: list[Step], T_BT: np.ndarray) 
     ch = prm.pump_channel
     vt = f"vel=[{_f(prm.v_travel_mm_s, 1)}, {_f(prm.w_travel_deg_s, 1)}]"
     at = f"acc=[{_f(prm.a_travel_mm_s2, 1)}, {_f(prm.aw_travel_deg_s2, 1)}]"
-    n_moves = sum(isinstance(s, Move) for s in steps)
-    out = _header(pp, dialect, n_moves)
+    out = _header(pp, dialect, steps)
     out += [
         "",
         f"set_velx({_f(prm.v_print_mm_s, 1)}, {_f(prm.w_print_deg_s, 1)})",
@@ -464,18 +321,20 @@ def _render(pp: PlannedPart, dialect: str, steps: list[Step], T_BT: np.ndarray) 
     ]
     ind = "    "
     use_movesx = dialect == "v3" and prm.v3_movesx
+    strand_movesx = False  # laufender Strang als ein movesx-Block (Bedingungen im Modul-Docstring)
     block: list[str] = []
 
     def flush() -> None:
-        for s in range(0, len(block), MOVESX_MAX_POINTS):
-            chunk = block[s : s + MOVESX_MAX_POINTS]
-            out.append(f"{ind}movesx([")
-            out.extend(f"{ind}    {p}," for p in chunk)
-            out.append(
-                f"{ind}], vel=[{_f(prm.v_print_mm_s, 1)}, {_f(prm.w_print_deg_s, 1)}], "
-                f"acc=[{_f(prm.a_print_mm_s2, 1)}, {_f(prm.aw_print_deg_s2, 1)}], "
-                "ref=DR_BASE, vel_opt=DR_MVS_VEL_CONST)"
-            )
+        if not block:
+            return
+        assert len(block) <= MOVESX_MAX_POINTS
+        out.append(f"{ind}movesx([")
+        out.extend(f"{ind}    {p}," for p in block)
+        out.append(
+            f"{ind}], vel=[{_f(prm.v_print_mm_s, 1)}, {_f(prm.w_print_deg_s, 1)}], "
+            f"acc=[{_f(prm.a_print_mm_s2, 1)}, {_f(prm.aw_print_deg_s2, 1)}], "
+            "ref=DR_BASE, vel_opt=DR_MVS_VEL_CONST)"
+        )
         block.clear()
 
     for st in steps:
@@ -483,21 +342,25 @@ def _render(pp: PlannedPart, dialect: str, steps: list[Step], T_BT: np.ndarray) 
             out.append(f"{ind}# {_ascii(st.text)}")
         elif isinstance(st, Pump):
             if st.on:
+                strand_movesx = use_movesx and st.links == 0 and st.moves <= MOVESX_MAX_POINTS
                 out.append(f"{ind}set_analog_output(ch={ch}, val={_f(prm.v_pump_v, 3)})")
                 out.append(f"{ind}wait({_f(prm.t_tot_s, 3)})")
             else:
                 flush()
+                strand_movesx = False
                 out.append(f"{ind}set_analog_output(ch={ch}, val=0.0)")
         elif st.cmd == "movej":
             out.append(f"{ind}movej({format_posj(np.asarray(Q[st.sample]))})  # {st.kind}, s{st.sample}")
-        elif st.kind == "print":
+        elif st.kind in STRAND_KINDS:
+            # Druck und Verbinder: Geschwindigkeit aus set_velx, Blending im ganzen Strang
             px = format_posx(T_BT[st.sample])
-            if use_movesx:
+            if strand_movesx:
                 block.append(px)
             else:
+                tag = "" if st.kind == "print" else f"{st.kind}, "
                 out.append(
                     f"{ind}movel({px}, radius={_f(st.radius_mm, 4)}, ref=DR_BASE, ra=DR_MV_RA_DUPLICATE)"
-                    f"  # s{st.sample}"
+                    f"  # {tag}s{st.sample}"
                 )
         else:
             # Geschwindigkeit je Bewegungsart aus `roboprint.params` (wie die Zeitachse in `timing`):
