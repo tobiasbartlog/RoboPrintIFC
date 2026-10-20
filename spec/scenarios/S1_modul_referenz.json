@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "id": "S1_modul_referenz",
-  "beschreibung": "Synthetischer Vollquader 600 x 200 x 400 mm (Laenge x Dicke x Hoehe), Modus Modul am Doosantisch. Der Planer waehlt die Platzierung selbst.",
+  "beschreibung": "Synthetischer Vollquader 600 x 200 x 400 mm (Laenge x Dicke x Hoehe), Modus Modul am Doosantisch. Platzierung am Standard-Druckplatz (0, -50) mm, lange Seite zum Roboter.",
   "mode": "modul",
   "source": { "kind": "box", "size_mm": [600, 200, 400] },
   "decompose": false,

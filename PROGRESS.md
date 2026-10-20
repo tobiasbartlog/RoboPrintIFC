@@ -630,8 +630,11 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 
 - **Checks lokal:** ruff grün; pytest core -n 2: 174 passed, 6 skipped, 1 failed (`test_traversal_symlink`, Windows
   ohne Symlink-Recht, wie bisher); web lint, typecheck, vitest 86 passed; e2e `params.spec.ts` 2 passed.
-- **Offen:** SPEC §5.4/3, §7, §10 und Beschreibung S1 (gesperrt, Text liegt bereit, Nutzer entsperrt kurz);
-  Cloud-verify G1–G8 (G3/G4/G7 mit neuen Platzierungen, Orakel für S2).
+- **SPEC:** §5.4/3 (Druckplatz statt Platzierungssuche), §7 (`placement_override` auch für die Zerlegung), §10
+  (Zeile Druckplatz) und Beschreibung S1 geändert; Tobias hat `spec/LOCKED` dafür kurz umbenannt, die Sperre steht
+  wieder.
+- **Offen:** Cloud-verify G1–G8 (Routine trig_01Mppn9LNZTtGyeKojKvzSkr; G3/G4/G7 mit neuen Platzierungen, Orakel
+  für S2 und die Giebelwand mit 1000 mm).
 
 ### 2026-10-20 14:13 Cloud-verify Druckplatz
 - Anlass: Druckplatz statt Platzierungssuche (0720722). Cloud-VM 4 vCPU, Python `/opt/fgc-venv`, Branch `v2/druckplatz`.
@@ -652,3 +655,5 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 
 - Vergleich zum Lauf 2026-10-19 19:15: S1 93 → 32 s, S2 303 → 119 s (Zerlegung 99 s, Höhensuche je Wandgruppe
   58 s statt ~101 s, da nur noch ein Platz geprüft wird). Orakel-d_min_lb unverändert 11,85 mm (vorher ≥ 10,01 mm).
+- Geprüft auf Stand 0720722. Der SPEC-Commit aee7519 kam während des Laufs; er ändert nur SPEC-Text und die
+  Beschreibung von S1, keine Schwelle und keine Szenario-Eingabe, daher kein erneuter Lauf.
