@@ -13,14 +13,14 @@ Die erste Zeile setzt nur das Skript.
 | R Recherche → `docs/muster/recherche.md` (Teil 1) | M1 | erledigt, gemergt | v2/muster-recherche | a6b6636 |
 | R2 Recherche Sollbruchstellen, Fachwerkwände | M1 | erledigt, gemergt | v2/muster-recherche | ae788b2 |
 | K Kern `core/src/roboprint/patterns/` (Schnittstelle, alternate, Schalen, metrics M1–M7, Vorschau, Presets) | M1 | erledigt, gemergt (63 Tests grün) | v2/muster-kern | 074763c |
-| O Orakel `verify_muster/` mit Selbsttests | M1 | läuft (wf_67176cf2-d22, auf WIP add8523) | v2/muster-orakel | |
-| F Fugenwand (Foto, O2) mit Varianten, Presets, Bildern – Priorität 2 | M1/M2 | läuft (wf_67176cf2-d22, nach K) | v2/muster-fugenwand | |
+| O Orakel `verify_muster/` mit Selbsttests (58) | M1 | erledigt, gemergt | v2/muster-orakel | 4b50b13 |
+| F Fugenwand (Foto, O2): Gurt gespiegelt, Gurt versetzt, Rautenkette; Presets, Bilder, Doku | M1/M2 | erledigt, gemergt | v2/muster-fugenwand | f20f439 |
 | 2D-Musterersteller: API `POST /api/patterns/preview`, CLI `pattern-preview`, Web-Reiter „Muster“ – Priorität 3 | M3/M4 | läuft (wf_3c365435-7f4: Backend → Web) | v2/muster-ersteller | |
 | I-Wellen (Sinus, Zickzack gerundet, Trapez/Mäander) | M2 | läuft (wf_3c365435-7f4) | v2/muster-wellen | |
 | I-Mehrfach (Doppelwelle/Kettenglied, Waben, Fermat) | M2 | läuft (wf_3c365435-7f4) | v2/muster-mehrfach | |
 | Outfill O1/O3 (nur wenn Zeit; O2 = Fugenwand) | M2 | offen | v2/muster-outfill | |
 | Topologie (Öffnungen, Inseln, Laibungsstege, Naht, Übergänge) | M2 | läuft (wf_3c365435-7f4) | v2/muster-topologie | |
-| Einbau Slicer + Vertrag + Schema/TS | M3 | offen | v2/muster-einbau | |
+| Einbau Slicer + Vertrag + Schema/TS | M3 | läuft (wf M3) | v2/muster-einbau | |
 | Einbau Planer/Timing/DRL | M3 | offen | v2/muster-einbau | |
 | Musterszenarien, `scripts/verify_muster.py`, SPEC-Nachtrag | M3 | offen | v2/muster-einbau | |
 | Viewer: Musterwahl, 2D-Vorschau, Legende, Kennzahlen | M4 | offen | v2/muster-viewer | |
@@ -38,6 +38,16 @@ Die erste Zeile setzt nur das Skript.
 ## Gate-Einwände
 
 (Belege, wo ein bestehendes Kriterium mit einem Muster kollidiert. Die Entscheidung trifft der Nutzer.)
+
+1. **G3-Abdeckung „≥ 95 % des Schalenbereichs“ (SPEC §11) gegen Fugenwand.** Die Fugenwand deckt den
+   Schalenbereich (Querschnitt minus Innenpuffer 2·w) nur zu 60–89 % ab, weil die Außenhaut aus Feldern
+   mit Fugen besteht und die Stege schräg nach innen laufen (Agent F, 600×200 … 1000×300). Das ist
+   gewollt (Sollbruchstellen, Zellen). Vorschlag: Für Teile mit Muster ersetzt die Musterprüfung G9
+   (M3 überhangfrei, M5 im Teil) die Abdeckungsregel; die Abdeckung wird nur berichtet.
+2. **Heutiges Format gegen M2/M4/M6 (Orakel O, S1 6 Schichten).** Ohne Muster ist der Schichtwechsel
+   diagonal (42 mm), Mitre-Ecken haben Radius ≈ 7,6 mm < w/2, und der Verbinder Schale 0 → 1 läuft
+   23 mm neben der Außenraupe. Vorschlag: G9 prüft M1–M7 hart nur bei Teilen mit Musterparametern und
+   berichtet sie sonst.
 
 ## Weichen für den Nutzer
 
@@ -79,3 +89,10 @@ Die erste Zeile setzt nur das Skript.
 - Kern mit Gegenprüfung gemergt: `plan_pattern`, `measure`, `preview`, `preview_svg`, Presets, `fit_to_length`,
   Familien per Datei unter `patterns/families/`. Grundmuster: Schalen als ein Strang, Schalenwechsel als
   S-Kurve (Radius w) ohne Doppelmaterial, Naht in der Mitte eines Eckbogens. ruff grün, 63 Mustertests grün.
+
+### 2026-10-20 19:55 O und F gemergt (Session start)
+- Orakel `verify_muster/` (58 Selbsttests, CLI `python -m verify_muster.check <lauf>`), unabhängig von `roboprint`.
+- Fugenwand mit drei Varianten (Gurt gespiegelt = Lesart des Nachtrags, Gurt versetzt, Rautenkette).
+  Empfehlung des Agenten: Rautenkette, Feldlänge 300 mm, r = w (1,21 l je m und Schicht, Schalen 1,28 l).
+  Gurtvarianten brauchen bei r = w mindestens 230 mm Wanddicke; bei 200 mm nur mit r ≈ 21 mm (M6-Warnung).
+- Nach Merge: ruff grün, `pytest core verify_muster -n 2`: 449 bestanden, 2 übersprungen.
