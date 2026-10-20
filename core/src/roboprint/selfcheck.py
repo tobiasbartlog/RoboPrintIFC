@@ -21,7 +21,9 @@ Pruefungen (Buchstaben wie in der Aufgabe A4.2):
      auf der Ringhoehe (L + 1) * h. Verbinder (SPEC §5.3): Samples hoechstens TOL_LINK_MM neben der
      Geraden vom letzten Wegpunkt von r zum ersten Wegpunkt von r + 1, das letzte Sample an deren
      Ende; die waagrechte Gerade liegt im Querschnitt der Schicht von r + 1 und beim Schichtwechsel
-     auch der von r (Toleranz TOL_PRINT_MM), ihre waagrechte Laenge ist <= link_max_mm.
+     auch der von r (Toleranz TOL_PRINT_MM), ihre waagrechte Laenge ist <= link_max_mm, Ring r + 1 liegt
+     in Schicht L(r) oder L(r) + 1 (selbst nachgerechnet, nicht aus `link_next`); link_max_mm = 0
+     verbietet Verbinder.
 - e: Die Trajektorie beginnt in der Home-Pose.
 - f: Teilmasse stimmen mit dem Szenario (Box) bzw. der Zerlegung ueberein.
 """
@@ -180,6 +182,9 @@ def _check_strands(kind: list[str], ring: list[int], rings: Sequence[Any]) -> li
                 msg = f"Verbinder nach Ring {r} steht nicht zwischen Druck {r - 1} und Druck {r}"
         if msg is not None:
             return [Violation("a", a, f"Ablauf je Strang: {msg}")]
+    missing = sorted(set(range(len(rings))) - printed)
+    if missing:
+        return [Violation("a", 0, f"Ablauf je Strang: Ringe ohne Druckabschnitt: {missing[:10]}")]
     return []
 
 
@@ -315,6 +320,11 @@ def _check_links(
         t = np.clip(((pts - A) @ ab) / max(float(ab @ ab), 1e-12), 0.0, 1.0)
         dev = np.linalg.norm(pts - (A + t[:, None] * ab), axis=1)
         where = f"Verbinder Ring {r0} -> {r1}"
+        if link_max_mm <= 0:
+            return [Violation("d", a, f"{where}: Verbinder trotz link_max_mm = {link_max_mm:g} (aus)")]
+        d_layer = rings[r1].layer - rings[r0].layer
+        if d_layer not in (0, 1):
+            return [Violation("d", a, f"{where}: Schichtsprung {d_layer}, erlaubt 0 oder 1 (SPEC §5.3)")]
         if dev.max() > TOL_LINK_MM:
             i = a + int(np.argmax(dev))
             return [Violation("d", i, f"{where}: Sample {i} {dev.max():.2f} mm neben der Geraden")]

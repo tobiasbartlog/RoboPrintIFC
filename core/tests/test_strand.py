@@ -269,6 +269,29 @@ def test_selbstpruefung_link_schichtregel(planned) -> None:
     assert {x.check for x in _checks(mesh, pp, bad, tp)} == {"a"}
 
 
+def test_selbstpruefung_ring_ohne_druckabschnitt(planned) -> None:
+    """Der Toolpath hat einen Ring, den die Trajektorie nie druckt (ARTEFAKTE: genau ein Druckabschnitt
+    je Ring); sonst blieben part.json (machbar) und DRL (kein Programm) im Widerspruch."""
+    mesh, pp, tr, tp = planned
+    bad = tp.model_copy(deep=True)
+    bad.rings.append(bad.rings[-1].model_copy(deep=True))
+    v = _checks(mesh, pp, tr, bad)
+    assert [x.check for x in v] == ["a"] and f"Ringe ohne Druckabschnitt: [{len(tp.rings)}]" in v[0].message
+
+
+def test_selbstpruefung_link_schichtsprung_und_aus(planned) -> None:
+    """Verbinder ueber zwei Schichten (SPEC §5.3: Ring r + 1 in L(r) oder L(r) + 1), unabhaengig von
+    link_next aus dem Slicer; und kein Verbinder bei link_max_mm = 0."""
+    mesh, pp, tr, tp = planned
+    bad = tp.model_copy(deep=True)
+    for rg in bad.rings[2:]:  # Verbinder 1 -> 2 springt von Schicht 0 auf Schicht 2
+        rg.layer += 1
+    v = _checks(mesh, pp, tr, bad)
+    assert any(x.check == "d" and "Ring 1 -> 2: Schichtsprung 2" in x.message for x in v), v
+    v = _checks(mesh, pp, tr, tp, link_max_mm=0.0)
+    assert [x.check for x in v] == ["d"] and "trotz link_max_mm = 0" in v[0].message
+
+
 def test_selbstpruefung_link_neben_der_geraden(planned) -> None:
     mesh, pp, tr, tp = planned
     bad = tr.model_copy(deep=True)
