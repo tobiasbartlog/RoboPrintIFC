@@ -815,3 +815,10 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
      - `web/fixtures/run_demo` hat keine Verbinder; ein Strang-Fixture gibt es nur in den Unit-Tests.
   10. **Probehöhe:** `planner/placement.probe_points` nutzt fest +30 mm als Probehöhe für den Platzierungs-Score.
       Das ist eine Heuristik, nicht z_lift; bewusst unverändert.
+- **Nacharbeit Gegenprüfung** (2ed65e1, e8ebca7, 21a9e72, 41f18e1): G5 (`pump.py`) meldet den Halt jetzt auch
+  hinter einem wirkungslosen Pumpe-an, jeden Pumpenbefehl ohne Zustandswechsel im Strang und `wait` am
+  Strangende vor Pumpe aus (README korrigiert). `check_run` prüft `link_max_mm` gegen Szenario bzw. 60 mm statt
+  der Selbstauskunft. Die Selbstprüfung meldet Ringe ohne Druckabschnitt, Schichtsprünge ≠ 0/1 und Verbinder bei
+  `link_max_mm` = 0. `zweig_wechsel_in_ringen` zählt über unerreichbare Samples hinweg wie das Orakel (offen: die
+  Formulierung in ARTEFAKTE eindeutig machen). Kein Befund: Orakel importieren `roboprint` nicht. Lokal: pytest core
+  214 passed (nur `test_traversal_symlink`, Windows), `selftest_strand.py` 23 passed, ruff und web grün.
