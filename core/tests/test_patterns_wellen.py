@@ -6,7 +6,10 @@ dazu Grenzfälle mit Zahlen (Mäander im 50-mm-Band, Zickzack λ ≤ 4·r, Einla
 
 from __future__ import annotations
 
+import json
 import math
+import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -209,3 +212,36 @@ def test_preset_preview_and_svg(shape):
     assert svg.startswith("<svg") and "infill" in svg
     names = {c["name"] for c in pt.catalog()}
     assert set(SHAPES) <= names
+
+
+REPO = Path(__file__).resolve().parents[2]
+
+
+@pytest.mark.skipif(not (REPO / "verify_muster" / "check.py").is_file(), reason="verify_muster fehlt")
+@pytest.mark.parametrize(("shape", "thickness", "shells"), [("sinus", 200, 2), ("trapez", 365, 1)])
+def test_oracle_verify_muster_green(tmp_path, shape, thickness, shells):
+    """Gegenprobe mit dem unabhängigen Orakel: nur Artefakte (toolpath.json, part.stl, part.json,
+    T_WP = I), ohne Trajektorie; das Orakel importiert roboprint nicht."""
+    trimesh = pytest.importorskip("trimesh")
+    n = 4
+    p = params_for(shape, shells=shells)
+    g = box(-300, -thickness / 2, 300, thickness / 2)
+    rings = []
+    for lp in pt.plan_pattern({L: g for L in range(n)}, p):
+        z = (lp.layer + 1) * p.layer_height_mm
+        for s in lp.segments:
+            wp = [[x, y, z, 0.0, 1.0, 0.0, 0.0] for x, y in s.points.tolist()]
+            rings.append({"layer": lp.layer, "shell": s.shell, "kind": s.kind, "closed": s.closed,
+                          "link_next": True, "waypoints": wp})  # fmt: skip
+    rings[-1]["link_next"] = False
+    d = tmp_path / "parts" / "teil"
+    d.mkdir(parents=True)
+    tp = {"part_id": "teil", "bead_width_mm": p.w, "layer_height_mm": p.layer_height_mm, "rings": rings}
+    (d / "toolpath.json").write_text(json.dumps(tp))
+    mesh = trimesh.creation.box(extents=(600, thickness, n * p.layer_height_mm))
+    mesh.apply_translation((0, 0, n * p.layer_height_mm / 2))
+    mesh.export(d / "part.stl")
+    (d / "part.json").write_text(json.dumps({"T_WP": np.eye(4).tolist(), "status": "ok"}))
+    cmd = [sys.executable, "-m", "verify_muster.check", str(tmp_path), "--no-trajectory"]
+    res = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True, timeout=600)
+    assert res.returncode == 0, res.stdout + res.stderr
