@@ -204,3 +204,117 @@ def test_hardlinked_duplicate_and_parallel(minirun_copy):
     assert ok1 and ok2, (rep1["errors"], rep2["errors"])
     assert rep1["dedup"]["checked"] == rep2["dedup"]["checked"] == 1
     assert rep1["parts"] == rep2["parts"]
+
+
+# --------------------------------------------------------------------------- Strang (SPEC §5.3, ARTEFAKTE)
+
+
+def _toolpath(run_dir: Path) -> tuple[Path, dict]:
+    p = run_dir / "parts" / "box_0" / "toolpath.json"
+    return p, json.loads(p.read_text(encoding="utf-8"))
+
+
+def _link_samples(tr: dict, ring: int) -> list[int]:
+    pairs = zip(tr["kind"], tr["ring"], strict=True)
+    return [i for i, (k, r) in enumerate(pairs) if k == "link" and r == ring]
+
+
+def _set_link_max(run_dir: Path, value: float) -> None:
+    summ = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    summ["params"]["link_max_mm"] = value
+    _save(run_dir / "summary.json", summ)
+
+
+def test_strand_minirun_passes(minirun_strand_copy):
+    """Ring 0 -> 1 (gleiche Schicht) -> 2 (Schichtwechsel) ueber Verbinder, Travel zu Ring 3."""
+    ok, rep = _check(minirun_strand_copy)
+    assert ok, rep["errors"]
+    m = rep["parts"]["box_0"]
+    assert m["n_links"] == 2 and m["max_link_dev_mm"] < 0.01 and abs(m["max_link_len_mm"] - 42.43) < 0.01
+    assert m["coverage_min"] >= 0.95 and m["branch_changes_in_strands"] == 0
+    assert m["checker_d_min_lb_mm"] >= 10.0
+
+
+def test_link_without_link_next_fails(minirun_strand_copy):
+    p, tp = _toolpath(minirun_strand_copy)
+    tp["rings"][0]["link_next"] = False
+    _save(p, tp)
+    ok, rep = _check(minirun_strand_copy)
+    assert not ok and any("link_next ist nicht true" in e for e in rep["errors"]), rep["errors"]
+
+
+def test_link_beside_line_fails(minirun_strand_copy):
+    """Ein Verbinder-Sample 1,5 mm seitlich der Geraden (q per IK, tcp = FK): Verbinder neben der Geraden."""
+    from verify.oracle.minirun import _Builder
+    from verify.oracle.robot_oracle import T_to_pose7
+
+    p, tr = _traj(minirun_strand_copy)
+    _, tp = _toolpath(minirun_strand_copy)
+    idx = _link_samples(tr, 1)
+    i = idx[len(idx) // 2]
+    A = np.array(tp["rings"][0]["waypoints"][-1][:3])
+    B = np.array(tp["rings"][1]["waypoints"][0][:3])
+    n = np.array([-(B - A)[1], (B - A)[0], 0.0])
+    b = _Builder()
+    q = b.ik(np.array(tr["tcp"][i][:3]) + 1.5 * n / np.linalg.norm(n), np.array(tr["q"][i]))
+    tr["q"][i] = q.tolist()
+    tr["tcp"][i] = T_to_pose7(b.tcp_W(q)).tolist()
+    _save(p, tr)
+    ok, rep = _check(minirun_strand_copy)
+    assert not ok and any("neben der Geraden" in e for e in rep["errors"]), rep["errors"]
+
+
+def test_link_outside_section_fails(minirun_strand_copy):
+    """Senkrechte Bohrung (r = 4 mm) im Teil genau unter dem Verbinder Ring 0 -> 1: Verbinder ueber einer
+    Oeffnung."""
+    import trimesh
+
+    from verify.oracle.collision_oracle import box_part_mesh
+    from verify.oracle.minirun import SIZE
+
+    hole = trimesh.creation.cylinder(radius=4.0, height=3 * SIZE[2], sections=32)
+    hole.apply_translation((-70.0, -20.0, SIZE[2] / 2))  # Mitte zwischen (-85, -35) und (-55, -5), Frame P
+    mesh = trimesh.boolean.difference([box_part_mesh(SIZE), hole], engine="manifold")
+    mesh.export(str(minirun_strand_copy / "parts" / "box_0" / "part.stl"))
+    ok, rep = _check(minirun_strand_copy)
+    assert not ok, rep["errors"]
+    assert any("verlaesst den Querschnitt der Schicht 0" in e for e in rep["errors"]), rep["errors"]
+
+
+def test_link_too_long_or_disabled_fails(minirun_strand_copy):
+    _set_link_max(minirun_strand_copy, 40.0)
+    ok, rep = _check(minirun_strand_copy)
+    assert not ok and any("> link_max_mm 40" in e for e in rep["errors"]), rep["errors"]
+    _set_link_max(minirun_strand_copy, 0.0)
+    ok, rep = _check(minirun_strand_copy)
+    assert not ok and any("link_max_mm = 0" in e for e in rep["errors"]), rep["errors"]
+
+
+def test_link_layer_rule_fails(minirun_strand_copy):
+    """Verbinder beim Schichtwechsel (Ring 1 -> 2) zaehlt die Schicht des folgenden Rings (k = 1)."""
+    p, tr = _traj(minirun_strand_copy)
+    i = _link_samples(tr, 2)[3]
+    assert tr["layer"][i] == 1
+    tr["layer"][i] = 0
+    _save(p, tr)
+    ok, rep = _check(minirun_strand_copy)
+    assert not ok and any("layer-Regel" in e for e in rep["errors"]), rep["errors"]
+
+
+def test_branch_change_in_link_fails(minirun_strand_copy):
+    p, tr = _traj(minirun_strand_copy)
+    i = _link_samples(tr, 1)[5]
+    tr["branch"][i] = (tr["branch"][i] + 1) % 8
+    _save(p, tr)
+    ok, rep = _check(minirun_strand_copy)
+    assert not ok and any("Zweigwechsel innerhalb eines Strangs" in e for e in rep["errors"]), rep["errors"]
+    assert any("zweig_wechsel_in_ringen = 0, gezaehlt 2" in e for e in rep["errors"]), rep["errors"]
+
+
+def test_summary_branch_changes_must_match(minirun_strand_copy):
+    p, tr = _traj(minirun_strand_copy)
+    tr["summary"]["zweig_wechsel_in_ringen"] = 1
+    _save(p, tr)
+    ok, rep = _check(minirun_strand_copy)
+    assert not ok, rep["errors"]
+    assert any("zweig_wechsel_in_ringen = 1, gezaehlt 0" in e for e in rep["errors"]), rep["errors"]

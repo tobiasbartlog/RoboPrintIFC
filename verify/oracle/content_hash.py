@@ -61,6 +61,10 @@ def trajectory_key(path: Path) -> str:
     return _cached(path, "traj", _without_part_id)
 
 
+def toolpath_key(path: Path) -> str:
+    return _cached(path, "tp", _without_part_id)
+
+
 def drl_key(path: Path) -> str:
     return _cached(path, "drl", _drl)
 
@@ -72,7 +76,7 @@ def part_key(pdir: Path) -> str | None:
     try:
         parts = [_cached(pdir / "part.json", "part", _part_json),
                  _cached(pdir / "part.stl", "raw", _raw),
-                 _cached(pdir / "toolpath.json", "tp", _without_part_id),
+                 toolpath_key(pdir / "toolpath.json"),
                  trajectory_key(pdir / "trajectory.json")]
     except (OSError, ValueError, UnicodeDecodeError):
         return None

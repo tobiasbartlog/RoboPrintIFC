@@ -50,12 +50,14 @@ from verify.oracle.run_checks import (
     check_density,
     check_kinematics,
     check_layer_rule,
+    check_links,
     check_status,
     check_summary,
     check_toolpath,
     load_json,
     load_part,
 )
+from verify.oracle.strand_rules import LINK_MAX_DEFAULT
 
 PAIRS: list[tuple[str, str]] = checked_pairs()
 _PAIR_CODE = {p: i for i, p in enumerate(PAIRS)}
@@ -96,6 +98,7 @@ def _prepare(task) -> dict:
     if mode != "s3":
         check_density(P, pos, PF)
         check_toolpath(P, pos, rot, prm, PF)
+        check_links(P, pos, rot, prm, PF)
         check_branches(P, robot, PF)
         check_coverage(P, pos, prm, PF)
         check_summary(P, prm, PF)
@@ -182,7 +185,24 @@ def params_for(scenario: dict, ws: dict) -> Params:
                   shells=int(p.get("shells", 2)), d_hard=float(p.get("d_hard_mm", 10.0)),
                   d_target=float(p.get("d_target_mm", ws.get("safety_min_distance_mm", 50.0))),
                   d_target_printed=float(p.get("d_target_printed_mm", 20.0)),
-                  r_free=float(p.get("r_free_mm", 40.0)), tau_max_deg=float(p.get("tau_max_deg", 0.0)))
+                  r_free=float(p.get("r_free_mm", 40.0)), tau_max_deg=float(p.get("tau_max_deg", 0.0)),
+                  link_max=float(p.get("link_max_mm", LINK_MAX_DEFAULT)))
+
+
+def apply_link_max(summary: dict | None, scenario: dict, prm: Params, F: Findings) -> None:
+    """link_max_mm (SPEC §10, Default 60 mm, 0 = keine Verbinder) aus summary.json params. Nennt auch das
+    Szenario einen Wert, muessen beide uebereinstimmen."""
+    sp = (summary or {}).get("params", {}) or {}
+    if "link_max_mm" not in sp:
+        return
+    try:
+        val = float(sp["link_max_mm"])
+    except (TypeError, ValueError):
+        F.err(f"summary.params.link_max_mm = {sp['link_max_mm']!r} ist keine Zahl")
+        return
+    if "link_max_mm" in (scenario.get("params", {}) or {}) and abs(val - prm.link_max) > 1e-9:
+        F.err(f"summary.params.link_max_mm = {val}, erwartet {prm.link_max} (Szenario)")
+    prm.link_max = val
 
 
 def check_run_level(run: Path, scenario: dict, prm: Params, F: Findings):
@@ -321,6 +341,7 @@ def run(run_dir: Path, scenario_path: Path, jobs: int, legacy_status: bool = Fal
     mode = "s3" if expect.get("parts") == "collision_detected" else (
         "s2" if "eligible_walls" in expect else "s1")
     summary, _ = check_run_level(run_dir, scenario, prm, F)
+    apply_link_max(summary, scenario, prm, F)
     pdirs = sorted(p for p in (run_dir / "parts").glob("*") if p.is_dir())
     if summary is not None:
         listed = [p.get("part_id") for p in summary.get("parts", [])]

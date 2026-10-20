@@ -2,6 +2,11 @@
 
 Erzeugt ohne roboprint, nur mit Pinocchio-FK, numerischer IK und dem Kollisions-Orakel, einen
 kleinen Quader (2 Schichten, 2 Schalen) mit Trajektorie und DRL nach spec/ARTEFAKTE.md.
+
+- `build(out)`: alter Ablauf, jeder Ring ein eigener Strang (link_max_mm = 0, alle link_next false).
+- `build(out, strand=True)`: Strang-Variante (SPEC §5.3): Ring 0 -> 1 (gleiche Schicht) und 1 -> 2
+  (Schichtwechsel) ueber Verbinder, danach Travel zu Ring 3 (link_next von Ring 2 ist true, wird aber
+  nicht genutzt). link_max_mm = 60.
 """
 
 from __future__ import annotations
@@ -28,6 +33,9 @@ CENTER_S = (0.0, -100.0)
 PSI = np.pi
 H, W_BEAD = 10.0, 30.0
 SEED = np.deg2rad([-90.0, 0.0, 90.0, 0.0, 90.0, 0.0])
+STRAND_LINKS = (0, 1)  # Verbinder von Ring r nach r + 1 in der Strang-Variante
+STRAND_LINK_NEXT = (True, True, True, False)
+LINK_MAX = 60.0
 
 
 def _rect(hx: float, hy: float, z: float) -> np.ndarray:
@@ -92,8 +100,9 @@ class _Builder:
                 self.add(q, kind, ring, layer)
 
 
-def build(out: Path, part_id: str = "box_0", size=SIZE, center=CENTER_S) -> Path:
-    """Schreibt einen bestehenden Mini-Laufordner nach `out` und gibt den Pfad zum Szenario zurueck."""
+def build(out: Path, part_id: str = "box_0", size=SIZE, center=CENTER_S, strand: bool = False) -> Path:
+    """Schreibt einen bestehenden Mini-Laufordner nach `out` und gibt den Pfad zum Szenario zurueck.
+    strand: Ringe ueber Verbinder zu Straengen verbunden (STRAND_LINKS, s. Moduldoku)."""
     b = _Builder(center)
     lx, ly, lz = size
     mesh = box_part_mesh(size)
@@ -104,6 +113,10 @@ def build(out: Path, part_id: str = "box_0", size=SIZE, center=CENTER_S) -> Path
             off = (s + 0.5) * W_BEAD
             rings.append({"layer": L, "shell": s, "kind": "outer" if s == 0 else "inner", "closed": True,
                           "P": _rect(lx / 2 - off, ly / 2 - off, (L + 1) * H)})
+    links = set(STRAND_LINKS) if strand else set()
+    for r, rg in enumerate(rings):
+        rg["link_next"] = bool(strand and r < len(STRAND_LINK_NEXT) and STRAND_LINK_NEXT[r]
+                               and r + 1 < len(rings))
     quat = R_to_quat(b.R_WT)
     for rg in rings:
         pW = rg["P"] @ b.T_WP[:3, :3].T + b.T_WP[:3, 3]
@@ -113,20 +126,24 @@ def build(out: Path, part_id: str = "box_0", size=SIZE, center=CENTER_S) -> Path
     last_L = None
     for r, rg in enumerate(rings):
         start = rg["W"][0]
-        k_trav = 0 if last_L is None else last_L + 1
-        z_top = b.T_WP[2, 3] + k_trav * H
-        travel = start + up * (max(z_top + 30.0, start[2] + 20.0) - start[2] + 20.0)
-        if r > 0:
-            p = b.tcp_W(b.q)[:3, 3]
-            b.line(p, np.array([p[0], p[1], travel[2]]), "lift", r - 1, k_trav)
-        q_t = b.ik(travel, SEED if r == 0 else b.q)
-        b.joint(q_t, "transfer", r, k_trav)
-        b.line(travel, start + 20 * up, "lower", r, k_trav)
-        b.line(start + 20 * up, start, "approach", r, rg["layer"])
+        if r - 1 in links:  # Verbinder: Gerade vom Ende von r - 1 zum Start von r, Schicht von r
+            b.line(rings[r - 1]["W"][-1], start, "link", r, rg["layer"])
+        else:
+            k_trav = 0 if last_L is None else last_L + 1
+            z_top = b.T_WP[2, 3] + k_trav * H
+            travel = start + up * (max(z_top + 30.0, start[2] + 20.0) - start[2] + 20.0)
+            if r > 0:
+                p = b.tcp_W(b.q)[:3, 3]
+                b.line(p, np.array([p[0], p[1], travel[2]]), "lift", r - 1, k_trav)
+            q_t = b.ik(travel, SEED if r == 0 else b.q)
+            b.joint(q_t, "transfer", r, k_trav)
+            b.line(travel, start + 20 * up, "lower", r, k_trav)
+            b.line(start + 20 * up, start, "approach", r, rg["layer"])
         for a, c in zip(rg["W"][:-1], rg["W"][1:], strict=True):
             b.line(a, c, "print", r, rg["layer"])
-        end = rg["W"][-1]
-        b.line(end, end + 20 * up, "retract", r, rg["layer"])
+        if r not in links:
+            end = rg["W"][-1]
+            b.line(end, end + 20 * up, "retract", r, rg["layer"])
         last_L = rg["layer"]
     p = b.tcp_W(b.q)[:3, 3]
     b.line(p, p + 30 * up, "lift", len(rings) - 1, last_L + 1)
@@ -155,7 +172,7 @@ def build(out: Path, part_id: str = "box_0", size=SIZE, center=CENTER_S) -> Path
     traj.update(schema_version="2", part_id=part_id, summary={
         "n": N, "n_ok": counts["ok"], "n_warn": counts["warn"], "n_collision": counts["collision"],
         "n_unreachable": counts["unreachable"], "d_min_mm": dmin, "dauer_s": 0.01 * (N - 1),
-        "zweig_wechsel_in_ringen": 0})
+        "zweig_wechsel_in_ringen": _branch_changes(traj["kind"], traj["branch"])})
     pdir = out / "parts" / part_id
     pdir.mkdir(parents=True, exist_ok=True)
     mesh.export(str(pdir / "part.stl"))
@@ -168,10 +185,11 @@ def build(out: Path, part_id: str = "box_0", size=SIZE, center=CENTER_S) -> Path
         "n_layers": n_layers, "status": "machbar", "cause": None})
     _dump(pdir / "toolpath.json", {
         "schema_version": "2", "part_id": part_id, "layer_height_mm": H, "bead_width_mm": W_BEAD,
-        "rings": [{k: rg[k] for k in ("layer", "shell", "kind", "closed", "waypoints")} for rg in rings]})
+        "rings": [{k: rg[k] for k in ("layer", "shell", "kind", "closed", "link_next", "waypoints")}
+                  for rg in rings]})
     _dump(pdir / "trajectory.json", traj)
     params = {"layer_height_mm": H, "bead_width_mm": W_BEAD, "d_hard_mm": 10.0, "d_target_mm": 50.0,
-              "d_target_printed_mm": 20.0, "r_free_mm": 40.0}
+              "d_target_printed_mm": 20.0, "r_free_mm": 40.0, "link_max_mm": LINK_MAX if strand else 0.0}
     _dump(out / "summary.json", {
         "schema_version": "2", "scenario_id": "MINI", "scenario_path": "", "params": params,
         "assumptions": [], "walls": [{"wall_id": "box", "name": "box", "eligible": True, "reason": None,
@@ -197,6 +215,13 @@ def build(out: Path, part_id: str = "box_0", size=SIZE, center=CENTER_S) -> Path
     return scen
 
 
+def _branch_changes(kind: list, branch: list) -> int:
+    """Zweigwechsel innerhalb eines Strangs (approach/print/link/retract ohne Travel), alle erreichbar."""
+    strand = ("approach", "print", "link", "retract")
+    return sum(1 for i in range(1, len(kind))
+               if kind[i] in strand and kind[i - 1] in strand and branch[i] != branch[i - 1])
+
+
 def _dump(p: Path, obj) -> None:
     p.write_text(json.dumps(obj, indent=1), encoding="utf-8")
 
@@ -213,7 +238,10 @@ def _posj(q) -> str:
 
 
 def emit_drl(b: _Builder, traj: dict, rings: list, dialect: str) -> str:
-    """Minimaler DRL-Emitter nach SPEC §5.6 (nur fuer Selbsttests)."""
+    """Minimaler DRL-Emitter nach SPEC §5.6 (nur fuer Selbsttests): je Strang Transfer, Absenken und
+    Anfahren, Pumpe an + wait(t_tot), Druck-movel je Wegpunkt und ein movel je Verbinder (radius 2 mm,
+    das letzte movel des Strangs radius 0), Pumpe aus, Abfahren und Abheben. Verbinder-Zeilen tragen
+    den Kommentar `# Verbinder` (fuer die Selbsttests)."""
     q = np.array(traj["q"])
     kinds = traj["kind"]
     ring = traj["ring"]
@@ -227,31 +255,40 @@ def emit_drl(b: _Builder, traj: dict, rings: list, dialect: str) -> str:
         "try:",
     ]
     ind = "    "
+    runs = []
     i, N = 0, len(kinds)
     while i < N:
         j = i
         while j + 1 < N and kinds[j + 1] == kinds[i] and ring[j + 1] == ring[i]:
             j += 1
-        k = kinds[i]
+        runs.append((kinds[i], i, j))
+        i = j + 1
+    for n_run, (k, i, j) in enumerate(runs):
+        prev_k = runs[n_run - 1][0] if n_run > 0 else None
+        next_k = runs[n_run + 1][0] if n_run + 1 < len(runs) else None
         if k == "transfer":
             lines.append(ind + f"movej({_posj(q[j])}, vel=30, acc=60)")
         elif k == "print":
-            lines.append(ind + "set_analog_output(ch=1, val=5.0)")
-            lines.append(ind + "wait(3.0)")
+            if prev_k == "approach":  # Strangbeginn: Pumpe an im Stillstand, Pumpen-Vorlauf t_tot
+                lines.append(ind + "set_analog_output(ch=1, val=5.0)")
+                lines.append(ind + "wait(3.0)")
             W = np.array(rings[ring[i]]["W"])
             idx = [i]
             for p in W[1:]:
                 d = np.linalg.norm(np.array([t[:3] for t in traj["tcp"][i:j + 1]]) - p, axis=1)
                 idx.append(i + int(np.argmin(d)))
             for n, s in enumerate(idx[1:]):
-                last = n == len(idx) - 2
+                last = n == len(idx) - 2 and next_k != "link"
                 rad = 0.0 if last else 2.0
                 lines.append(ind + f"movel({_posx(b, q[s])}, vel=100, acc=400, radius={rad}, ref=DR_BASE, "
                              "ra=DR_MV_RA_DUPLICATE)")
-            lines.append(ind + "set_analog_output(ch=1, val=0)")
+            if next_k != "link":  # Strangende: Pumpe aus im Stillstand
+                lines.append(ind + "set_analog_output(ch=1, val=0)")
+        elif k == "link":
+            lines.append(ind + f"movel({_posx(b, q[j])}, vel=100, acc=400, radius=2.0, ref=DR_BASE, "
+                         "ra=DR_MV_RA_DUPLICATE)  # Verbinder")
         else:
             lines.append(ind + f"movel({_posx(b, q[j])}, vel=100, acc=400, ref=DR_BASE)")
-        i = j + 1
     lines += ["except Exception as e:", ind + "set_analog_output(ch=1, val=0)", ind + "raise e",
               "set_analog_output(ch=1, val=0)"]
     return "\n".join(lines) + "\n"
