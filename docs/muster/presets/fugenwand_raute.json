@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "Fugenwand Rautenkette (b, ohne Gurt)",
+  "pattern": "fugenwand",
+  "params": {
+    "bead_width_mm": 30.0,
+    "layer_height_mm": 10.0,
+    "layer_order": "alternate",
+    "belt": false,
+    "back_offset": "versetzt",
+    "field_length_mm": 300.0
+  },
+  "outline": {
+    "length_mm": 600.0,
+    "thickness_mm": 200.0
+  },
+  "description": "Empfehlung: An jeder Fuge eine Raute, Rauten berühren sich an Knoten in der Wandmitte, Rautenspitze stützt das Feld der Gegenseite; Fugen der Rückseite um F/2 versetzt."
+}

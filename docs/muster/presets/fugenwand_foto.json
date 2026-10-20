@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "name": "Fugenwand mit Gurt wie Foto (a, Haken r = 20 mm)",
+  "pattern": "fugenwand",
+  "params": {
+    "bead_width_mm": 30.0,
+    "layer_height_mm": 10.0,
+    "layer_order": "alternate",
+    "belt": true,
+    "back_offset": "gespiegelt",
+    "field_length_mm": 250.0,
+    "hook_radius_mm": 20.0
+  },
+  "outline": {
+    "length_mm": 1000.0,
+    "thickness_mm": 300.0
+  },
+  "description": "Variante (a) mit engeren Haken (r = 20 mm < w: M6-Warnung, kein Fehler), damit die Stege bei 300 mm Wand schräg (V-förmig, 14–31°) laufen wie auf dem Foto. Bei 200 mm Wand bleibt auch dieses Preset ein Mäander (Stegwinkel ≈ 3°)."
+}
