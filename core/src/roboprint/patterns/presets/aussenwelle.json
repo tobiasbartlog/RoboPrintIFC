@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "Gewellte Außenschale (O1)",
+  "pattern": "aussenwelle",
+  "params": {
+    "bead_width_mm": 30.0,
+    "layer_height_mm": 10.0,
+    "shells": 1,
+    "layer_order": "alternate",
+    "outer_wavelength_mm": 150.0,
+    "outer_amplitude_mm": 8.0,
+    "outer_shape": "sinus",
+    "outer_faces": "beide"
+  },
+  "outline": {
+    "length_mm": 600.0,
+    "thickness_mm": 200.0
+  },
+  "description": "O1: eine Schale je Seite, die langen Außenseiten als Sinuswelle nach innen (A = 8 mm, λ = 150 mm, bündig mit der IFC-Fläche); Stoßflächen gerade, Ecken gerundet."
+}
