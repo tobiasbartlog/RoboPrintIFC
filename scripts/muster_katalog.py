@@ -43,6 +43,7 @@ VERTICAL = "vertical"
 #: Kurzdoku je Mustername
 DOC_OF = {
     "fugenwand": "fugenwand.md",
+    "aussenwelle": "aussenwelle.md",
     "sinus": "wellen.md",
     "zickzack": "wellen.md",
     "trapez": "wellen.md",

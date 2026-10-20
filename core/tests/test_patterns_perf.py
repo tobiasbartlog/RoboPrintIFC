@@ -219,7 +219,7 @@ def test_random_params_equal_reference(seed: int, monkeypatch):
     d = {s.name: _random_value(rng, s) for s in pt.CORE_PARAM_SPECS if rng.random() < 0.7}
     d.update({q["name"]: _random_value(rng, q) for q in cat[name]["params"]})
     if name != "schalen":
-        d["outfill" if cat[name]["role"] == "full" else "infill"] = name
+        d["infill" if cat[name]["role"] == "infill" else "outfill"] = name
     params = pt.params_from_dict(d)
     sections = _random_sections(rng)
     new = pt.plan_pattern(sections, params)
