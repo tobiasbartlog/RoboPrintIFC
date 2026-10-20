@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-20T14:22:00+02:00 · Session: Cloud (Abnahmelauf) · Phase: P6, Druckplatz abgenommen
+Herzschlag: 2026-10-20T16:30:00+02:00 · Session: lokal (Integration Strang) · Phase: P6, Strang mit Verbindern integriert, Cloud-verify offen
 
 # PROGRESS — Nachtlauf v2
 
@@ -680,3 +680,138 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   Überhang. Die einzigen 3 Fehler betreffen die bewusst weggelassenen übrigen Wände („fehlt in summary.walls“).
 - Gegenüber der Seitenlage (−450, 250)/(−625, 300), 90° (Orakel-d_min_lb 11,85/11,04 mm) liegt der Abstand am
   Druckplatz jetzt für beide Vertreter bei 11,85 mm.
+
+### 2026-10-20 16:30 Durchgehender Strang mit Verbindern (Nutzerentscheidung Tobias)
+- **Anlass:** Bericht an Tobias zu Hub, Pumpe und Verweilzeit. Bisher druckte v2 jeden Ring einzeln: Halt am
+  Ringende (`radius` 0), Pumpe 0 V, Abfahrt 20 mm, Abheben auf z_lift, `movej`, Absenken, Anfahrt, Pumpe 5 V,
+  `wait(t_tot)`. Gemessen: 7090 Wechsel in einem 100-Modul-Job, je 30 mm hoch, 5–6 Halte, die Pumpe jedes Mal aus
+  und wieder an. Lehm verlangt eine kontinuierliche Bewegung bei gleichbleibendem Materialfluss. Antwort von
+  Tobias: „A und B umsetzen“.
+  - **A:** Prozesswerte ehrlich zeigen. `summary.json` nennt die tatsächlich genutzten Werte statt einer festen
+    Liste, überschriebene Werte heißen „(Nutzerwert)“. Der Viewer zeigt den Druckstand nach dem tatsächlichen
+    Fortschritt.
+  - **B:** Ringe werden über Verbinder (`kind` = `link`) zu Strängen verbunden. Die Pumpe läuft im Strang durch,
+    der Roboter hält im Strang nicht an. t_tot ist nur noch der Pumpen-Vorlauf einmal am Strangbeginn. Travel
+    (retract, lift, transfer, lower, approach) gibt es nur zwischen Strängen. Neuer Parameter `link_max_mm`
+    (60 mm, 0 = aus = alter Ablauf).
+- **Entscheidung: Der Verbinder wird mitgedruckt.** Er ist die Gerade vom Ende eines Rings zum Start des nächsten,
+  liegt über Material (nie über einer Öffnung) und steigt beim Schichtwechsel um h. Begründung: Ein senkrechter
+  Schritt mit laufender Pumpe oder ein Halt ohne Abheben gibt einen Klecks. Eine gedruckte Gerade über Material
+  hält den Fluss. Vertrag in 81d0f3b: SPEC §3, §5.2, §5.3, §5.5, §5.6, §6, §10, §11 (G3, G5) und ARTEFAKTE
+  (Strang-Regeln, `toolpath.rings[r].link_next`, `zweig_wechsel_in_ringen` je Strang). Die Sperre von `spec/` und
+  `verify/` hat Tobias dafür aufgehoben.
+- **Umsetzung:** vier Branches, mit `--no-ff` in `v2/strang` gemergt, ohne Konflikte, ohne Korrektur-Commit.
+  - **Kern** (`v2/strang-core`, d963a71):
+    - `slicer.py`: `link_next` über `link_allowed` nach §5.3, Toleranz 0,01 mm.
+    - `planner/params.py`: `link_max_mm` = 60 und `lambda_link` = 1,0.
+    - `planner/plan.py`: Strang aus `_strand_start`, `_link`, `_close` und `_strand_end`. Ring r + 1 wird mit dem
+      Zweig am Ende von r geplant. Der Strang bricht bei unerreichbar, Sprung oder Zweigwechsel, bei d < d_hard
+      nach zwei Nachplanungen; dann folgt ein normaler Travel.
+    - Bausteine in `planner/samples.py` (neu) und `densify.py`. `result.py` hat das Tail für die Höhensuche und
+      zählt Zweigwechsel je Strang. Dazu `graph.py` und `decompose_plan.py`.
+    - `timing.py`: ein Trapez je Strang, t_tot einmal. `params.py`: `link` in `PRINT_SPEED_KINDS`.
+    - `selfcheck.py`: Prüfungen a und d für Verbinder. `pipeline.py`: `assumptions(params)` (Punkt A).
+    - Tests: `test_strand.py` (14, neu), dazu `test_slicer.py` und `test_planner.py`.
+  - **DRL** (`v2/strang-drl`, 900b364, im Kern enthalten):
+    - `drl_steps.py` (neu): Schrittliste je Strang. Pumpe an und `wait(t_tot)` nach der Anfahrt, ein `movel` je
+      Verbinder, `radius = min(r_blend, ½ Segment)` auch an Ringgrenzen, `radius` 0 nur am letzten `movel` des
+      Strangs. Ungültige Verbinder lehnt der Emitter mit `ValueError` ab.
+    - `drl.py`: Kopf mit „N Ringe in M Straengen (K Verbinder)“ und `link_max_mm`. v3: `movesx` nur für einen
+      Strang aus einem Ring mit ≤ 100 Zielen, sonst `movel`.
+    - `docs/doosan-drl.md`: nur die eigene Nutzung. Tests in `drl_plan.py`, `drl_checker.py` und `test_drl.py`.
+  - **Orakel** (`v2/strang-verify`, fd3b1cc):
+    - `verify/oracle/strand_rules.py` (neu, ohne Pinocchio): Schichtregel, Ablauf je Strang,
+      Verbinder-Geometrie und Zweigwechsel je Strang.
+    - `verify/fake_drcf/pump.py` (neu): Pumpe nur in `print`/`link`, Ein- und Ausschalten nur im Stillstand an
+      Strangbeginn bzw. -ende, kein Halt im Strang, Wegpunkte mit Pumpe.
+    - Angepasst: `run_checks.py`, `check_run.py`, `fake_drcf/check.py`, `content_hash.py`, `minirun.py`
+      (Strang-Variante) und `conftest.py`.
+    - Selbsttests: `selftest_strand.py` (21, neu), `selftest_check_run.py` (+8), `selftest_fake_drcf.py` (+6).
+  - **Viewer** (`v2/strang-web`, df5d6f2):
+    - Parameter `link_max_mm` „Verbinder bis“ (grundlegend). z_lift und An-/Abfahrt sind jetzt grundlegend.
+      `t_tot_s` heißt „Pumpen-Vorlauf am Strangbeginn“.
+    - `kind` `link` heißt „Verbinder“ (indigo) und hat einen eigenen Legendeneintrag.
+    - Punkt A: `scene/progress.ts`, `scene/strand.ts` und `PrintedStrand.tsx`. Der Druckstand folgt dem
+      tatsächlichen Fortschritt, die laufende Schicht erscheint als Raupe.
+  - **Integration:** README (Abschnitt „Druckablauf: Strang mit Verbindern“, Annahmenliste).
+- **Checks lokal** (Windows 11, Python 3.14 ohne Pinocchio und Coal):
+  - `ruff check core verify` grün.
+  - `pytest core -q -n 4`: 211 passed, 14 skipped (Pinocchio), 1 failed. Der Fehlschlag ist
+    `test_traversal_symlink` (Windows ohne Symlink-Recht, wie bisher). `test_web_default_params_accepted` ist
+    nach dem Merge grün.
+  - web lint 0 Befunde, typecheck 0 Fehler, vitest 118 passed (16 Dateien).
+  - `export-contracts` ist identisch mit `web/src/contracts/schemas`.
+  - `verify/oracle/selftest_strand.py`: 21 passed.
+  - Mit einem lokalen Pinocchio-Ersatz (FK aus `roboprint.robot`, also nicht unabhängig): `test_drl.py`,
+    `test_strand.py` und `test_export.py` 47 passed, 0 skipped.
+- **Messwerte** (lokal, Windows, je Lauf ein Prozess, vier Läufe parallel, Ordner `%TEMP%\strang-integration`;
+  Stand e6fe85d). „Hub“ ist die größte TCP-Höhe zwischen dem letzten Druck-Sample eines Rings und dem ersten des
+  nächsten, gemessen über dem Ringende:
+
+| Lauf | Planung | Status, d_min | dauer_s | Stränge (Pumpe an) | retract / lift | `wait(` | Hub Ring- / Schichtwechsel |
+|---|---|---|---|---|---|---|---|
+| (a) Quader 600 × 200 × 150, Standard | 26,2 s | machbar, 10,83 mm | 427,2 s | 1 (29 Verbinder) | 1 / 1 | 1 | 0 / 10 mm (= h) |
+| (b) wie (a), `link_max_mm` = 0 (alter Ablauf) | 27,4 s | machbar, 10,83 mm | 548,8 s | 30 | 30 / 30 | 30 | 30,1 / 30,1 mm |
+| (c) S1 600 × 200 × 400 | 61,5 s | machbar, 10,83 mm | 1128,7 s | 1 (79 Verbinder) | 1 / 1 | 1 | 0 / 10 mm (= h) |
+| (d) S1, `link_max_mm` = 0 (alter Ablauf) | 64,3 s | machbar, 10,83 mm | 1459,9 s | 80 | 80 / 80 | 80 | 30,3 / 30,3 mm |
+
+  - Die Druckdauer sinkt um 22 % (Quader) bzw. 23 % (S1).
+  - (b) und (d) treffen die Werte vor der Änderung genau (548,8 s und 1459,9 s, Messung des Kern-Agenten). Mit
+    `link_max_mm` = 0 sind Trajektorie und DRL-Rumpf identisch mit dem alten Ablauf (Test im Kern).
+  - Zweigwechsel überall 0. Wanduhr 29,5 / 31,0 / 65,6 / 67,5 s.
+  - DRL von (a): Kopf „30 Ringe in 1 Straengen (29 Verbinder)“. `set_analog_output(ch=1, val=5.000)` und
+    `wait(3.000)` stehen genau einmal nach der Anfahrt. Von 2132 `movel` haben 2128 im Strang `radius` 2,0, auch an
+    allen 29 Ringgrenzen. `radius` 0 hat nur das letzte `movel` vor „Pumpe aus“; dann folgen retract und lift.
+    Jeder Ring ist kommentiert („# Ring 3 (ueber Verbinder): Schicht 1, Schale 1, inner“). v3 ist gleich aufgebaut
+    (`movel`, kein `movesx`, weil der Strang Verbinder hat).
+  - Lokale Prüfungen ohne Pinocchio auf (a) bis (d), jeweils 0 Fehler:
+    - `core/tests/drl_checker.py` und `verify/fake_drcf/check.check_program` (v2 und v3).
+    - `selfcheck.check_part_dir`.
+    - `strand_rules`: Schichtregel, Ablauf je Strang, Verbinder-Geometrie, Zweigwechsel gegen `summary`.
+    - Verbinder in (a): 29, längster 42,43 mm (30·√2), Abweichung von der Geraden 3·10⁻¹² mm.
+    - Die FK lieferte der Pinocchio-Ersatz (Abweichung zu `tcp` 3·10⁻¹³ mm). Die geprüfte Strang- und
+      Pumpenlogik hängt davon nicht ab.
+  - Zusatz des Kern-Agenten: S2 lokal 122,6 → 119,1 s, 172 Teile machbar. Stränge 262 → 4 (einer je Vertreter),
+    dauer_s der Vertreter 4687,8 → 3605,8 s.
+- **Nur in der Cloud prüfbar:**
+  - Voller verify-Lauf G1–G8 mit Pinocchio und Coal.
+  - `verify/check_run.py` auf S1, S2 und S3 (G3, G4) und `verify/fake_drcf` auf S1 und S2 (G5).
+  - G6 (e2e; die Screenshots zeigen noch den alten Druckstand) und G7 (S1 ≤ 180 s auf 4 vCPU, lokal 63 s).
+  - `pytest verify` mit echten Abständen, besonders `test_strand_minirun_passes` und die Strang-Negativfälle in
+    `selftest_fake_drcf.py`.
+  - `pytest core` ohne die 14 Pinocchio-Skips.
+- **Offene Punkte der Umsetzer** (Entscheidung bei Tobias, wo nicht anders vermerkt):
+  1. **`movesx` in v3:** SPEC §5.6/4 erlaubt Blöcke mit ≤ 100 Punkten. `movesx` hält aber am Blockende (kein
+     Online-Blending), ein Strang aus mehreren Blöcken hielte also mitten im Strang. Der Emitter nutzt `movesx`
+     deshalb nur für einen Strang aus einem Ring mit ≤ 100 Zielen. Die G5-Haltregel prüft nur `movel`. Die SPEC
+     sollte das festschreiben.
+  2. **Anschluss der Verbinder-Samples:** ARTEFAKTE („beginnen bzw. enden an diesen Punkten“) lässt offen, ob das
+     erste `link`-Sample das Ringende wiederholt. Der Planer schreibt kein Duplikat: Das letzte `link`-Sample liegt
+     genau auf dem ersten Wegpunkt von r + 1. Emitter und Orakel akzeptieren beide Lesarten.
+  3. **`lambda_link` = 1,0** ist neu (Gewicht der Gelenkdistanz am Start eines verbundenen Rings) und steht nicht
+     in SPEC §10. Der Wert erscheint in `summary.params` und im DRL-Kopf.
+  4. **Höhensuche:** An jeder Schichtgrenze mit Verbinder plant der Planer zusätzlich das Strangende (retract +
+     lift) als Tail für den Ausschnitt. Die Suche stoppt auch, wenn dieses Strangende nicht geht. SPEC §5.4 sagt
+     dazu nichts. Ausschnitt = eigene Planung ist per Test belegt.
+  5. **Weiche Bewertung:** Beim Verbinderversuch zählt ein kollidierendes Abfahren von r + 1 nur weich
+     (Nachplanung, kein Strangbruch).
+  6. **Unerreichbarer Ring:** Das Platzhalter-Sample (`print` direkt nach `lift`) verletzt die Ablaufregel. Das
+     betrifft nur ohnehin nicht machbare Teile und war schon vorher so.
+  7. **Strengere Orakel-Regeln, abgeleitet aus SPEC/ARTEFAKTE:**
+     - kein Zweigwechsel über approach … retract eines Strangs (vorher nur `print`);
+     - `radius` > 0 für jedes `movel` zwischen zwei Pumpenbewegungen;
+     - kein `wait`/`mwait` im Strang außer dem Vorlauf;
+     - `zweig_wechsel_in_ringen` muss exakt stimmen;
+     - `fake_drcf` verlangt `toolpath.json` im Teilordner.
+
+     Lokal erfüllen (a) bis (d) alle Regeln, in der Cloud können sie G3/G5 dennoch rot machen.
+  8. **Ohne Gate-Kriterium, nicht geprüft:** v_print im Verbinder, Trapez je Strang mit t_tot einmal (G3 prüft
+     nur geometrisch), ungenutzte `link_next`-Flags.
+  9. **Viewer:**
+     - „Schicht k fertig“ und die Timeline-Spur „Schicht“ zeigen weiter das Kollisions-k (Vertrag). Die Szene
+       zeigt dagegen den tatsächlichen Druckstand. Im Travel zur Innenschale steht deshalb „1 fertig“, während
+       die Szene 0 Schichten plus Raupe zeigt. Vorschlag: „Druckstand (Prüfung)“ oder eine Zeile „Gedruckt“.
+     - „Strang“ (SPEC §3: Folge von Ringen) und „Strangbreite“ (Raupe) stehen nebeneinander im Panel.
+     - `web/fixtures/run_demo` hat keine Verbinder; ein Strang-Fixture gibt es nur in den Unit-Tests.
+  10. **Probehöhe:** `planner/placement.probe_points` nutzt fest +30 mm als Probehöhe für den Platzierungs-Score.
+      Das ist eine Heuristik, nicht z_lift; bewusst unverändert.
