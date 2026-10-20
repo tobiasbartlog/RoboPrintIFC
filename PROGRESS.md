@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-20T13:30:00+02:00 · Session: lokal (Tobias) · Phase: P6, Druckplatz statt Platzierungssuche
+Herzschlag: 2026-10-20T14:13:00+02:00 · Session: Cloud (Abnahmelauf) · Phase: P6, Cloud-verify Druckplatz
 
 # PROGRESS — Nachtlauf v2
 
@@ -632,3 +632,23 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   ohne Symlink-Recht, wie bisher); web lint, typecheck, vitest 86 passed; e2e `params.spec.ts` 2 passed.
 - **Offen:** SPEC §5.4/3, §7, §10 und Beschreibung S1 (gesperrt, Text liegt bereit, Nutzer entsperrt kurz);
   Cloud-verify G1–G8 (G3/G4/G7 mit neuen Platzierungen, Orakel für S2).
+
+### 2026-10-20 14:13 Cloud-verify Druckplatz
+- Anlass: Druckplatz statt Platzierungssuche (0720722). Cloud-VM 4 vCPU, Python `/opt/fgc-venv`, Branch `v2/druckplatz`.
+- Vorab: `pytest core -q -n 2` 221 passed, 2 skipped (339 s; `test_traversal_symlink` läuft hier grün); `ruff` grün;
+  web ci/lint/typecheck/test grün (86 Tests).
+- **Voller verify-Lauf: G1–G8 grün** (683 s gesamt, Bericht `runs/verify/report.json`), nichts zu beheben:
+
+| Gate | Ergebnis | Laufzeit | Kernzahlen |
+|---|---|---|---|
+| G1 | grün | 9,0 s | FK/IK gegen Pinocchio |
+| G2 | grün | 42,1 s | Kollisionsabstand gegen Coal |
+| G3 | grün | 31,9 s, check 25,6 s | S1 bei (0, −50) mm, Gier 0, machbar, d_min 10,83 mm, 0 coll/unreach; Orakel d_min_lb 11,85 mm, Abdeckung 99,52 % |
+| G4 | grün | S2 119,0 s, check 59,8 s; S3 44,1 s, check 67,2 s | S2 172 Teile, alle machbar, alle bei (0, −50) mm Gier 0, höchstes Modul 380 mm, d_min 10,83 mm; Orakel 4 Vertreter voll geprüft (Rest inhaltsgleich), d_min_lb 11,85 mm, 0 Kollisionen, Abdeckung ≥ 98,38 %, Tischplatte/Basis ohne Fehler; S3 bei (0, 330) nicht machbar, 75 783 Kollisionen, Orakel bestätigt 75 778 |
+| G5 | grün | 27,5 s | fake_drcf S1 und S2, 0 Fehler |
+| G6 | grün | 60,9 s | e2e grün inkl. `params.spec.ts` (Druckplatz); Screenshots unter `web/e2e/screenshots/` aktualisiert |
+| G7 | grün | — | S1 31,9 s (≤ 180), S2 119,0 s (≤ 1800) |
+| G8 | grün | 196,2 s | ruff, pytest core (177,6 s), web lint/typecheck/test |
+
+- Vergleich zum Lauf 2026-10-19 19:15: S1 93 → 32 s, S2 303 → 119 s (Zerlegung 99 s, Höhensuche je Wandgruppe
+  58 s statt ~101 s, da nur noch ein Platz geprüft wird). Orakel-d_min_lb unverändert 11,85 mm (vorher ≥ 10,01 mm).
