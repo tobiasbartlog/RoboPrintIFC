@@ -18,16 +18,16 @@ Die erste Zeile setzt nur das Skript.
 | 2D-Musterersteller: API `/api/patterns*`, CLI `pattern-preview`, Web-Reiter „Muster“ (e2e 11/11) | M3/M4 | erledigt, gemergt | v2/muster-ersteller | 5f0f769 |
 | I-Wellen (Sinus, Zickzack gerundet, Trapez, Mäander) | M2 | erledigt, gemergt | v2/muster-wellen | d3bceca |
 | I-Mehrfach (Doppelwelle, Waben, Fermat-Spirale) | M2 | erledigt, gemergt | v2/muster-mehrfach | d15cb95 |
-| Outfill O1/O3 (nur wenn Zeit; O2 = Fugenwand) | M2 | offen | v2/muster-outfill | |
+| Outfill O1 gewellte Außenschale (Backlog; O2 = Fugenwand) | M2 | läuft (wf_77155298-1fb) | v2/muster-o1 | |
 | Topologie (Öffnungen, Inseln, Laibungsstege, Naht, Abschrägung) | M2 | erledigt, gemergt | v2/muster-topologie | 6bf2292 |
 | Einbau Slicer + Vertrag + Schema/TS | M3 | erledigt, gemergt (über Viewer) | v2/muster-einbau | b78ce7d |
 | Einbau Planer/Timing/DRL | M3 | erledigt, gemergt (über Viewer) | v2/muster-einbau | 7633e16 |
-| Musterszenarien, `scripts/verify_muster.py`, SPEC-Nachtrag | M3 | läuft (wf_0e4879c6-203; Warteschleife des Agenten um 23:11 von Hand gelöst) | v2/muster-einbau | |
+| Musterszenarien, `scripts/verify_muster.py`, SPEC-Nachtrag | M3 | gebaut (Runner GRÜN, 11 Szenarien), Gegenprüfung läuft | v2/muster-einbau | 91268f7 |
 | Viewer: Musterwahl im Ablauf, Schichtvorschau des Teils, Legende, Kennzahlen (e2e 15/15, 3×) | M4 | erledigt, gemergt | v2/muster-viewer | eba6f5f |
 | Katalog-Generator `scripts/muster_katalog.py` (Vorschau-Kennzahlen, Bilder) | M5 | erledigt, gemergt (Neulauf nach M3 nötig) | v2/muster-katalog | 5755006+ |
 | Vorschau-Laufzeit (metrics): Fugenwand 1200×200 146 → 70 ms; Wellen noch 120–380 ms | M4 | erledigt, gemergt; Wellen offen | v2/muster-perf | 81a874f |
 | Wellen-Fix: Planung ≈ 2× schneller (Bestwert < 100 ms), Rückfall statt Absturz | M2 | erledigt, gemergt | v2/muster-wellenfix | 5b10474 |
-| Vergleich mit Roboterprüfung, MUSTERKATALOG final, Testdrucke | M5 | offen | v2/muster-katalog | |
+| Testdrucke je Muster (`docs/muster/testdrucke/`), danach Katalog final mit Roboterkennzahlen | M5 | läuft (wf_77155298-1fb) | v2/muster-testdrucke, v2/muster-katalog | |
 | Gegenprüfung und Härtung | M6 | offen | v2/muster | |
 | Kernfehler `shells.shell_chain`/`clear_end` stürzt bei Inseln < ~4·w ab (auch Grundmuster) | M6 | offen | v2/muster-haertung | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
@@ -37,7 +37,7 @@ Die erste Zeile setzt nur das Skript.
 | Prüfung | Status | Kennzahl | Stand |
 |---|---|---|---|
 | G1–G8 (`scripts/verify.py`) | --fast grün (G1 G2 G3 G5 G8) | Ausgangslage | M0 18:10 |
-| Muster (`scripts/verify_muster.py`) | | | |
+| Muster (`scripts/verify_muster.py`) | GRÜN (Einbau-Zweig) | 11 Szenarien, je 1 Strang/Schicht, 100 % senkrechte Wechsel, d_min 10,83 mm; S5 Fugenwand mit Öffnung belegt nicht machbar (M3) | 00:00 |
 
 ## Gate-Einwände
 
@@ -138,3 +138,10 @@ Die erste Zeile setzt nur das Skript.
   Länge-0-Verbinder zusammen. Ohne Muster ist S1 bitgleich (sha256 der Toolpaths).
 - Der M3.3-Agent hing 30 min in einer Warteschleife (`pgrep -f` fand die eigene Shell); Schleife beendet.
 - Nach Merge: ruff grün, `pytest core verify_muster`: 909 grün, Web lint/typecheck/test (163) grün.
+
+### 2026-10-21 00:05 M3.3 gebaut, M5 gestartet (Session start)
+- `scripts/verify_muster.py` GRÜN auf dem Einbau-Zweig: S4 (schalen alternate, Fugenwand gurt/versetzt, gurt_300,
+  Sinus, Zickzack, Trapez, Mäander, Doppelwelle_300, Waben_300, Fermat) und S5 (synthetisches Fenster) machbar,
+  1 Strang je Schicht und Insel, 100 % senkrechte Schichtwechsel (S5: 97 %, Inselwechsel), d_min 10,83 mm,
+  G3 grün bis auf die Abdeckung (Einwand 1), G5 grün, M1–M7 grün. S5 mit Fugenwand: belegt nicht machbar (M3).
+- M5-Workflow: Testdrucke und O1 parallel (je mit Gegenprüfung), danach Katalog final.
