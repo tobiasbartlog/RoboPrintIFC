@@ -19,13 +19,13 @@ Die erste Zeile setzt nur das Skript.
 | I-Wellen (Sinus, Zickzack gerundet, Trapez, Mäander) | M2 | erledigt, gemergt | v2/muster-wellen | d3bceca |
 | I-Mehrfach (Doppelwelle/Kettenglied, Waben, Fermat) | M2 | läuft (wf_3c365435-7f4) | v2/muster-mehrfach | |
 | Outfill O1/O3 (nur wenn Zeit; O2 = Fugenwand) | M2 | offen | v2/muster-outfill | |
-| Topologie (Öffnungen, Inseln, Laibungsstege, Naht, Übergänge) | M2 | läuft (wf_3c365435-7f4) | v2/muster-topologie | |
+| Topologie (Öffnungen, Inseln, Laibungsstege, Naht, Abschrägung) | M2 | erledigt, gemergt | v2/muster-topologie | 6bf2292 |
 | Einbau Slicer + Vertrag + Schema/TS | M3 | läuft (wf_0e4879c6-203) | v2/muster-einbau | |
 | Einbau Planer/Timing/DRL | M3 | wartet (wf_0e4879c6-203) | v2/muster-einbau | |
 | Musterszenarien, `scripts/verify_muster.py`, SPEC-Nachtrag | M3 | wartet (wf_0e4879c6-203) | v2/muster-einbau | |
 | Viewer: Musterwahl, 2D-Vorschau, Legende, Kennzahlen | M4 | offen | v2/muster-viewer | |
-| Katalog-Generator `scripts/muster_katalog.py` (Vorschau-Kennzahlen, Bilder) | M5 | läuft (wf_2be13a79-850) | v2/muster-katalog | |
-| Vorschau-Laufzeit < 100 ms (metrics) | M4 | läuft (wf_2be13a79-850) | v2/muster-perf | |
+| Katalog-Generator `scripts/muster_katalog.py` (Vorschau-Kennzahlen, Bilder) | M5 | erledigt, gemergt (Neulauf nach M3 nötig) | v2/muster-katalog | 5755006+ |
+| Vorschau-Laufzeit (metrics): Fugenwand 1200×200 146 → 70 ms; Wellen noch 120–380 ms | M4 | erledigt, gemergt; Wellen offen | v2/muster-perf | 81a874f |
 | Vergleich mit Roboterprüfung, MUSTERKATALOG final, Testdrucke | M5 | offen | v2/muster-katalog | |
 | Gegenprüfung und Härtung | M6 | offen | v2/muster | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
@@ -106,3 +106,14 @@ Die erste Zeile setzt nur das Skript.
   Vorschau-Laufzeit 70–110 ms bei 600×200 (Ziel 100 ms knapp), bei langen Modulen darüber – Kosten in `metrics`.
 - Nach Merge ein Testkonflikt (Preset-Reihenfolge) behoben. ruff grün, `pytest core verify_muster`: 592 grün,
   Web lint/typecheck/test (141) grün.
+
+### 2026-10-20 21:20 Topologie, Laufzeit, Katalog gemergt (Session start)
+- **Befund Topologie:** `examples/Building-Architecture.ifc` hat **keine Öffnungen** (kein IfcOpeningElement,
+  IfcWindow, IfcDoor); jeder Schnitt hat eine Insel. Einziger Querschnittswechsel in S2 ist die 45°-Schräge am
+  Wandkopf. S5 (Modul mit Öffnung) wird deshalb synthetisch (Fenster in einer 200-mm-Wand).
+- Topologie: je Insel ein Strang, Laibungsstege aus dem ganzen Teil (0 mm² Überhang über Brüstung),
+  Abschrägung als Doppelring mit Wende; Grenze: je Laibung eine Fuge auf einer Wandseite (bis 41 mm tief),
+  weil ein Strang nur zwei Enden hat. Mindestwanddicke mit Öffnung 150 mm.
+- Laufzeit der Vorschau: Fugenwand und Schalen < 100 ms; die vier Wellenmuster 120–380 ms (Planung in
+  `families/wellen.py`). Ein alter Absturz von `sinus` auf einem L-Querschnitt mit extremen Parametern ist offen.
+- Nach Merge: ruff grün, `pytest core verify_muster`: 736 grün, 2 übersprungen.
