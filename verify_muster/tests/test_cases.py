@@ -103,8 +103,8 @@ def test_layer_change_as_travel_is_detected(tmp_path):
 
 
 @pytest.mark.parametrize(("bump", "ok"), [(1.5, True), (3.5, False)])
-def test_overhang_boundary(tmp_path, bump, ok):
-    """Beule in der obersten Schicht: Ueberstand bump < delta = 2 mm ist erlaubt."""
+def test_overhang_bump_on_steep_flank(tmp_path, bump, ok):
+    """Gauss-Beule auf der steilen Sinusflanke (≈ 49°): normal zur Bahn nur ≈ 1,0 bzw. 2,3 mm."""
     def layer(L):
         return [synth.sine_infill(bump=bump if L == N_LAYERS - 1 else 0.0)]
 
@@ -113,6 +113,35 @@ def test_overhang_boundary(tmp_path, bump, ok):
         assert code == 0, (_failed(p), p["first_counterexample"])
     else:
         assert _failed(p) == {"M3"}, _failed(p)
+
+
+@pytest.mark.parametrize(("shift", "ok"), [(1.5, True), (1.9, True), (2.5, False), (2.1, False)])
+def test_overhang_boundary_exact(tmp_path, shift, ok):
+    """Ebenes Plateau (40 mm) der Aussenbahn in der obersten Schicht, normal zur Bahn genau `shift`
+    nach innen: delta = 2 mm. 2,1 mm ergibt 0,1 mm · 40 mm = 4 mm² > 1 mm² Restflaeche."""
+    def layer(L):
+        return [synth.sine_infill(outer_shift=shift if L == N_LAYERS - 1 else 0.0)]
+
+    code, p = _run(tmp_path, synth.stack(layer, N_LAYERS))
+    if ok:
+        assert code == 0, (_failed(p), p["first_counterexample"])
+    else:
+        assert _failed(p) == {"M3"}, _failed(p)
+        f = p["rules"]["M3"]["first"]
+        assert f["layer"] == N_LAYERS - 1 and -100.0 < f["point_P"][0] < -30.0
+        assert f["area_mm2"] >= (shift - 2.0) * 40.0 * 0.9
+
+
+@pytest.mark.parametrize(("contact", "ok"), [(25.5, True), (25.45, False)])
+def test_contact_exactly_at_threshold(tmp_path, contact, ok):
+    """Mittellinienabstand genau (1 - eps)·w = 25,5 mm ist ein gueltiger Kontakt (Band [25,5; 30])."""
+    code, p = _run(tmp_path, synth.stack(lambda L: [sf.fugenwand(contact)], N_LAYERS))
+    if ok:
+        assert code == 0, (_failed(p), p["first_counterexample"])
+        joints = [z for z in p["rules"]["M7"]["metrics"]["zones_first_layer"] if z["type"] == "joint"]
+        assert len(joints) == 4 and all(z["overlap_mm"] == pytest.approx(4.5, abs=0.05) for z in joints)
+    else:
+        assert _failed(p) == {"M2"}, _failed(p)
 
 
 @pytest.mark.parametrize(("excess", "ok"), [(0.8, True), (1.3, False)])
@@ -127,14 +156,19 @@ def test_inside_part_boundary(tmp_path, excess, ok):
         assert p["rules"]["M5"]["first"]["excess_mm"] == pytest.approx(excess - 1.0, abs=0.05)
 
 
-@pytest.mark.parametrize(("r", "ok"), [(15.0, True), (14.0, False)])
-def test_radius_boundary_on_closed_ring(tmp_path, r, ok):
-    """Geschlossener Stadionring mit Halbkreisen vom Radius r (hart >= w/2 = 15 mm, Toleranz 5 %)."""
-    rings = synth.stack(lambda L: [synth.stadium(r)], N_LAYERS)
+@pytest.mark.parametrize(("r", "arc_step", "ok"), [
+    (15.0, 0.5, True), (14.85, 0.5, False), (14.6, 0.5, False), (14.0, 0.5, False),
+    (15.0, 7.7, True), (14.0, 7.7, False)])
+def test_radius_boundary_on_closed_ring(tmp_path, r, arc_step, ok):
+    """Geschlossener Stadionring mit Halbkreisen vom Radius r (hart >= w/2 = 15 mm). Fein abgetastet
+    (Sehne 0,5 mm) gilt die Grenze bis auf 0,5 %, 14,6 mm ist rot; grob abgetastet (Sehne 7,7 mm,
+    Sehnenfehler ≈ 0,49 mm, gerade noch zulaessig) bekommt der Radius bis zu 5 % Spiel."""
+    rings = synth.stack(lambda L: [synth.stadium(r, arc_step=arc_step)], N_LAYERS)
     mesh = synth.box_mesh(length=300.0 + 2 * r + synth.W, width=2 * r + synth.W,
                           height=N_LAYERS * synth.H)
     code, p = _run(tmp_path, rings, mesh=mesh)
-    assert p["rules"]["M6"]["metrics"]["min_radius_mm"] == pytest.approx(r, rel=0.01)
+    rel = 0.01 if arc_step < 1 else 0.05
+    assert p["rules"]["M6"]["metrics"]["min_radius_mm"] == pytest.approx(r, rel=rel)
     if ok:
         assert code == 0, (_failed(p), p["first_counterexample"])
         assert p["rules"]["M6"]["warnings"] > 0

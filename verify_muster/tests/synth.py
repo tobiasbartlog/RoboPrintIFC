@@ -92,10 +92,22 @@ def two_shells(r_out: float = 60.0, half_len: float = 300.0, cx: float = 0.0, x0
     return [{"kind": "outer", "shell": 0, "xy": outer}, {"kind": "inner", "shell": 1, "xy": inner}]
 
 
-def sine_infill(extra_tail=None, bump: float = 0.0) -> list[dict]:
-    """Eine Bahn je Seite und Sinus-Infill (Wellenlaenge 300 mm, Kontakt bei Abstand w)."""
-    outer = join(line((-285, -85), (200, -85)), arc((200, 0), 85, -np.pi / 2, np.pi / 2),
-                 line((200, 85), (-215, 85)))
+def plateau(x: np.ndarray, x0: float, b: float, flat: float = 20.0, ramp: float = 30.0) -> np.ndarray:
+    """Versatz b auf |x - x0| <= flat, Kosinusrampe der Laenge ramp auf 0 (Kruemmung klein)."""
+    u = np.clip((np.abs(x - x0) - flat) / ramp, 0.0, 1.0)
+    return b * 0.5 * (1.0 + np.cos(np.pi * u))
+
+
+def sine_infill(extra_tail=None, bump: float = 0.0, outer_shift: float = 0.0) -> list[dict]:
+    """Eine Bahn je Seite und Sinus-Infill (Wellenlaenge 300 mm, Kontakt bei Abstand w).
+
+    bump: Gauss-Beule im Infill bei x = -140 (Sinus dort ~49° steil, der Versatz normal zur Bahn ist
+    nur ≈ 0,65·bump). outer_shift: ebenes Plateau der unteren Aussenbahn bei x = -65 nach innen (+y),
+    der Versatz normal zur Bahn ist dort genau outer_shift (exakter Grenzfall fuer M3)."""
+    xb = np.arange(-285.0, 200.0 + 1e-9, 1.0)
+    bottom = np.column_stack([xb, -85.0 + plateau(xb, -65.0, outer_shift)]) if outer_shift else \
+        line((-285, -85), (200, -85))
+    outer = join(bottom, arc((200, 0), 85, -np.pi / 2, np.pi / 2), line((200, 85), (-215, 85)))
     x = np.arange(-215.0, 150.0 + 1e-9, 1.0)
     y = -55.0 * np.cos(2 * np.pi * (x + 215.0) / 300.0)
     if bump:
@@ -106,11 +118,12 @@ def sine_infill(extra_tail=None, bump: float = 0.0) -> list[dict]:
     return [{"kind": "outer", "shell": 0, "xy": outer}, {"kind": "infill", "shell": 1, "xy": infill}]
 
 
-def stadium(r: float, half: float = 150.0) -> list[dict]:
-    """Geschlossener Ring (Stadion): Geraden y = ±r von x = -half bis half, Halbkreise vom Radius r.
-    Start = Ende auf der Unterkante bei x = 0 (closed = true wie im heutigen Format)."""
-    pts = join(line((0.0, -r), (half, -r)), arc((half, 0.0), r, -np.pi / 2, np.pi / 2, step=0.5),
-               line((half, r), (-half, r)), arc((-half, 0.0), r, np.pi / 2, 1.5 * np.pi, step=0.5),
+def stadium(r: float, half: float = 150.0, arc_step: float = 0.5) -> list[dict]:
+    """Geschlossener Ring (Stadion): Geraden y = ±r von x = -half bis half, Halbkreise vom Radius r
+    (Sehnenlaenge <= arc_step, Ecken auf dem Kreis). Start = Ende auf der Unterkante bei x = 0
+    (closed = true wie im heutigen Format)."""
+    pts = join(line((0.0, -r), (half, -r)), arc((half, 0.0), r, -np.pi / 2, np.pi / 2, step=arc_step),
+               line((half, r), (-half, r)), arc((-half, 0.0), r, np.pi / 2, 1.5 * np.pi, step=arc_step),
                line((-half, -r), (0.0, -r)))
     return [{"kind": "outer", "shell": 0, "xy": pts, "closed": True}]
 

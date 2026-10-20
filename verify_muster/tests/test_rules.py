@@ -127,6 +127,27 @@ def test_gap_in_strand_toolpath_is_detected(tmp_path):
     assert any("2 Schichtpfade" in e["message"] for e in p["rules"]["M1"]["examples"])
 
 
+def test_missing_top_layer_is_detected(tmp_path):
+    """toolpath endet eine Schicht zu frueh (Teil 4 Schichten hoch, Ringe nur fuer 3): M1."""
+    rings = synth.stack(lambda L: [synth.two_shells()], N_LAYERS - 1)
+    code, p = _run(tmp_path, rings)
+    assert _failed(p) == {"M1"}, _failed(p)
+    f = p["rules"]["M1"]["first"]
+    assert f["layer"] == N_LAYERS - 1 and f["n_paths"] == 0
+
+
+def test_empty_toolpath_is_not_green(tmp_path):
+    synth.write_run(tmp_path, synth.stack(lambda L: [synth.two_shells()], 1),
+                    synth.box_mesh(height=N_LAYERS * synth.H))
+    pdir = tmp_path / "parts" / "box_m0"
+    tp = json.loads((pdir / "toolpath.json").read_text(encoding="utf-8"))
+    tp["rings"] = []
+    (pdir / "toolpath.json").write_text(json.dumps(tp), encoding="utf-8")
+    (pdir / "trajectory.json").unlink()
+    code, rep = check.run(tmp_path, need_trajectory=False)
+    assert code == 1 and "M1" in rep["parts"][0]["failed_rules"]
+
+
 def test_print_outside_part_is_detected(tmp_path):
     mesh = synth.box_mesh(length=560.0, height=N_LAYERS * synth.H)
     code, p = _run(tmp_path, synth.stack(lambda L: [synth.sine_infill()], N_LAYERS), mesh=mesh)
@@ -161,6 +182,62 @@ def test_trajectory_off_toolpath_is_detected(tmp_path):
     assert _failed(p) == {"M6b"}, _failed(p)
 
 
+def _drop_print(ring: int, a: int, b: int):
+    """Mutator: entfernt die print-Samples a..b-1 (Zaehlung innerhalb des Rings) aus der Trajektorie."""
+    def mut(traj):
+        pos = [k for k, s in enumerate(traj) if s[1] == "print" and s[2] == ring]
+        drop = set(pos[a:b])
+        return [s for k, s in enumerate(traj) if k not in drop]
+    return mut
+
+
+def test_print_gap_inside_ring_is_detected(tmp_path):
+    """Strang laeuft weiter (keine Unterbrechung, jedes Sample auf dem Ring), aber die Duese schneidet
+    die rechte untere Kehre ab (80 mm Bogen als Sehne): ≈ 6 mm Raupenlaenge fehlen. M1 sieht das
+    nicht, M6b (Abdeckung) schon.
+    Ausgelassene Samples auf einer Geraden sind dagegen keine Luecke (die Duese faehrt dieselbe Gerade)."""
+    rings = synth.stack(lambda L: [synth.two_shells()], N_LAYERS)
+    # Ring 0: Unterkante ab x = -100 in 2-mm-Samples bis x = 225 (Sample 163), dann Kehre r = 60
+    code, p = _run(tmp_path, rings, traj_mutator=_drop_print(0, 165, 205))
+    assert _failed(p) == {"M6b"}, _failed(p)
+    f = p["rules"]["M6b"]["first"]
+    assert "uebersprungen" in f["message"] and f["gap_mm"] > 5.0 and f["ring"] == 0
+    code, p = _run(tmp_path / "gerade", rings, traj_mutator=_drop_print(0, 20, 100))
+    assert code == 0, _failed(p)
+
+
+def test_print_backwards_is_detected(tmp_path):
+    """Zwei print-Samples vertauscht: die Duese faehrt ein Stueck zurueck (Doppelraupe)."""
+    def swap(traj):
+        out = list(traj)
+        pos = [k for k, s in enumerate(out) if s[1] == "print" and s[2] == 2]
+        i, j = pos[10], pos[14]
+        out[i], out[j] = out[j], out[i]
+        return out
+
+    code, p = _run(tmp_path, synth.stack(lambda L: [synth.two_shells()], N_LAYERS), traj_mutator=swap)
+    assert _failed(p) == {"M6b"}, _failed(p)
+
+
+def test_oracle_never_imports_roboprint_or_verify():
+    """Unabhaengigkeit (AUFTRAG, Rahmen): kein Modul von verify_muster importiert roboprint oder verify."""
+    import ast
+    from pathlib import Path
+
+    root = Path(check.__file__).parent
+    for f in root.rglob("*.py"):
+        tree = ast.parse(f.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [a.name for a in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module]
+            for n in names:
+                top = n.split(".")[0]
+                assert top not in ("roboprint", "verify", "core"), f"{f.name} importiert {n}"
+
+
 # ---------------------------------------------------------------- Methoden
 
 
@@ -170,9 +247,12 @@ def test_window_radius_independent_of_sampling(r, seg):
     """Kreisbogen mit Sehnenlaenge seg (bis zum Sehnenfehler ~0,4 mm): Radius innerhalb R_REL_TOL."""
     n = int(np.ceil(1.5 * np.pi * r / seg))
     pts = synth.arc((0, 0), r, 0.0, 1.5 * np.pi, step=1.5 * np.pi * r / n)
-    R, _, _ = geometry.window_radius(pts, 1.0, 15.0)
-    tol = rules.R_REL_TOL
-    assert len(R) and R.min() >= r * (1 - tol) and R.max() <= r * (1 + tol)
+    R, _, _, ch = geometry.window_radius(pts, 1.0, 15.0, with_chord=True)
+    tol = rules.radius_tolerance(ch, r, 15.0)
+    assert len(R) and np.all(R >= r * (1 - tol)) and R.max() <= r * (1 + rules.R_REL_TOL)
+    assert ch.max() == pytest.approx(seg, rel=0.15)
+    if seg <= 2.0:  # fein abgetastet: Toleranz hoechstens ~1 %
+        assert tol.max() <= 0.011
 
 
 def test_window_radius_sharp_corner_and_reversal():

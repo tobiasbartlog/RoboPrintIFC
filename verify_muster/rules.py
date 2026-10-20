@@ -25,8 +25,10 @@ M5_MARGIN_MM = 1.0  # (A) Raupenflaeche im Querschnitt ⊕ 1 mm
 M5_TOL_MM = 0.05  # numerische Toleranz der Punktpruefung
 Z_TOL_MM = 0.5  # Wegpunkthoehe gegen (L+1)·h (ARTEFAKTE)
 M3_AREA_TOL_MM2 = 1.0  # numerische Restflaeche (Puffer-Polygone)
-R_REL_TOL = 0.05  # (A) Toleranz der Fenster-Kruemmung: deckt Sehnenfehler <= 0,5 mm der Eingabe ab
+R_REL_TOL = 0.05  # (A) groesste Toleranz der Fenster-Kruemmung: deckt Sehnenfehler <= 0,5 mm der Eingabe ab
+R_TOL_FLOOR = 0.005  # (A) kleinste Toleranz (Rundung der Neuabtastung), gilt fuer fein abgetastete Kurven
 FOLLOW_TOL_MM = 0.5  # Trajektorie <= 0,5 mm neben dem toolpath (Ersatz fuer den Sehnenfehler)
+GAP_TOL_MM = 1.0  # (A) ausgelassene Ringlaenge zwischen zwei print-Samples bzw. am Ringanfang/-ende
 CONTACT_TOL_MM = ct.CONTACT_TOL_MM
 PUMP_KINDS = ("print", "link")
 KNOWN_KINDS = ("print", "link", "approach", "retract", "lift", "transfer", "lower")
@@ -106,7 +108,11 @@ def build_ctx(part: Part) -> Ctx:
         if all(len(xy[r]) for r in ch):
             L = part.rings[ch[0]].layer
             paths.setdefault(L, []).append(g.build_path(L, ch, xy, kinds, step))
-    layers = sorted({r.layer for r in part.rings})
+    # Schichten aus dem Teil (wie G3: ceil(H/h), Schnitt bei (L + 0,5)·h < H) und aus dem toolpath: eine
+    # Schicht ohne Ring (Strang fehlt ganz) faellt so unter M1 ("0 Schichtpfade") und M3.
+    z0, z1 = float(part.mesh.bounds[0][2]), float(part.mesh.bounds[1][2])
+    n_mesh = int(np.ceil((z1 - max(z0, 0.0)) / h - 1e-6)) if np.isfinite(z1) and z1 > 0 else 0
+    layers = sorted({r.layer for r in part.rings} | {L for L in range(n_mesh) if (L + 0.5) * h < z1})
     sections, isl, p_isl, ring_group = {}, {}, {}, {}
     for L in layers:
         sec = g.section(part.mesh, (L + 0.5) * h)
@@ -343,32 +349,52 @@ def check_m5(C: Ctx) -> Rule:
 # ---------------------------------------------------------------- M6
 
 
+def radius_tolerance(chord: np.ndarray, r_ref: float, window: float) -> np.ndarray:
+    """Relative Toleranz des Fensterradius je Punkt aus der laengsten Originalsehne im Fenster.
+
+    Liegt die Eingabe als Polylinie mit Sehne c auf einem Kreis vom Radius r_ref, weicht ein Fensterpunkt
+    hoechstens um den Sehnenfehler e = c²/(8·r_ref) nach innen ab. Der Umkreis durch p(s ± a) und p(s)
+    hat die Pfeilhoehe S = r_ref·(1 - cos(a/r_ref)); der Radius aendert sich daher relativ um etwa e/S.
+    Mit 15 % Reserve: tol = R_TOL_FLOOR + 1,15·e/S, hoechstens R_REL_TOL (5 %, Sehnenfehler 0,5 mm).
+    So wird ein fein abgetasteter Bogen mit r = 14,6 mm bei w/2 = 15 mm rot, eine grobe, aber nach M6
+    zulaessige Polylinie eines 15-mm-Bogens (Sehne ≈ 7,7 mm) bleibt gruen.
+    """
+    e = np.asarray(chord, float) ** 2 / (8.0 * r_ref)
+    sag = r_ref * (1.0 - np.cos(min(window / r_ref, np.pi / 2)))
+    return np.minimum(R_REL_TOL, R_TOL_FLOOR + 1.15 * e / sag)
+
+
 def check_m6(C: Ctx) -> Rule:
     R = Rule("M6", "Kruemmungsradius der Mittellinie >= w/2 (Ziel >= w)", True)
-    hard = 0.5 * C.w * (1.0 - R_REL_TOL)
-    target = C.w * (1.0 - R_REL_TOL)
+    a = 0.5 * C.w
     step = min(1.0, C.w / 30.0)
     rmin = np.inf
     for L in C.layers:
         for P in C.paths.get(L, []):
             R.n_checked += 1
             closed = P.cyclic or (len(P.elements) == 1 and P.elements[0].closed)
-            Rv, _, q = g.window_radius(P.polyline(), step, 0.5 * C.w, closed=closed)
+            Rv, _, q, ch = g.window_radius(P.polyline(), step, a, closed=closed, with_chord=True)
             if len(Rv) == 0:
                 continue
+            hard = 0.5 * C.w * (1.0 - radius_tolerance(ch, 0.5 * C.w, a))
+            target = C.w * (1.0 - radius_tolerance(ch, C.w, a))
             k = int(np.argmin(Rv))
             rmin = min(rmin, float(Rv[k]))
-            if Rv[k] < hard:
-                ring = _nearest_ring_in(P, q[k])
-                R.fail(L, ring, q[k], f"Kruemmungsradius {Rv[k]:.1f} mm < w/2 = {0.5 * C.w:.1f} mm",
-                       radius_mm=float(Rv[k]), n_points=int((Rv < hard).sum()))
-            elif Rv[k] < target:
+            bad = Rv < hard
+            if bad.any():
+                kb = int(np.flatnonzero(bad)[np.argmin(Rv[bad])])
+                ring = _nearest_ring_in(P, q[kb])
+                R.fail(L, ring, q[kb], f"Kruemmungsradius {Rv[kb]:.1f} mm < w/2 = {0.5 * C.w:.1f} mm "
+                       f"(Toleranz {100 * (1 - hard[kb] / (0.5 * C.w)):.1f} % aus Sehne {ch[kb]:.1f} mm)",
+                       radius_mm=float(Rv[kb]), n_points=int(bad.sum()))
+            elif (Rv < target).any():
                 R.warnings += 1
     R.metrics.update(min_radius_mm=None if not np.isfinite(rmin) else round(rmin, 2),
                      hard_mm=round(0.5 * C.w, 2), target_mm=round(C.w, 2), paths_below_target=R.warnings)
     R.note = ("Fenstermethode: Umkreis von p(s-w/2), p(s), p(s+w/2) auf gleichabstaendiger Abtastung; "
-              "offene Schichtpfade ohne die Enden (w/2), geschlossene Zuege zyklisch; Toleranz 5 % fuer "
-              "Sehnenfehler <= 0,5 mm; Knicke mit Ablenkung <= 60° liegen hart nicht unter w/2 (Ziel warnt); "
+              "offene Schichtpfade ohne die Enden (w/2), geschlossene Zuege zyklisch; Toleranz je Punkt aus "
+              "der laengsten Originalsehne im Fenster (0,5 % fein abgetastet bis 5 % bei Sehnenfehler "
+              "0,5 mm); Knicke mit Ablenkung <= 60° liegen hart nicht unter w/2 (Ziel warnt); "
               "Sehnenfehler gegen die Sollkurve ohne Sollkurve nicht pruefbar, ersetzt durch M6b")
     return R
 
@@ -377,8 +403,46 @@ def _nearest_ring_in(P: g.LayerPath, pt) -> int:
     return P.ring_at(int(np.argmin(np.linalg.norm(P.pts - pt, axis=1))))
 
 
+def _print_gaps(ring_xy: np.ndarray, closed: bool, tcp_xy: np.ndarray) -> tuple[float, int, str]:
+    """Groesste ausgelassene Ringlaenge der print-Samples eines Rings (Abdeckung und Reihenfolge).
+
+    Jedes Sample wird auf die dicht abgetastete Ringpolylinie projiziert (Bogenlaenge s). Zwischen zwei
+    aufeinanderfolgenden Samples ist die uebersprungene Laenge Δs - |Δp|; ein Sprung quer ueber den
+    Ring (Strang laeuft weiter, Raupe fehlt) oder ein Ruecksprung faellt so auf, auch wenn jedes Sample
+    selbst auf dem Ring liegt. Offene Ringe muessen zudem am Anfang beginnen und am Ende enden;
+    geschlossene Ringe (Bogenlaenge modulo L) muessen einmal ganz herum laufen.
+    Rueckgabe: (Luecke mm, Sample-Position in tcp_xy, Art)."""
+    dense = g.densify(ring_xy, 0.2)
+    s_d = g.arclen(dense)
+    L = float(s_d[-1]) if len(s_d) else 0.0
+    if L <= 0.0 or len(tcp_xy) == 0:
+        return 0.0, 0, ""
+    _, k = cKDTree(dense).query(tcp_xy)
+    sp = s_d[k]
+    chord = np.linalg.norm(np.diff(tcp_xy, axis=0), axis=1)
+    ds = np.diff(sp)
+    if closed:
+        ds = np.mod(ds, L)
+        ds = np.where(ds > L - GAP_TOL_MM, ds - L, ds)  # Projektion am Schliesspunkt (0 = L)
+    cands = [(0.0, 0, "")]
+    if len(ds):
+        skip = ds - chord
+        m = int(np.argmax(skip))
+        cands.append((float(skip[m]), m + 1, "uebersprungen"))
+        mb = int(np.argmin(ds))
+        cands.append((float(-ds[mb]), mb + 1, "rueckwaerts"))
+    if closed:
+        cands.append((float(L - ds.sum()) if len(ds) else L, len(tcp_xy) - 1, "Ring nicht ganz gedruckt"))
+    else:
+        cands.append((float(sp[0]), 0, "Ringanfang fehlt"))
+        cands.append((float(L - sp[-1]), len(tcp_xy) - 1, "Ringende fehlt"))
+    return max(cands, key=lambda t: t[0])
+
+
 def check_m6b(C: Ctx) -> Rule:
-    R = Rule("M6b", "Trajektorie folgt dem toolpath (print/link <= 0,5 mm)", True)
+    """Trajektorie folgt dem toolpath: Lage (print/link <= 0,5 mm neben Ring bzw. Verbindergerade) und
+    Abdeckung (jeder Ring luecken- und ruecksprungfrei bis auf GAP_TOL_MM, `_print_gaps`)."""
+    R = Rule("M6b", "Trajektorie folgt dem toolpath (print/link <= 0,5 mm, Ring lueckenlos)", True)
     tr = C.part.traj
     if tr is None:
         R.note = "ohne trajectory.json nicht geprueft"
@@ -406,7 +470,29 @@ def check_m6b(C: Ctx) -> Rule:
                 m = int(np.argmax(d))
                 R.fail(r.layer, r.index, tr.tcp[idx[m], :2],
                        f"{k}-Sample {idx[m]} liegt {d[m]:.2f} mm neben dem toolpath", sample=int(idx[m]))
+    worst_gap = 0.0
+    for r in rings:
+        idx = np.flatnonzero((kind == "print") & (tr.ring == r.index))
+        if len(idx) == 0 or len(r.pts) < 2:
+            continue
+        closed = len(r.pts) >= 3 and np.linalg.norm(r.pts[0, :2] - r.pts[-1, :2]) <= g.CLOSE_TOL
+        # Der Planer legt den Ringanfang auf das letzte Sample des Verbinders (bzw. approach) und das
+        # Ringende auf retract bzw. das erste Sample des naechsten Verbinders: Nachbarsamples, die auf dem
+        # Ringanfang bzw. -ende liegen, zaehlen fuer die Abdeckung mit.
+        ext = list(idx)
+        for nb, end in ((idx[0] - 1, r.pts[0, :2]), (idx[-1] + 1, r.pts[-1, :2])):
+            if 0 <= nb < len(kind) and kind[nb] in ("link", "approach", "retract") \
+                    and np.linalg.norm(tr.tcp[nb, :2] - end) <= FOLLOW_TOL_MM:
+                ext = [nb, *ext] if nb < idx[0] else [*ext, nb]
+        idx = np.asarray(ext)
+        gap, m, what = _print_gaps(r.pts[:, :2], closed, tr.tcp[idx, :2])
+        worst_gap = max(worst_gap, gap)
+        if gap > GAP_TOL_MM:
+            R.fail(r.layer, r.index, tr.tcp[idx[m], :2],
+                   f"Raupe unvollstaendig: {what}, {gap:.1f} mm des Rings ohne print-Sample "
+                   f"(bei Sample {idx[m]})", sample=int(idx[m]), gap_mm=gap)
     R.metrics["max_deviation_mm"] = round(worst, 3)
+    R.metrics["max_print_gap_mm"] = round(worst_gap, 3)
     return R
 
 

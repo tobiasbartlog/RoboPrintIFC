@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import shapely
 import trimesh
+from scipy.ndimage import maximum_filter1d
 from shapely.geometry import LineString, Polygon
 from shapely.ops import unary_union
 
@@ -228,8 +229,8 @@ def bead_region(paths: list[LayerPath], w: float):
 # ---------------------------------------------------------------- Kruemmung
 
 
-def window_radius(pts: np.ndarray, step: float, window: float,
-                  closed: bool = False) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def window_radius(pts: np.ndarray, step: float, window: float, closed: bool = False,
+                  with_chord: bool = False) -> tuple:
     """Kruemmungsradius ueber ein Bogenlaengen-Fenster: Umkreis von p(s - a), p(s), p(s + a).
 
     Die Mittellinie wird gleichabstaendig (step) abgetastet, a = window. Fuer Punkte auf einem Kreis
@@ -238,14 +239,25 @@ def window_radius(pts: np.ndarray, step: float, window: float,
     Seite) -> 0. Rueckgabe: (Radius, Bogenlaenge, Punkt) je auswertbarem Punkt; die Enden
     (s < a, s > S - a) werden bei offenen Pfaden nicht ausgewertet. Bei `closed` (Ende = Start) wird
     zyklisch fortgesetzt, damit auch die Naht geprueft wird.
+
+    Mit `with_chord` kommt als viertes Element je Punkt die laengste Originalsehne (Segment der
+    Eingabe-Polylinie) im Fenster [s - a, s + a] dazu. Daraus folgt die Toleranz des Radius
+    (`rules.radius_tolerance`): Eine fein abgetastete Kurve wird streng geprueft, eine grobe Polylinie
+    (Sehnenfehler bis 0,5 mm) bekommt bis zu 5 % Spiel.
     """
     q, s = resample(pts, step)
+    s_in = arclen(np.asarray(pts, float))
+    seglen = np.diff(s_in) if len(s_in) > 1 else np.zeros(1)
+    seg_i = np.clip(np.searchsorted(s_in, s, side="right") - 1, 0, len(seglen) - 1)
+    ch = seglen[seg_i] if len(s) else np.zeros(0)
     k = max(1, int(round(window / step)))
     if closed and len(q) > 2 * k + 2:
         q = np.vstack([q[-k - 1 : -1], q, q[1 : k + 1]])
         s = np.concatenate([s[-k - 1 : -1] - s[-1], s, s[1 : k + 1] + s[-1]])
+        ch = np.concatenate([ch[-k - 1 : -1], ch, ch[1 : k + 1]])
     if len(q) < 2 * k + 1:
-        return np.zeros(0), np.zeros(0), np.zeros((0, 2))
+        empty = (np.zeros(0), np.zeros(0), np.zeros((0, 2)))
+        return (*empty, np.zeros(0)) if with_chord else empty
     a, b, c = q[: -2 * k], q[k:-k], q[2 * k :]
     ab = np.linalg.norm(b - a, axis=1)
     bc = np.linalg.norm(c - b, axis=1)
@@ -257,7 +269,10 @@ def window_radius(pts: np.ndarray, step: float, window: float,
     flat = area2 <= 1e-9 * np.maximum(ab * bc, 1e-12)
     straight = np.einsum("ij,ij->i", a - b, c - b) < 0
     R = np.where(flat, np.where(straight, np.inf, 0.0), R)
-    return R, s[k:-k], b
+    if not with_chord:
+        return R, s[k:-k], b
+    ch_max = maximum_filter1d(ch, size=2 * k + 1, mode="nearest")[k:-k]
+    return R, s[k:-k], b, ch_max
 
 
 def straight_runs(pts: np.ndarray, s: np.ndarray, supported: np.ndarray, tol: float) -> list[tuple]:
