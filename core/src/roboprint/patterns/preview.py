@@ -143,6 +143,11 @@ def _xy(a: Any) -> list[float]:
     return [round(float(a[0]), 2), round(float(a[1]), 2)]
 
 
+def _xys(pts: Any) -> list[list[float]]:
+    """Wie `[_xy(p) for p in pts]`, aber über Python-Floats (gleiche Rundung, viel schneller)."""
+    return [[round(x, 2), round(y, 2)] for x, y in np.asarray(pts, float)[:, :2].tolist()]
+
+
 def _unit(v: np.ndarray) -> list[float]:
     n = float(np.linalg.norm(v))
     return [0.0, 0.0] if n < 1e-12 else [round(float(v[0] / n), 4), round(float(v[1] / n), 4)]
@@ -167,7 +172,7 @@ def path_to_dict(lp: LayerPath) -> dict[str, Any]:
                 "shell": s.shell,
                 "label": s.label,
                 "closed": s.closed,
-                "points": [_xy(p) for p in pts],
+                "points": _xys(pts),
                 "start": _xy(pts[0]),
                 "end": _xy(pts[-1]),
                 "start_dir": _unit(pts[1] - pts[0]),
@@ -201,8 +206,8 @@ def _outline_dict(geom: Any) -> dict[str, Any]:
     return {
         "polygons": [
             {
-                "exterior": [_xy(p) for p in g.exterior.coords],
-                "holes": [[_xy(p) for p in h.coords] for h in g.interiors],
+                "exterior": _xys(g.exterior.coords),
+                "holes": [_xys(h.coords) for h in g.interiors],
             }
             for g in polys
         ],
