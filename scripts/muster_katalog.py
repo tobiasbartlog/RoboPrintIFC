@@ -26,7 +26,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "core" / "src"))
 
-from roboprint.patterns import load_preset, preview, preview_svg  # noqa: E402
+from roboprint.patterns import load_preset, preview, preview_svg
 
 CORE_PRESETS = ROOT / "core" / "src" / "roboprint" / "patterns" / "presets"
 DOC_PRESETS = ROOT / "docs" / "muster" / "presets"
@@ -374,7 +374,7 @@ def draft_recommendation(summary: list[dict[str, Any]], secs: list[str]) -> str:
     def score(s: dict[str, Any]) -> float:
         return s["material"] - 0.02 * s["contacts"] - 0.0003 * s["span"]
 
-    lines = ["**Entwurf aus den Zahlen (nicht abgestimmt; der Orchestrator schreibt ihn um).**", ""]
+    lines = ["**Entwurf aus den Zahlen (rein rechnerisch nach Material, Kontakten und Zellgröße; maßgeblich ist der Abschnitt „Empfehlung“ unten).**", ""]
     for k, s in enumerate(sorted(cand, key=score)[:3], 1):
         lines.append(
             f"{k}. **{s['name']}**: Material im Mittel {num(s['material'], 2)}-fach gegenüber „schalen“, "
@@ -464,7 +464,7 @@ def build(
         "",
         (
             "Material je m relativ zu „schalen“ (zwei Schalen ohne Infill = 1,00). Zeit und Pfad je Schicht. "
-            "Die Spalte „Roboter machbar“ kommt aus `runs/verify_muster/report.json` (sonst „offen“)."
+            "Die Spalte „Roboter machbar“ kommt aus `runs/verify_muster/report.json` („offen“ = Muster nicht im Musterlauf, nicht etwa unbestanden)."
         ),
         "",
         *comp,
@@ -489,7 +489,7 @@ def build(
         det += ["Roboter (aus `verify_muster`):", ""]
         if rob:
             det += [
-                "| Szenario | machbar | d_min | Stränge/Schicht | senkrechte Wechsel | Druckzeit | Planerlaufzeit |",
+                "| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |",
                 "|---|---|---|---|---|---|---|",
             ]
             det += [
@@ -523,6 +523,15 @@ def build(
                 shown_docs.add(d)
                 det += ["", "Einschätzung der Kurzdoku:", "", *(("> " + ln) if ln else ">" for ln in sec.splitlines())]
             det.append("")
+        td_dir = DOCS / "testdrucke"
+        tds = sorted(
+            d.name
+            for d in td_dir.iterdir()
+            if d.is_dir() and re.fullmatch(re.escape(name) + r"(_\d+)?", d.name)
+        ) if td_dir.is_dir() else []
+        if tds:
+            det.append("Testdruck: " + ", ".join(f"[testdrucke/{t}](testdrucke/{t}/README.md)" for t in tds))
+            det.append("")
         if not docs:
             det += ["Keine Kurzdoku vorhanden; Vor- und Nachteile aus den Zahlen.", ""]
     return "\n".join(block1), "\n".join(det)
@@ -541,8 +550,31 @@ Neu erzeugen: `python scripts/muster_katalog.py`. Nur der Text zwischen den Mark
 
 EMPFEHLUNG = """## Empfehlung
 
-*Platzhalter: Den Text schreibt der Orchestrator nach dem Musterlauf. Ein Entwurf aus den Zahlen
-steht oben im Abschnitt "Vergleich".*
+*Entwurf, vom Nutzer noch nicht abgestimmt.* Kriterien in dieser Reihenfolge: Sollbruchstellen-Ziel
+(Nachtrag 18:20), Druckbarkeit (M1–M7 und Roboterlauf), Material, Zeit. Die Zahlen stehen oben
+und je Muster unten.
+
+1. **Standard: `fugenwand_raute` (Rautenkette, Fuge 300 mm).** Einziges Muster mit echten,
+   durchgehenden Fugen beider Seiten und Foto-Optik. Material 1,09 (1000x200) bis 1,18 (1000x365)
+   gegenüber zwei Schalen, Druckzeit je Schicht 50 bis 57 s auf 1000 mm. Offen: Im Musterlauf
+   Szenario S4 machbar, aber nur bei 200 mm Wanddicke gerechnet. Die Schalenabdeckung liegt bei
+   65 % (Gate-Einwand 1: gewollt, Stege statt Vollschale).
+2. **Falls die Fugenwand am Gerät nicht sauber läuft: `fugenwand_versetzt` oder `fugenwand_gurt`.**
+   Beide im Musterlauf machbar (S4). Mehr Material (1,35 bis 1,38) und mehr Zeit (63 s), dafür
+   steifer und mit mehr Kontakten je m. Gurt erst ab 300 mm Wanddicke.
+3. **Wände ohne Sollbruchziel: `waben_300` oder `doppelwelle_300`.** Beide ohne Einwand im
+   Musterlauf, aber 1,3- bis 1,5-faches Material. `fermat` bleibt eine Option für Module, die
+   nur Schalen und Füllung brauchen (Material wie schalen, ein Strang).
+4. **Zusatz `aussenwelle` (O1)** nur bei einer Schale je Seite ohne Infill: 0,54-faches Material,
+   kürzeste Zeit (24 s je Schicht auf 1000x300), keine Kontaktzonen. Bei zwei Schalen kein Ersatz
+   für Fugen (siehe aussenwelle.md).
+5. **Nicht empfohlen als Standard:** `fugenwand_foto` (viele Warnungen, kleinster Radius 20 mm),
+   `maeander`/`zickzack`/`trapez` (1,3- bis 1,5-faches
+   Material ohne Vorteil bei Fugen).
+
+Weichen für den Nutzer: Fugenabstand 300 mm ist ohne Testdruck unbelegt; Gurt ja/nein;
+Rückseite gespiegelt oder versetzt. Entscheidung nach dem Testdruck mit den Körpern aus
+`testdrucke/` (Trockenlauf mit reduzierter Geschwindigkeit zuerst).
 """
 
 
