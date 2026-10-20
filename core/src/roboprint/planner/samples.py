@@ -22,7 +22,8 @@ from .result import IN_STRAND, Tail
 
 @dataclass
 class RingTask:
-    """Ein Druckring in W: Wegpunkte (geschlossen), Schicht, Index im Toolpath, Verbinder erlaubt."""
+    """Ein Druckring in W: Wegpunkte (geschlossen oder, bei Mustern, offen), Schicht, Index im
+    Toolpath, Verbinder erlaubt."""
 
     index: int
     layer: int

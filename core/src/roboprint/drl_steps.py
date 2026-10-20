@@ -21,6 +21,13 @@ anderes als `link` folgt. Ein Ring ohne Verbinder ist ein Strang aus einem Ring 
   die Pumpe dort und nicht in der Blending-Zone schaltet).
 - Ziele naeher als `_MERGE_MM` am vorigen Ziel desselben Strangs werden zusammengefasst (das
   spaetere Sample bleibt), damit kein radius 0 und damit kein Halt im Strang entsteht.
+
+**Druckmuster** (opt-in, docs/muster/ARTEFAKT-FORMAT.md): Offene Ringe (`closed = false`) laufen
+wie geschlossene, je Wegpunkt ein `movel` bis zum letzten Wegpunkt. Ein Verbinder der Laenge 0 in
+der Schicht faellt mit dem Ringende zusammen und wird dessen Ziel (kein Segment der Laenge 0, kein
+radius 0); ein senkrechter Schichtwechsel ist ein `movel` um h nach oben, radius = min(r_blend,
+h/2, ...). Der Ringkommentar nennt beides ("ueber Verbinder, senkrecht, Z +10.0 mm" bzw.
+"Laenge 0"); Verbinder mit waagrechter Laenge behalten den bisherigen Text.
 """
 
 from __future__ import annotations
@@ -38,6 +45,7 @@ LINEAR_TOL_RAD = 1e-6  # dito fuer gelenklineare Transfers
 _SAME_MM = 1e-4
 _SAME_RAD = 1e-7
 _MERGE_MM = 1e-3  # Ziele im Strang naeher als das: ein Ziel (radius bleibt > 0 nach Abrunden)
+ZERO_LINK_MM = 0.5  # waagrechte Laenge, bis zu der ein Verbinder "Laenge 0" bzw. ein Z-Hub ist (M4)
 
 CARTESIAN_KINDS = ("lift", "lower", "approach", "retract")
 STRAND_KINDS = ("print", "link")
@@ -139,9 +147,19 @@ def match_waypoints(
     return out
 
 
-def ring_label(toolpath: Toolpath, ring: int, via_link: bool = False) -> str:
+def link_note(a: np.ndarray, b: np.ndarray) -> str:
+    """Zusatz im Ringkommentar fuer Verbinder ohne waagrechte Laenge (Muster, M4): reiner Z-Hub
+    ("senkrecht, Z +10.0 mm") oder Laenge 0 in der Schicht; sonst leer (Text wie bisher)."""
+    d = np.asarray(b, float) - np.asarray(a, float)
+    if math.hypot(d[0], d[1]) > ZERO_LINK_MM:
+        return ""
+    return f"senkrecht, Z {d[2]:+.1f} mm" if abs(d[2]) > ZERO_LINK_MM else "Laenge 0"
+
+
+def ring_label(toolpath: Toolpath, ring: int, via_link: bool = False, note: str = "") -> str:
     rp = toolpath.rings[ring] if 0 <= ring < len(toolpath.rings) else None
-    head = f"Ring {ring}" + (" (ueber Verbinder)" if via_link else "")
+    via = (f" (ueber Verbinder, {note})" if note else " (ueber Verbinder)") if via_link else ""
+    head = f"Ring {ring}{via}"
     return head + (f": Schicht {rp.layer}, Schale {rp.shell}, {rp.kind}" if rp else "")
 
 
@@ -276,7 +294,8 @@ def plan_steps(
             steps += strand.close(P_B, r_blend_mm)
             strand = None
         if ring != labeled:
-            label = Comment(ring_label(toolpath, ring, via_link=kind == "link"))
+            note = link_note(P_W[cur], P_W[idx[-1]]) if kind == "link" else ""
+            label = Comment(ring_label(toolpath, ring, via_link=kind == "link", note=note))
             if strand is not None and kind == "link":
                 strand.items.append(label)  # im Strang zwischen dem Ende von r und dem Verbinder
             else:
