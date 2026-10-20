@@ -2,7 +2,9 @@
 
 Ein Strang (SPEC §5.3) sind aufeinanderfolgende Samples der Arten `approach`, `print`, `link`,
 `retract` ohne Travel dazwischen. Zweigwechsel zaehlen innerhalb eines Strangs (spec/ARTEFAKTE.md,
-`zweig_wechsel_in_ringen`), Verbinder-Samples gehoeren zum folgenden Ring.
+`zweig_wechsel_in_ringen`) zwischen aufeinanderfolgenden erreichbaren Samples: unerreichbare Samples
+werden uebersprungen, ein Wechsel ueber sie hinweg zaehlt (wie das Orakel in verify/). Verbinder-Samples
+gehoeren zum folgenden Ring.
 """
 
 from __future__ import annotations
@@ -86,12 +88,15 @@ def summarize(
     branch = np.asarray(branch_of(q), int).reshape(-1)
     d = np.array([c.d_mm if c is not None else np.inf for c in contacts])
     d_min = float(d[np.isfinite(d)].min()) if np.isfinite(d).any() else None
-    sw = [
-        i
-        for i in range(1, len(q))
-        if kind[i] in IN_STRAND and kind[i - 1] in IN_STRAND
-        and branch[i] != branch[i - 1] and ok[i] and ok[i - 1]
-    ]  # fmt: skip
+    sw: list[int] = []  # Samples, an denen der Zweig im Strang wechselt
+    last: int | None = None  # letztes erreichbares Sample im laufenden Strang
+    for i in range(len(q)):
+        if kind[i] not in IN_STRAND:
+            last = None
+        elif ok[i]:
+            if last is not None and branch[i] != branch[last]:
+                sw.append(i)
+            last = i
     switches = len(sw)
     cause = None
     for i, st in enumerate(status):

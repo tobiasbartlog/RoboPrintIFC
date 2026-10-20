@@ -104,6 +104,32 @@ def test_verbinder_auf_der_geraden_im_zweig_und_mit_schichtregel(planned) -> Non
     assert tr.summary.zweig_wechsel_in_ringen == 0
 
 
+def test_zweigwechsel_ueber_unerreichbare_samples_hinweg() -> None:
+    """zweig_wechsel_in_ringen zaehlt ueber die Folge der erreichbaren Samples eines Strangs (ARTEFAKTE,
+    Lesart des Orakels verify/oracle/strand_rules.branch_changes): Zweig 2, 2, (unerreichbar), 3, 3 ist
+    ein Wechsel. Ein Travel trennt Straenge, dort darf die Zweigwahl wechseln (SPEC §5.3)."""
+    from types import SimpleNamespace
+
+    from roboprint.planner.result import summarize
+
+    qa, qb = np.radians([0, 0, 90, 0, 90, 0]), np.radians([0, 0, 90, 0, -90, 0])
+    c = SimpleNamespace(d_mm=100.0, pair=("link_6", "table"))
+
+    def count(kind, ok, q):
+        n = len(kind)
+        con = [c if o else None for o in ok]
+        path = summarize(np.array(q), np.array(ok), np.zeros((n, 3)), np.zeros(n), kind, [0] * n, [0] * n,
+                         con, P, {})
+        return path.branch.tolist(), path.branch_switches_in_rings
+
+    kind = ["approach", "print", "print", "print", "retract"]
+    branch, sw = count(kind, [True, True, False, True, True], [qa, qa, qa, qb, qb])
+    assert branch == [2, 2, 2, 3, 3] and sw == 1
+    assert count(kind, [True] * 5, [qa, qa, qb, qb, qb])[1] == 1
+    travel = ["approach", "print", "retract", "lift", "transfer", "approach", "print", "retract"]
+    assert count(travel, [True] * 8, [qa] * 4 + [qb] * 4)[1] == 0
+
+
 def test_pumpe_laeuft_im_strang_durch(planned) -> None:
     """Pumpe an genau bei print/link: ein Block, davor approach, danach retract; der Pumpen-Vorlauf
     t_tot steht einmal am Strangbeginn, sonst haelt der Roboter im Strang nicht."""
