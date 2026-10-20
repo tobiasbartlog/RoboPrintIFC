@@ -65,6 +65,8 @@ FINE_MM = 1.0
 CHECK_MM = 2.0
 #: Reserve über (1 − ε)·w bei der Einlaufsuche (Sehnenfehler der späteren Abtastung)
 CLEAR_MARGIN_MM = 0.3
+#: Reserve über w/2 für Eckbögen (M6 hart nach dem Neu-Abtasten)
+R_HARD_MARGIN_MM = 0.5
 #: Mindestanteil Bandfläche / umschreibendes Rechteck, damit das Band als Rechteck gilt
 RECT_FILL = 0.97
 #: Länge der Endstücke einer Geraden zwischen zwei Bögen (Wegpunkte, M6-Schätzung)
@@ -359,6 +361,15 @@ def build_wave(ctx: IslandContext, shape: str) -> IslandPlan:
     overlap = float(opts["contact_overlap_pct"]) / 100.0 * w
     if overlap > p.eps * w + 1e-9:
         raise ValueError(f"Kontaktüberlappung {overlap:.2f} mm > ε·w = {p.eps * w:.2f} mm (M7)")
+    # Bei ε·w läge der Kontakt genau auf der M2-Grenze (1 − ε)·w; jede Sehne der Abtastung
+    # schneidet darunter, und die Einlaufsuche fände nie etwas (15 %: Infill entfiel immer).
+    # Höchstens ε·w − 2·CLEAR_MARGIN_MM (w = 30: 3,9 mm = 13 %), meta `overlap_clamped`.
+    overlap_req = overlap
+    overlap = min(overlap, max(p.eps * w - 2.0 * CLEAR_MARGIN_MM, 0.0))
+    # M6 hart: Eckbögen mit r = w/2 liegen nach dem Neu-Abtasten bis 0,3 mm darunter (Sehnen über
+    # den fein abgetasteten Bogen), daher r ≥ w/2 + R_HARD_MARGIN_MM (meta `round_radius_mm`)
+    if "round_radius_mm" in opts:
+        opts["round_radius_mm"] = max(float(opts["round_radius_mm"]), w / 2.0 + R_HARD_MARGIN_MM)
     amp = fr["half"] + overlap
     entry, t_in = np.asarray(ctx.entry, float), np.asarray(ctx.entry_tangent, float)
     loc = entry - fr["center"]
@@ -460,6 +471,8 @@ def build_wave(ctx: IslandContext, shape: str) -> IslandPlan:
         "amplitude_mm": round(amp, 2),
         "band_mm": [round(fr["length"], 2), round(2 * fr["half"], 2)],
         "overlap_mm": round(overlap, 2),
+        **({"overlap_clamped": True} if overlap < overlap_req - 1e-9 else {}),
+        **({"round_radius_mm": round(opts["round_radius_mm"], 2)} if "round_radius_mm" in opts else {}),
         "lead_in_radius_mm": round(b["r_lead"], 2),
         "wave_min_radius_mm": round(b["r_wave"], 2) if math.isfinite(b["r_wave"]) else None,
         "u_start_mm": round(b["u_s"] - u0, 2),

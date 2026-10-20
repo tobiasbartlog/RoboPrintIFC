@@ -26,8 +26,8 @@ Hohlraum, also weder an der Außen- noch an der Stoßfläche.
 |---|---|---|---|---|
 | `wavelength_mm` | Wellenlänge | 250 mm | 80–2000 | Sollwert. Er wird auf eine ganze Zahl Halbwellen zwischen Einlauf und Bandende angepasst, mit höchstens so vielen Halbwellen, dass der Radius das Ziel erreicht. |
 | `phase_deg` | Phase | 0° | 0–360 | 0° bedeutet: ein Scheitel am Einlauf und einer am Bandende. Andere Phasen verschieben die Welle; der Einlauf steigt dann später ein. |
-| `contact_overlap_pct` | Kontaktüberlappung | 5 % von w | 0–15 | Überlappung der Raupe mit der Innenschale an Berg und Tal (M7: 0 … ε·w). Die Amplitude ist A = halbe Bandbreite + Überlappung. |
-| `round_radius_mm` | Rundungsradius (Zickzack, Trapez, Mäander) | 30 mm | 15–300 | Radius der Scheitel bzw. Ecken |
+| `contact_overlap_pct` | Kontaktüberlappung | 5 % von w | 0–15 | Überlappung der Raupe mit der Innenschale an Berg und Tal (M7: 0 … ε·w). Die Amplitude ist A = halbe Bandbreite + Überlappung. Wirksam höchstens ε·w − 0,6 mm (w = 30: 3,9 mm = 13 %), sonst läge der Kontakt genau auf der M2-Grenze (`meta.infill.overlap_clamped`). |
+| `round_radius_mm` | Rundungsradius (Zickzack, Trapez, Mäander) | 30 mm | 15–300 | Radius der Scheitel bzw. Ecken; wirksam mindestens w/2 + 0,5 mm, damit die abgetastete Polylinie hart ≥ w/2 bleibt |
 | `plateau_mm` | Trapez-Plateaulänge | 60 mm | 0–1000 | Gerade Kontaktstrecke an der Schale. Ist sie zu lang für die Eckbögen, wird sie halbiert bzw. entfällt; λ/2 ergibt den Mäander. |
 
 Die Amplitude ist kein Regler. Sie folgt aus dem Band, damit jede Welle beide Innenschalen
@@ -151,8 +151,10 @@ etwa 7 %.
   Der Sinus hat dort eine Halbwelle mit R ≈ 15,2 mm, das ergibt eine M6-Warnung. Das Trapez ist
   warnungsfrei.
 - **Nicht rechteckige Bänder** (L-Querschnitt, Kerben): Hier entfällt das Infill
-  (`meta.infill.skipped`), der Schalenpfad bleibt gültig. Diese Fälle sind Aufgabe der Familie
-  „Topologie“.
+  (`meta.infill.skipped`), der Schalenpfad bleibt gültig: Der Kern baut ihn dann ohne `open_end`,
+  also identisch zum Grundmuster (vorher fehlte ein Stück der innersten Schale, beim L mit zwei
+  Schalen 836 mm² Raupe, und an der Kerbe mit einer Schale ragte die S-Kurve aus dem Teil, M5).
+  Diese Fälle sind Aufgabe der Familie „Topologie“.
 - **Kreuzungen:** Bei keiner geprüften Kombination tritt eine auf (Prüfung M2 mit Paaren im Abstand
   > 2·w und exaktem Selbstschnitttest).
 
