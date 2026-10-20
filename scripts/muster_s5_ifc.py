@@ -14,7 +14,8 @@ Das ist genau das untere Modul einer höheren Wand mit Sturz bei 400 mm: Die Zer
 der Sturzlinie (`decompose.mandatory_cuts`), darüber liegt ein prismatisches Modul. Länge ≤ b_max
 (600 mm) und Höhe ≤ `module_height_max_mm` (400 mm), also entsteht genau ein Modul: Schichten 0–14
 voller Querschnitt (Brüstung), ab Schicht 15 zwei Inseln (Pfeiler 180 mm, ≥ 151 mm für `topologie`).
-Die Datei ist deterministisch (feste GlobalIds), damit Läufe vergleichbar bleiben.
+Die Datei ist deterministisch (feste GlobalIds auch der Beziehungen, fester Zeitstempel), damit
+Läufe vergleichbar bleiben.
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ OUT = ROOT / "docs" / "muster" / "szenarien" / "S5_fensterwand.ifc"
 
 LENGTH, THICK, HEIGHT = 0.600, 0.200, 0.400  # m (IFC in Metern)
 WIN_X0, WIN_X1, WIN_Z0, WIN_Z1 = 0.180, 0.420, 0.150, 0.400
+TIME_STAMP = "2026-10-20T00:00:00+00:00"
 GUIDS = {
     "project": "0S5MusterProjekt00000a",
     "site": "0S5MusterSite000000000a",
@@ -48,7 +50,8 @@ def _guid(g: str) -> str:
 def build(out: Path) -> Path:
     f = ifcopenshell.api.run("project.create_file", version="IFC4")
     project = ifcopenshell.api.run("root.create_entity", f, ifc_class="IfcProject", name="S5 Musterszenario")
-    ifcopenshell.api.run("unit.assign_unit", f)  # Meter
+    ua = ifcopenshell.api.run("unit.assign_unit", f)  # Meter
+    ua.Units = sorted(ua.Units, key=lambda u: u.id())  # die API gibt die Einheiten als Menge zurück
     ctx = ifcopenshell.api.run("context.add_context", f, context_type="Model")
     body = ifcopenshell.api.run(
         "context.add_context",
@@ -101,6 +104,13 @@ def build(out: Path) -> Path:
         ("opening", opening),
     ):
         ent.GlobalId = _guid(GUIDS[key])
+    # Beziehungen (Aggregation, Container, Öffnung) bekommen von der API zufällige GlobalIds:
+    # fest nach Entitätsnummer, dazu ein fester Zeitstempel im Kopf, damit die Datei bitgleich bleibt.
+    fixed = {_guid(g) for g in GUIDS.values()}
+    for k, ent in enumerate(sorted(f.by_type("IfcRoot"), key=lambda e: e.id())):
+        if ent.GlobalId not in fixed:
+            ent.GlobalId = _guid(f"0S5MusterRel{k:04d}")
+    f.header.file_name.time_stamp = TIME_STAMP
     out.parent.mkdir(parents=True, exist_ok=True)
     f.write(str(out))
     return out

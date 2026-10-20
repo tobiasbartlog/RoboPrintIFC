@@ -1,6 +1,6 @@
 # SPEC-Nachtrag „Druckmuster“ (Vorschlag, einfügefertig)
 
-Stand 21.10.2026, Nachtlauf „Druckmuster“, Aufgabe M3.3. `spec/` und `verify/` sind gesperrt; dieser
+Stand 20.10.2026, Nachtlauf „Druckmuster“, Aufgabe M3.3. `spec/` und `verify/` sind gesperrt; dieser
 Nachtrag ist der Text, den der Nutzer nach Freigabe in `spec/SPEC.md` und `spec/ARTEFAKTE.md`
 einfügt. Jeder Block nennt seinen Einfügeort. Werte mit **A** sind Annahmen, die der Nutzer
 bestätigen muss. Grundlagen: `docs/muster/AUFTRAG.md` (Musterregeln, Nachtrag 18:20),
@@ -158,7 +158,7 @@ Alle Musterparameter sind opt-in. Fehlen sie, gilt das heutige Verhalten.
 
 | Gate | Prüft | Kriterium |
 |---|---|---|
-| **G9 Muster** | `python scripts/verify_muster.py`: jedes Szenario in `docs/muster/szenarien/` (S4, S5) wird gerechnet und vom unabhängigen Orakel `verify_muster/` (importiert `roboprint` nie) sowie von `verify/check_run.py` und `verify/fake_drcf` geprüft | Für Szenarien mit `expect.muster.machbar = true`: alle Teile `machbar`; alle G3-Kriterien außer der Abdeckung (siehe unten); G5 für `program.v2.drl` und `program.v3.drl`; M1–M6 und M6b hart, M7 berichtet. Für `machbar = false` („belegt nicht machbar“): der Lauf läuft durch und `verify_muster` scheitert mindestens an den belegten Regeln `expect.muster.erwartete_regeln`. Bericht `runs/verify_muster/report.json` mit machbar, d_min, Strängen je Schicht, Anteil senkrechter Schichtwechsel, Druckzeit und Planerlaufzeit je Szenario. |
+| **G9 Muster** | `python scripts/verify_muster.py`: jedes Szenario in `docs/muster/szenarien/` (S4, S5) wird gerechnet und vom unabhängigen Orakel `verify_muster/` (importiert `roboprint` nie) sowie von `verify/check_run.py` und `verify/fake_drcf` geprüft | Für Szenarien mit `expect.muster.machbar = true`: alle Teile `machbar`; alle G3-Kriterien außer der Abdeckung (siehe unten); G5 für `program.v2.drl` und `program.v3.drl`; M1–M6 und M6b hart, M7 berichtet; `toolpath.pattern` jedes Teils trägt das Muster des Szenarios (Infill-Muster mit Ringen `kind = infill`). Für `machbar = false` („belegt nicht machbar“): der Lauf läuft durch, das Muster ist angewendet und `verify_muster` scheitert (Exit 1) mindestens an den belegten Regeln `expect.muster.erwartete_regeln`. Ein Prüferbericht zählt nur frisch und passend zum Exitcode (Abbruch, Zeitlimit oder Exit 1 ohne verletzte Regel ist rot). Teile ohne Musterparameter (S1–S3) prüft G9 nicht; dort würden M2, M4 und M6 am heutigen Format scheitern (Gate-Einwand 2), sie werden höchstens berichtet. Bericht `runs/verify_muster/report.json` mit machbar, d_min, Strängen je Schicht, Anteil senkrechter Schichtwechsel, Druckzeit und Planerlaufzeit je Szenario. |
 
 **Abdeckungsregel bei Mustern (Vorschlag, ersetzt für Teile mit Muster den Satz zur Abdeckung in G3
 und G4):** „Teile ohne Musterparameter: Abdeckung je Schicht ≥ 95 % des Schalenbereichs. Teile mit
@@ -264,7 +264,7 @@ Objekt in `params`), `shells`. Unbekannte Muster oder widersprüchliche Kombinat
 **Musterbericht** `runs/verify_muster/report.json`: `all_green`, `rules`, `scenarios[]` mit `name`,
 `status` (`gruen`/`rot`), `verdict`, `feasible`, `d_min_mm`, `strands_per_layer`,
 `vertical_layer_change_share`, `print_time_s`, `planner_runtime_s`, `runtime_s`, `g3`,
-`g3_abdeckung` (`gruen`/`einwand`), `g5`, `muster`, `metrics`, `checks`, `steps`. Je Lauf schreibt
+`g3_abdeckung` (`gruen`/`einwand`), `g5`, `muster`, `pattern_applied`, `metrics`, `checks`, `steps`. Je Lauf schreibt
 `verify_muster.check` `check_muster.json` (Format `verify_muster/README.md`).
 
 ---

@@ -17,6 +17,12 @@ Je Szenario (Laufordner `runs/verify_muster/<id>`):
    G3-Kriterien sind hart.
 3. `python -m verify.fake_drcf <lauf>` (G5-Regeln, hart).
 4. `python -m verify_muster.check <lauf> --scenario <szenario>` (M1–M7, hart nach verify_muster).
+5. Musterprobe (hart): `toolpath.pattern` jedes Teils trägt das Muster des Szenarios (Preset bzw.
+   `infill_pattern`/`outfill_pattern`), Infill-Muster haben Ringe `kind = infill`.
+
+Ein Prüferbericht zählt nur, wenn er frisch ist (alte `check.json`/`check_muster.json` werden vor
+dem Aufruf gelöscht) und zum Exitcode passt: check_run 0 mit `passed`, oder 1 nur mit
+Abdeckungsfehlern; verify_muster 0 mit `passed`, oder 1 mit mindestens einer verletzten Regel.
 
 Erwartung je Szenario in `expect.muster` (Szenariovertrag: `expect` ist ein freies Objekt):
 `machbar = true`: grün, wenn alle Teile machbar sind und G3 (ohne Abdeckung), G5 und M1–M7 grün
@@ -199,12 +205,24 @@ def run_metrics(run: Path) -> dict[str, Any]:
 
 
 def check_run_result(run: Path, step: dict[str, Any]) -> dict[str, Any]:
+    """G3 aus `check.json`, nur gültig, wenn der Exitcode dazu passt: 0 mit `passed`, oder 1 mit
+    ausschließlich Abdeckungsfehlern. Alles andere (Abbruch, Zeitlimit, Aufruffehler 2, Bericht und
+    Exitcode widersprechen sich) ist rot."""
     rep = _load(run / "check.json")
     if rep is None:
         return {"status": "rot", "abdeckung": "rot", "errors": [f"check.json fehlt ({step['tail'][-300:]})"]}
     errors = list(rep.get("errors", []))
     cov = [e for e in errors if COVERAGE_RE.match(e)]
     hard = [e for e in errors if not COVERAGE_RE.match(e)]
+    code = step.get("exit_code")
+    consistent = (code == 0 and rep.get("passed") is True and not errors) or (
+        code == 1 and rep.get("passed") is False and bool(cov) and not hard
+    )
+    if not consistent and not hard:
+        hard = [
+            f"check_run: Exitcode {code} passt nicht zum Bericht (passed={rep.get('passed')!r}, "
+            f"{len(errors)} Fehler)"
+        ]
     cov_min = [
         m.get("coverage_min")
         for m in (rep.get("parts") or {}).values()
@@ -231,11 +249,13 @@ def check_run_result(run: Path, step: dict[str, Any]) -> dict[str, Any]:
 
 def muster_result(run: Path, step: dict[str, Any]) -> dict[str, Any]:
     rep = _load(run / "check_muster.json")
-    if rep is None:
+    if rep is None or step["exit_code"] not in (0, 1, 2):
         return {
             "status": "rot",
             "failed_rules": [],
-            "errors": [f"check_muster.json fehlt ({step['tail'][-300:]})"],
+            "errors": [
+                f"check_muster.json fehlt oder Abbruch (Exit {step['exit_code']}): {step['tail'][-300:]}"
+            ],
         }
     failed: set[str] = set()
     first, share, n_ch, n_v, warn = [], [], 0, 0, {}
@@ -251,8 +271,16 @@ def muster_result(run: Path, step: dict[str, Any]) -> dict[str, Any]:
                 warn[rid] = warn.get(rid, 0) + int(r["warnings"])
         if m4.get("share_vertical") is not None:
             share.append(m4["share_vertical"])
+    if step["exit_code"] == 1 and (rep.get("passed") or not failed):
+        # Exit 1 heisst Regelverletzung; ohne verletzte Regel ist es ein Abbruch (Traceback)
+        return {
+            "status": "rot",
+            "exit_code": step["exit_code"],
+            "failed_rules": [],
+            "errors": ["verify_muster: Exitcode 1 ohne verletzte Regel im Bericht"],
+        }
     return {
-        "status": "gruen" if step["exit_code"] == 0 and rep.get("passed") else "rot",
+        "status": "gruen" if step["exit_code"] == 0 and rep.get("passed") is True else "rot",
         "exit_code": step["exit_code"],
         "failed_rules": sorted(failed),
         "first_counterexample": first[:3],
@@ -260,6 +288,48 @@ def muster_result(run: Path, step: dict[str, Any]) -> dict[str, Any]:
         "warnings": warn,
         "errors": list(rep.get("errors", []))[:10],
     }
+
+
+def pattern_check(run: Path, sc: dict[str, Any]) -> dict[str, Any]:
+    """Wurde das Muster des Szenarios wirklich gedruckt? Ein Lauf, der das Preset still verliert
+    (oder dessen Infill der Kern mangels Bandbreite weglässt), prüft sonst ein anderes Muster.
+    Erwartet: `toolpath.pattern` in jedem Teil, Mustername aus dem Preset bzw. aus
+    `infill_pattern`/`outfill_pattern` als `infill` oder `outfill`, bei Infill Ringe mit
+    `kind = infill`; `schalen` heißt `infill = outfill = none`."""
+    params = sc.get("params") or {}
+    want: set[str] = set()
+    preset = params.get("pattern_preset")
+    if preset:
+        pr = _load(ROOT / preset)
+        if not isinstance(pr, dict) or not pr.get("pattern"):
+            return {"status": "rot", "expected": [], "errors": [f"Preset nicht lesbar: {preset}"]}
+        want.add(str(pr["pattern"]))
+    for key in ("infill_pattern", "outfill_pattern"):
+        if params.get(key) and params[key] != "none":
+            want.add(str(params[key]))
+    errors: list[str] = []
+    if not want:
+        errors.append("Szenario ohne Musterparameter")
+    parts = (_load(run / "summary.json") or {}).get("parts", [])
+    if not parts:
+        errors.append("keine Teile im Lauf")
+    for p in parts:
+        tp = _load(run / "parts" / p["part_id"] / "toolpath.json") or {}
+        pat = tp.get("pattern")
+        if not isinstance(pat, dict):
+            errors.append(f"{p['part_id']}: toolpath.pattern fehlt (Muster nicht angewendet)")
+            continue
+        got = {pat.get("infill"), pat.get("outfill")} - {None, "none"}
+        kinds = {r.get("kind") for r in tp.get("rings", [])}
+        for name in sorted(want):
+            if name == "schalen":
+                if got:
+                    errors.append(f"{p['part_id']}: schalen erwartet, Muster {sorted(got)}")
+            elif name not in got:
+                errors.append(f"{p['part_id']}: Muster {name} fehlt (toolpath.pattern {sorted(got)})")
+            elif pat.get("infill") == name and "infill" not in kinds:
+                errors.append(f"{p['part_id']}: Infill {name} ohne Ring kind=infill (weggelassen)")
+    return {"status": "rot" if errors else "gruen", "expected": sorted(want), "errors": errors[:10]}
 
 
 # --------------------------------------------------------------------------- Szenario
@@ -307,10 +377,15 @@ def run_scenario(path: Path, jobs: int, no_run: bool) -> dict[str, Any]:
     ran = rs["exit_code"] == 0 and (run / "summary.json").exists()
 
     metrics = run_metrics(run) if ran else {}
+    pat: dict[str, Any] = pattern_check(run, sc) if ran else {"status": "rot", "errors": ["kein Lauf"]}
+    if ran:
+        print(f"   Muster        {pat['status']} {pat['errors'] or pat['expected']}", flush=True)
     g3: dict[str, Any] = {"status": "rot", "abdeckung": "rot", "errors": ["Lauf fehlgeschlagen"]}
     g5: dict[str, Any] = {"status": "rot"}
     mu: dict[str, Any] = {"status": "rot", "failed_rules": []}
     if ran:
+        for stale in ("check.json", "check_muster.json"):  # --no-run: nie einen alten Bericht werten
+            (run / stale).unlink(missing_ok=True)
         cr = run_cmd(
             "check_run",
             [
@@ -353,6 +428,7 @@ def run_scenario(path: Path, jobs: int, no_run: bool) -> dict[str, Any]:
     feasible = bool(
         ran
         and metrics.get("machbar")
+        and pat["status"] == "gruen"
         and g3["status"] == "gruen"
         and g5["status"] == "gruen"
         and mu["status"] == "gruen"
@@ -362,7 +438,13 @@ def run_scenario(path: Path, jobs: int, no_run: bool) -> dict[str, Any]:
         verdict = "machbar" if feasible else "nicht machbar (unerwartet)"
     else:
         want = set(exp.get("erwartete_regeln") or [])
-        hit = ran and mu.get("exit_code") == 1 and bool(want) and want <= set(mu["failed_rules"])
+        hit = (
+            ran
+            and pat["status"] == "gruen"
+            and mu.get("exit_code") == 1
+            and bool(want)
+            and want <= set(mu["failed_rules"])
+        )
         status = "gruen" if hit else "rot"
         verdict = (
             ("belegt nicht machbar (" + ", ".join(sorted(want)) + ")")
@@ -389,8 +471,9 @@ def run_scenario(path: Path, jobs: int, no_run: bool) -> dict[str, Any]:
             "g3_abdeckung": g3["abdeckung"],
             "g5": g5["status"],
             "muster": mu["status"],
+            "pattern_applied": pat["status"],
             "metrics": metrics,
-            "checks": {"check_run": g3, "fake_drcf": g5, "verify_muster": mu},
+            "checks": {"pattern": pat, "check_run": g3, "fake_drcf": g5, "verify_muster": mu},
             "expect_detail": exp,
             "steps": steps,
         }
@@ -467,6 +550,7 @@ def main(argv: list[str] | None = None) -> int:
             "g3_abdeckung": f"Einwand, nicht hart: {EINWAND_REF}",
             "g5": "verify.fake_drcf, hart",
             "muster": "verify_muster.check (M1–M7), hart",
+            "pattern_applied": "toolpath.pattern traegt das Muster des Szenarios in jedem Teil, hart",
         },
         "scenarios": entries,
     }
