@@ -29,7 +29,8 @@ Die erste Zeile setzt nur das Skript.
 | Wellen-Fix: Planung ≈ 2× schneller (Bestwert < 100 ms), Rückfall statt Absturz | M2 | erledigt, gemergt | v2/muster-wellenfix | 5b10474 |
 | Testdrucke je Muster: 12 Testkörper, alle machbar, v2+v3 von fake_drcf akzeptiert (`docs/muster/testdrucke/`) | M5 | erledigt, gemergt | v2/muster-testdrucke | bf48e16 |
 | Katalog final mit Roboterkennzahlen (`docs/muster/MUSTERKATALOG.md`, 17 Muster × 4 Querschnitte) | M5 | erledigt, gemergt | v2/muster-katalog | a714579 |
-| Gegenprüfung und Härtung (Finder → Verifikation → Fixes) | M6 | läuft | v2/muster-haertung | |
+| Gegenprüfung und Härtung (Finder → Verifikation → Fixes) | M6 | läuft (wf_ec0731df-a69) | v2/muster-haertung | |
+| Backlog: Parameterstudie Fugenwand und Wellen | Backlog | läuft (wf_e4c5bf50-262) | v2/muster-studie | |
 | Kernfehler `shells.shell_chain`/`clear_end` stürzt bei Inseln < ~4·w ab (auch Grundmuster) | M6 | offen | v2/muster-haertung | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
 
