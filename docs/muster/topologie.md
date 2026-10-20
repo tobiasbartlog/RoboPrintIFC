@@ -36,6 +36,11 @@ werden synthetisch geprüft (Wand 1200 × 200 × 2000 mm, Fenster 600 mm breit a
 | Kerbe 60 × 60 mm, 2 Schalen | M2 + M6 (Spur 1 scharfkantig, r = 13,4 mm) | ok (Ecken 22,5 mm) |
 | Kerbe 100 mm tief (Hals 100 mm < 4·w) | M2, M6 | ok mit einer Schale an dieser Insel |
 | L, U, T, V-Kerbe, Tür (zwei Inseln) | ok | ok |
+| L-Ecke 365 mm, 3 Schalen | M2 (S-Kurven nebeneinander) | ok |
+
+Gegenprobe mit der Fugenwand (Stand `origin/v2/muster-fugenwand`, nur gelesen, Kern dieses
+Zweigs + Familie `topologie`): Prisma ok; Fenster, Randöffnung und Schräge mit Fugenwand M3-Fehler
+wie das Grundmuster (die Fugenwand ist prismatisch); `topologie` auf diesem Kernstand ok.
 
 ## Öffnung: Laibungsstege aus dem ganzen Teil (M3)
 

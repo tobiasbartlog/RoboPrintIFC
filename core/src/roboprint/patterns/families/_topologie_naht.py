@@ -12,6 +12,7 @@ S-Kurve), aber
 
 from __future__ import annotations
 
+import inspect
 import math
 from typing import Any
 
@@ -26,6 +27,8 @@ from roboprint.patterns.types import IslandContext, IslandPlan, Lane, LayerPath,
 
 #: höchstens so viele Nahtkandidaten werden gebaut und geprüft
 MAX_SEAM_CANDIDATES = 12
+#: Neuere Kernstände geben `lane_change` die ankommende S-Kurve mit (`avoid`, ab drei Schalen nötig)
+_HAS_AVOID = "avoid" in inspect.signature(lane_change).parameters
 
 
 def _chain_from(ctx: IslandContext, start: float, loops: list[Loop], extras: list) -> IslandPlan:
@@ -41,7 +44,8 @@ def _chain_from(ctx: IslandContext, start: float, loops: list[Loop], extras: lis
         kind = "outer" if k == 0 else "inner"
         t_end = start + lp.length if head is None else clear_end(lp, start, head, p.w)
         if k < len(loops) - 1:
-            ell, trans, tb = lane_change(lp, loops[k + 1], start, p, min_ell=start + lp.length - t_end)
+            kw = {"avoid": head} if _HAS_AVOID else {}
+            ell, trans, tb = lane_change(lp, loops[k + 1], start, p, min_ell=start + lp.length - t_end, **kw)
             body = lp.sub(start, start - ell)
             trans_l.append(round(ell, 2))
         else:
