@@ -279,6 +279,18 @@ Mischung (Abschnitt 2). Wegen der fehlenden Quellen für Fugenabstände (Abschni
 | Nahtlage | Rückseite, ≥ w vom Modulende, nicht an Stoßfläche, im Wellental oder an einem Quersteg | – | Z-Naht ist sichtbar; Start/Ende am Rand wie CFS | A |
 | Schalen je Seite | 2 bei 200 mm; 1 bei 300–365 mm mit breiterem Band | – | Kontaktband nach Auftrag | A |
 | Fermat-Spirale | nur für kleine Inseln (Restbreite unter etwa 3 w) | – | Spiralarmabstand ≈ w; größere Inseln besser mit Welle | E |
+| **Fugenwand (Nachtrag, Abschnitte 9 bis 11)** | | | | |
+| Feldlänge a (Außenstrang zwischen zwei Fugen), Wand 200 mm | **240 mm** (Modul 600 mm: 3 Felder à 200 mm) | 160–300 mm | Stegwinkel θ = atan((t − 2w)/a) = 30° bei 240 mm, 35° bei 200 mm; Fugenöffnung = Schwindmaß · a, bei 1 % und 240 mm rund 2,4 mm; Praxisabstände der Normen (3,6 m) sind für Druckwände nicht übertragbar (9.1, 11.1) | E/A |
+| Feldlänge a, Wand 300 mm bzw. 365 mm | **340 mm** bzw. **430 mm** (θ = 35°) | 240–450 mm | a = (t − 2w)/tan θ | E |
+| Stegwinkel θ (Steg gegen Wandachse) | **≥ 30°, Ziel 35°–45°** | 25°–50° | Spitze zwischen Außenfeld und Steg ist bis s ≥ 12,75 mm/sin(θ/2) ab Scheitel mit Material gefüllt: 49 mm bei 30°, 59 mm bei 25°, 33 mm bei 45°; Ferretti druckte ±45° | E (Ferretti B) |
+| Knotenlage (Mittellinie Steg am Knoten) | Wandmitte ∓ w/2: Vorder- und Rückknoten berühren sich mit Mittelliniendistanz w | – | Kontakt nach M2/M7; ergibt Δy = (t − 2w)/2 = 70 mm bei 200 mm Wand | E |
+| Gurt (Mittelstück zwischen Knoten) | zuerst **ohne Gurt**; mit Gurt nur auf einer Seite oder beide um w/2 von der Mittelebene abgerückt | 0–a | Zwei Gurte auf derselben Mittellinie wären eine Doppelraupe (M2-Verstoß) | E |
+| Fugenspalt und Fugenform | **stumpf**, Raupen berühren sich nur am Scheitel; Kerbe ergibt sich aus dem Eckradius (Tiefe ≈ R + w/2) | Spalt 0–5 mm | Die Fuge soll ein Gelenk bleiben: kleine Kontaktlänge. NZS 4299 11.2 zeigt V-Kerben auf beiden Wandseiten | E (Norm B) |
+| Eckradius an Fuge und Knoten | **≥ 15 mm hart, Ziel 20–30 mm** | 15–30 mm | M6; bei der Kehre um etwa 150° gibt es keinen Hohlraum, Überfüllung, daher dort langsamer fahren | E |
+| Rückseite | **gespiegelt** (Fugen gegenüber, durchgehende Sollbruchebene) als Standard; um a/2 versetzt als Variante | – | Rissebene eindeutig; versetzt macht die Wand als Ganzes steifer, hat aber keine durchgehende Rissebene (10.3) | E/A |
+| Modulstoß und Modullänge | Modulstoß zählt als Fuge; ganze Zahl Felder je Modul, Rest gleichmäßig verteilt | – | Auftrag; NZS 4299 11.1.3: Fugen an Öffnungen, Dickenwechseln, Stufen und Ecken | A (Norm B) |
+| Fugen an Laibung und Ecke | Fuge an jeder Laibung; erste Fuge ≥ a/2 und ≥ 900 mm vom Außeneck, soweit die Modullänge es zulässt | – | NZS 4299 11.1.3 (e) für zementhaltigen Lehm bzw. Stampflehm | B (anderes Verfahren) |
+| Kennzahl längste ungestützte gerade Außenstrecke | = a, Grenze 300 mm | 160–300 mm | siehe oben | A |
 
 ## 8. Offene Punkte
 
@@ -289,3 +301,285 @@ Mischung (Abschnitt 2). Wegen der fehlenden Quellen für Fugenabstände (Abschni
 4. Kontaktbreite und Quetschung bei Lehm brauchen Kalibrierung am Gerät (ε-Bereich 0 bis 0,1 offen).
 5. Autoren einzelner Quellen (IAARC-Paper, ScienceDirect-Cob-Schwindung, Kuppel-Studie, Stampflehm-Risse) sind nicht
    verifiziert und im Text so markiert.
+
+---
+
+# Teil 2: Sollbruchstellen, Kontrollfugen und Fachwerkwände (Nachtrag R2)
+
+Stand 20.10.2026, nach dem Nutzer-Nachtrag 18:20 (Außenfugen sind Sollbruchstellen, Foto
+`referenz/fugenwand-foto.jpg`). Teil 1 bleibt unverändert. Kennzeichnung B, E, A wie oben. Zusätzlich gilt:
+
+- **Im Volltext gelesen:** NZS 4299 und NZS 4298 (beide als öffentliche Konsultationsentwürfe vom April 2024
+  geladen und mit `pdftotext` gelesen), Ferretti et al. 2022 (PMC-Volltext, Abschnitte 2.1 bis 3.3) und das
+  Weimarer Merkblatt „Stampflehmbau“. Alles andere nur als Abstract, Suchergebnis oder Zusammenfassung.
+- **Nicht zugänglich bzw. kostenpflichtig:** Lehmbau Regeln (Dachverband Lehm; die Fassung bei umwelt-online
+  zeigt nur ein Demo-Inhaltsverzeichnis), DIN 18940 sowie DIN 18945 bis 18947 (Lehmsteine, Lehmmauermörtel,
+  Lehmputz), NZS 4297 (Entwurfstext nicht abrufbar, HTTP 503), ASTM E2392 (nur Katalogseite), Walker et al.
+  *Rammed Earth* (BRE 2005) und das Australian Earth Building Handbook HB 195. Für diese Quellen gebe ich
+  **keine** Fugenzahlen an; wer sie hat, trägt sie nach.
+- **Kernbefund:** Die Regelwerke kennen Kontrollfugen für **zementstabilisierten** Stampflehm, Gusslehm,
+  Lehmsteine mit Zementmörtel und Pressziegel; für unstabilisierten Lehm und Cob sind sie **optional** bzw. nicht
+  verlangt. Es gibt nach meiner Suche **keinen veröffentlichten Fugenabstand für gedruckte Lehmwände** und keine
+  Studie, die eine Fugen- oder Fachwerkwand aus Lehm gegen eine glatte Wand auf Schwindrisse vergleicht. Die
+  Zahlen für die Fugenwand sind deshalb Rechnung (E) und Annahme (A); der Testdruck entscheidet.
+
+## 9. Sollbruchstellen, Kontroll- und Dehnfugen im Lehmbau
+
+### 9.1 NZS 4299 (Entwurf 2024), Abschnitt 11 „Control joints“
+- **Volle Angabe:** Standards New Zealand: *DZ 4299 Earth buildings not requiring specific engineering design*,
+  Public consultation draft, 13. April 2024, Abschnitt 11 (S. 136 bis 139).
+  https://consultations.standards.govt.nz/draft-standards/nzs-4299-earth-buildings-not-requiring-specific-en/user_uploads/dz-4299_pc-draft-12-april-2024__4.pdf
+  Es ist ein Entwurf; NZS 4299:2024 ist als veröffentlicht gelistet, der Wortlaut kann abweichen. Die
+  Vorgängerfassung ist NZS 4299:1998.
+- **Kernaussage (B):**
+  - 11.1.1: Jede Erdwand außer Adobe, Cob und Mauerwerk mit zementfreiem Mörtel braucht Kontrollfugen in
+    Abständen, die sicherstellen, dass auftretende Risse Tragfähigkeit und Gebrauchstauglichkeit nicht gefährden.
+    Bei Adobe und Cob ohne Zement- oder Kalkstabilisierung sind Fugen **optional**. Kommentar C11.1.1: Dort
+    verteilt sich das Schwinden im Allgemeinen als gleichmäßige Mikrorissbildung.
+  - 11.1.2: Vertikale Kontrollfugen **höchstens alle 3,6 m** bei Adobe mit Zement, Pressziegeln, Stampflehm
+    und Gusslehm sowie dort, wo das Verhältnis Wandhöhe zu Wandlänge eines Feldes 1:2 überschreitet
+    (C11.1.2 nennt niedrige Brüstungsfelder unter breiten Fenstern als rissgefährdet; die Verhältnisangabe ist im
+    Entwurf nicht eindeutig formuliert, wir nutzen sie nicht).
+  - 11.1.3: Fugen **beidseits jeder Öffnung**, an Höhenstufen, an Dickenwechseln, an beiden Enden eines Sturzes
+    und neben Ecken im Abstand der halben Fugenteilung, jedoch **nicht unter 900 mm** vom Außeneck.
+    C11.1.3: Fugen zu dicht beieinander oder zu nah an Ecken stören die Kontinuität bzw. den Verband.
+  - 11.1.5 bis 11.1.8: Fuge wetterdicht; Kräfte quer zur Wandfläche werden über die Fuge übertragen
+    (Verzahnung), jedes Feld darf sich aber ausdehnen und zusammenziehen; waagrechte Bewehrung läuft nicht
+    durch die Fuge; je ein Bewehrungsstab beidseits der Fuge.
+  - 11.2: Fuge im Stampflehm bzw. Cob als **mechanische Verzahnung** mit einem 25 × 25 mm großen,
+    bitumengetränkten, zusammendrückbaren Schaumstreifen über die ganze Wandhöhe; auf beiden Wandseiten
+    kann eine **V-Kerbe** ausgebildet werden (Bild 11.2, nur im Text erwähnt). 11.3: Bei Adobe und Pressziegel ist
+    die Fuge eine durchgehende, über die ganze Höhe laufende senkrechte Mörtelfuge.
+- **Folgerung für die Fugenwand:**
+  - Die Fuge geht **über die ganze Höhe** und ist ein Gelenk (Verzahnung), kein Spalt, der die Wand trennt. Das
+    ist die senkrechte, stumpf berührende Fuge des Fotos. B/E
+  - Die 3,6 m gelten für **zementstabilisierte Stampfwände** und sind für unsere Druckwand nicht übertragbar:
+    Unsere Module sind 300 bis 1200 mm lang. Die Norm sagt uns nur, dass durchgehende senkrechte Fugen
+    anerkannte Praxis sind; die Zahl ist keine Grundlage. E
+  - **Fugen an Laibungen, Stufen, Dickenwechseln, Ecken (11.1.3)** decken sich mit dem M3-Grundsatz (Quersteg an
+    jeder künftigen Laibung). Wir legen eine Fuge an jede Laibung, soweit die Feldeinteilung es zulässt. B/A
+  - **V-Kerbe auf beiden Seiten und Verzahnung:** Bei uns ergibt sich die Kerbe aus dem Eckradius an der Fuge
+    (10.2); die Verzahnung entsteht aus der Raupenrauigkeit und den V-förmigen Stegen. E
+
+### 9.2 NZS 4298 (Entwurf 2024)
+- **Volle Angabe:** Standards New Zealand: *DZ 4298 Materials and construction for earth buildings*, Public
+  consultation draft, 12. April 2024, Abschnitte 2.14, 3.6, 4.9, 6.7, 7.10.
+  https://consultations.standards.govt.nz/draft-standards/nzs-4298-materials-and-construction-for-earth-buil/user_uploads/dz-4298_pc-draft-12-april-2024__1.pdf
+- **Kernaussage (B):** 2.14.1 wie 4299 11.1.1 (Verweis auf NZS 4299 Abschnitt 11 für Lage und Ausbildung).
+  3.6.1 (Stampflehm): **Risse über 3 mm Breite**, die auf beiden Seiten einer Wandscheibe erscheinen, sind außer an
+  vorgesehenen Fugen **nicht zulässig**; Risse unter 3 mm sind unerheblich; an einer vorgesehenen Fuge ist jede
+  Rissbreite zulässig. C3.6.1: Ursachen sind zu wenige oder ungeeignete Fugen, schlechte Bauausführung oder örtliches
+  Schwinden; viele Risse sind statisch ohne Bedeutung. 6.7 (Cob): Kontrollfugen nicht erforderlich. 7.10 (Gusslehm und
+  Ortbau-Adobe): senkrechte Fugen für das horizontale Schwinden, witterungsdicht. 2.12: Zu schnelles Trocknen,
+  besonders bei Wind, verursacht übermäßige Rissbildung.
+- **Folgerung:**
+  - **3-mm-Kriterium als Maßstab für die Fuge.** Sammelt sich das Schwinden eines Feldes in der Fuge, öffnet sie
+    sich um (Schwindmaß · Feldlänge): bei 1 % und 240 mm um 2,4 mm, bei 2,76 % (Ferretti, 11.1) um 6,6 mm. Rissbreiten
+    bis 3 mm gelten als unerheblich, an Fugen ist **jede** Breite zulässig. Die Rolle der Fuge ist, die Öffnung dorthin
+    zu legen, wo sie gewollt ist. E
+  - Cob und unstabilisiertes Adobe brauchen laut Norm keine Fugen, weil dort verteiltes Mikroreißen akzeptiert wird.
+    Der Nutzer meldet aber Reißen langer gedruckter Wände; die Fuge ist unser Mittel, das Reißen zu **ordnen**. E
+
+### 9.3 NZS 4297 (Entwurf 2024), „Control joints and shrinkage“
+- **Volle Angabe:** Standards New Zealand: *DZ 4297 Engineering design of earth buildings*, Public consultation
+  draft, 12. April 2024, Abschnitt 2.8.
+  https://consultations.standards.govt.nz/draft-standards/nzs-4297-engineering-design-of-earth-buildings/user_uploads/dz-4297_pc-draft_12-april-2024--1-.pdf
+- **Kernaussage:** Nur das Inhaltsverzeichnis wurde gesehen (Abschnitt 2.8 „Control joints and shrinkage“, S. 25).
+  Der Text war nicht abrufbar. **Keine Zahlen.**
+
+### 9.4 Lehmbau Regeln, DIN 18940 bis 18947, Weimarer Merkblatt
+- **Lehmbau Regeln (Dachverband Lehm e. V., niedersächsische Fassung Januar 2019):** Das Inhaltsverzeichnis nennt einen
+  Abschnitt zur Ausführung von Stampflehmwänden; der Text war nicht zugänglich. Laut Weimarer Merkblatt (unten) werden
+  tragende Stampflehmwände nach den Lehmbau Regeln bemessen, beschränkt auf Gebäude mit zwei Vollgeschossen und
+  zwei Wohneinheiten. **Keine Fugenzahl belegt.**
+- **Weimarer Merkblatt „Stampflehmbau“** (Bauhaus-Universität Weimar; Autor und Jahr nicht verifiziert; zitiert
+  Röhlen, Ziegert 2020, Titel nicht verifiziert), https://www.uni-weimar.de/uploads/tx_showcase/Stampflehmbau.pdf,
+  im Volltext gelesen. **Kernaussage (B):** Das **Schwindmaß** von Stampflehm soll nicht mehr als **2 %**, bei
+  monolithischen Sichtbauteilen etwa **0,5 %** betragen; tragende Teile mindestens 2 N/mm². Zu hohes Schwindmaß oder
+  zu ungleichmäßige und zu schnelle Trocknung führen zu Rissen und Verformungen, zu langsame zu Schimmel. Schmale Risse
+  sollen möglichst bei noch feuchter Oberfläche durch Druck auf die Rissufer geschlossen werden, größere nach dem
+  Schwinden durch Anfeuchten und Verschließen. (Claytec nennt für sein Produkt 0,5 %; nur als Suchergebnis gesehen.)
+- **Folgerung:** Gebaute Stampflehmwände schwinden deutlich weniger als gedruckte Mischungen (Teil 1, 2.3: 3,5 bis
+  12 %; Ferretti: 2,76 %). Fugen müssen bei gedrucktem Lehm ein Vielfaches aufnehmen. Der Richtwert 2 % ist als
+  **Obergrenze für die Mischung** brauchbar. A
+- **DIN 18940 und DIN 18945 bis 18947:** Stoffnormen für Lehmsteine, Lehmmauermörtel und Lehmputz. Nicht lesbar; ich fand
+  keine Aussage zu Fugenabständen. Für Lehmsteinwände lieferte die Suche nur Zahlen für gebrannte Ziegel und
+  Kalksandstein (Bewegungsfugen grob 6 bis 12 m), die für Lehm nicht gelten. **Nicht verwendet.**
+
+### 9.5 Weitere Hinweise zu Cob, ASTM E2392 und Analogien
+- **ASTM E2392/E2392M** (*Standard Guide for Design of Earthen Wall Building Systems*): Anwendungsbereich Adobe,
+  Stampflehm, Cob, Gusslehm u. a. Der Inhalt zu Kontrollfugen war nicht zugänglich (nur Katalogseite): **keine
+  Aussage**. E2392/E2392M-10(2016) ist als historisch geführt; welche Ausgabe heute gilt, ist offen.
+- **US-Cob-Anhang (Kalifornien, Anhang BK):** verlangt eine **Schwindprobe** der Mischung; die Gesamtschwindung über die
+  Probenlänge darf **25 mm (1 Zoll)** nicht überschreiten (Suchergebnis, Probenlänge nicht geprüft). Das stützt, über
+  die Mischung statt nur über Fugen zu steuern.
+- **Analogie Mauerwerk und Beton (nicht Lehm):** NCMA-Hinweis für Betonsteinmauerwerk: Fugen höchstens alle 25 ft
+  (7,6 m) bzw. 1,5-fache Wandhöhe, je nachdem was kleiner ist, als geschwächte Stoßfugen, zusätzlich an
+  Höhen- und Dickensprüngen sowie neben Öffnungen und Ecken (Suchergebnis, Primärquelle nicht gelesen). Für Betonwände
+  nennt ein Forum 3 · h bei h < 8 ft (nicht belastbar). **Nicht für Lehm verwendbar**; nur Hinweis, dass Fugenabstand und
+  Wandhöhe gekoppelt sind und Fugen an Querschnittssprüngen liegen. E
+
+## 10. Fugenwand: Folgerungen für Feldlänge, Fugenausbildung und Rückseite
+
+Bezeichnungen: t Wanddicke, w = 30 mm Strangbreite, a Feldlänge (Abstand zweier Fugen einer Seite), θ Winkel des Stegs
+gegen die Wandachse (Foto: Stege laufen V-förmig von der Fuge nach innen), s Schwindmaß. Alles E, wenn nicht anders
+gekennzeichnet.
+
+### 10.1 Feldlänge a und Fugenöffnung
+- Jedes Feld schwindet frei auf beide Fugen zu; die Fuge öffnet sich um **s · a**:
+
+  | Schwindmaß s | a = 200 | a = 240 | a = 300 | a = 450 |
+  |---|---|---|---|---|
+  | 0,5 % (Merkblatt Weimar, Sichtbauteil) | 1,0 mm | 1,2 mm | 1,5 mm | 2,2 mm |
+  | 1 % | 2,0 mm | 2,4 mm | 3,0 mm | 4,5 mm |
+  | 2,76 % (Ferretti, gedruckter Lehm) | 5,5 mm | 6,6 mm | 8,3 mm | 12,4 mm |
+  | 3,48 % (Zozaya, Teil 1) | 7,0 mm | 8,4 mm | 10,4 mm | 15,7 mm |
+
+  Mit dem 3-mm-Kriterium der NZS 4298 (9.2) bleibt die Fugenöffnung bei s ≤ 1 % und a ≤ 300 mm unter 3 mm; bei
+  s = 2,76 % wäre a ≈ 109 mm nötig, was als Zellgröße nicht sinnvoll ist (Stegwinkel zu steil). Schwindet die Mischung
+  2,76 %, öffnet sich die Fuge auf 5 bis 8 mm. Sie ist dann sichtbar und muss gefüllt oder bewusst offen gelassen
+  werden (NZS 4299: wetterdicht). Das ist ein Ergebnis, kein Fehler.
+- Reibung am Fuß hält die Feldenden, die Rechnung ist die Obergrenze. Der Testdruck misst die tatsächliche
+  Fugenöffnung. Die Vorschau gibt die Kennzahl „Fugenöffnung“ bei einstellbarem s aus. A
+- **Startwert a = 240 mm bei 200 mm Wand.** Er folgt weniger aus der Rissrechnung (a bis 300 mm wäre noch zulässig)
+  als aus dem Stegwinkel (10.2): ein größeres a macht θ flach. Bei 300 mm bzw. 365 mm Wand wächst a mit t − 2w.
+- **Modulanpassung:** a = L/n mit ganzer Zahl n; für L = 600 mm sind n = 3 (a = 200, θ = 35°) und n = 2 (a = 300,
+  θ = 25°) möglich, für L = 1200 mm n = 5 (a = 240). Das entspricht der Auftragsvorgabe „ganze Zahl von Feldern, Rest
+  gleichmäßig verteilt“. A
+
+### 10.2 Fugen- und Knotenausbildung
+- **Knotenlage:** Berühren sich Vorder- und Rückknoten, liegen ihre Mittellinien im Abstand w (Kontakt nach M2/M7), also
+  bei y = t/2 ∓ w/2. Bei der Außenschalen-Mittellinie y = w/2 ergibt das die Steghöhe Δy = (t − 2w)/2 = **70 mm** bei
+  200 mm Wand, 120 mm bei 300 mm, 152,5 mm bei 365 mm.
+- **Stegwinkel:** tan θ = 2Δy/a = (t − 2w)/a. Für t = 200: a = 140 → 45°, 200 → 35°, 240 → 30,3°, 300 → 25°. Für
+  t = 300: a = 240 → 45°, 300 → 38,7°, 415 → 30°. Für t = 365: a = 300 → 45,5°, 450 → 34°. Umgekehrt a_max =
+  (t − 2w)/tan θ; bei θ = 30° ist a_max = 242 (200 mm), 416 (300 mm), 528 mm (365 mm).
+- **Spitze an der Fuge:** Außenfeld und Steg schließen an der Fuge den Winkel θ ein (Kehre des Strangs um 180° − θ).
+  Zwei Raupen mit Mittellinienabstand ≥ (1 − ε)·w = 25,5 mm sind erst ab s = 12,75 mm/sin(θ/2) vom Scheitel getrennt:
+  33 mm bei 45°, 49 mm bei 30°, 59 mm bei 25°, 79 mm bei 18,6°. Davor ist die Spitze mit Material gefüllt
+  (Überfüllung im Scheitel). Mit Mittellinienradius R beträgt die Tangentenlänge R/tan(θ/2) (56 mm bei R = 15 und
+  θ = 30°); an den Tangentenpunkten ist der Mittellinienabstand 2R ≥ 30 mm, M2 ist über R ≥ 15 mm also erfüllt.
+  Bei R = 15 mm hat die Kehre keinen Hohlraum (Innenrand der Raupe = Punkt, M6 hart). Folgerung: **θ ≥ 30°** (Spitze
+  ≤ 49 mm, Ziel 35° bis 45°) und R = 20 bis 30 mm; die Kehre fährt der Planer langsamer (Überfüllung bei kleinem Radius,
+  Teil 1, 3.3). E
+- **Fuge außen:** Beide Außenfelder enden mit der Kehre; die Außenränder der zwei Kehren berühren sich am Scheitel
+  (stumpf). Die Außenkante hat dadurch eine **Kerbe** der Tiefe ungefähr R + w/2 (R = 15 mm: 30 mm; R = 20 mm: 35 mm). Das
+  entspricht der V-Kerbe der NZS 4299 (11.2) und den gerundeten Feldenden im Foto; die Restwanddicke in der Fugenebene
+  sinkt um die Kerbtiefe je Seite. E
+- **Kontaktlänge an der Fuge klein halten:** Die Raupen berühren sich an der Kehrenspitze auf wenigen Millimetern; die Fuge
+  ist ein Gelenk, kein Schweißpunkt. Ein Spalt von 0 bis 5 mm (Parameter) erlaubt, den Kontakt ganz zu lösen. Ob die Fuge
+  am Gerät hält oder zu stark verklebt, zeigt der Testdruck. A
+- **Knoten innen:** Ferretti (11.1) berichtet **Materialüberschuss an Kreuzungen** (nachgeschliffen); Watson et al. (Teil 1,
+  4.2) berichten Überbau an Knoten. Knoten sind die kritische Stelle der Überfüllung. Folgerung: Knoten als Kehre
+  (Radius ≥ 15 mm) mit Tangentialkontakt statt Kreuzung; die Pumpe bleibt an (Auftrag), die Geschwindigkeit sinkt. E
+- **Gurt:** Die Erstvariante ist ohne Gurt. Ein Gurt auf der Wandmitte läge bei Vorder- und Rückseite auf derselben
+  Linie (Doppelraupe, Verstoß gegen M2). Er ist daher nur einseitig oder um w/2 gegeneinander versetzt möglich; dann
+  ändert sich Δy um w/2. E
+
+### 10.3 Rückseite gespiegelt oder versetzt
+- **Gespiegelt:** Fugen beider Seiten liegen gegenüber; es entsteht eine **durchgehende Sollbruchebene** über die ganze
+  Wanddicke. Auch die Knoten liegen gegenüber; Vorder- und Rückknoten bilden mit den Stegen eine **Raute** je Fuge, über
+  jedem Feld liegt ein Dreieck bzw. Trapez. Das entspricht dem Foto. Vorteil: eindeutige Rissebene, symmetrisch. Nachteil:
+  Die Wand ist dort ein Gelenk; Querlast geht nur über Knoten und Verzahnung (NZS 4299 11.1.6 verlangt Kraftübertragung
+  quer zur Wand über die Fuge). E
+- **Um a/2 versetzt:** Die Rückfuge liegt gegenüber der Feldmitte der Vorderseite. Keine durchgehende Rissebene; ein Riss
+  müsste über die Stege wandern. Vorteil: steifer gegen Querlast. Nachteil: weniger geordnetes Reißen; Vorder- und
+  Rückknoten liegen nicht gegenüber, der Kontakt zwischen den Seiten braucht dann eine Gurt- oder Knotenlage außerhalb
+  der Mittelebene (10.2). E
+- **Empfehlung:** **gespiegelt** als Standard, weil der Auftrag Sollbruchstellen verlangt und die Fuge Risse nur bündelt,
+  wenn die Ebene durchläuft; **versetzt** als Variante für Wände mit Querlast. Kennzahl: Anzahl durchgehender
+  Fugenpaare. A
+- **Modulenden:** Ein Modulstoß ist selbst eine Fuge (Auftrag). Die Endkappe liegt deshalb auf der Fugenlage, dazwischen
+  liegen ganze Felder; halbe Felder am Ende (Breite a/2) vermeiden, weil dort θ steil wird und die Spitze kürzer ist als
+  der Kehrenradius es zulässt. E
+
+## 11. Gedruckte Fachwerk-, Rauten- und Zellwände
+
+Zu **Lehm** gibt es nur wenige Studien mit offengelegter Infill-Geometrie; zu **Beton und Mörtel** mehr, dort aber mit
+anderer Rissursache (Last, nicht Trocknung). Die Übertragung ist unter Vorbehalt.
+
+### 11.1 Ferretti et al. 2022 (Volltext gelesen): ±45°-Gitter in Lehm
+- **Volle Angabe:** wie Teil 1, 1.2: Ferretti E., Moretti M., Chiusoli A., Naldoni L., De Fabritiis F., Visonà M. (2022):
+  *Mechanical Properties of a 3D-Printed Wall Segment Made with an Earthen Mixture*. Materials 15(2), 438.
+  https://doi.org/10.3390/ma15020438 (PMC8778666)
+- **Kernaussage (B):** Wandstück 730 × 530 × 504 mm (Länge × Tiefe × Höhe), 42 Schichten à 12 mm, **Düse 30 mm** (also unser
+  w), zwei Außenschalen je 34 mm, Infill als regelmäßiges **Gitter aus Geraden unter ±45°**: zehn gleichmäßig verteilte
+  Stege von 35 mm Dicke, je fünf unter +45° und −45°, **Abstand der Kreuzungen etwa 150 mm**. Das Infill ragt zur
+  Verklammerung um ein Viertel der Schalendicke (68 mm) in die Außenschale und bildet dort **zehn senkrechte Rippen**
+  am Außenrand. Frisch zeigte die Seitenfläche Wellen im Rippenabstand; an den Kreuzungen der Schichten gab es
+  **Materialüberschuss**, der abgeschliffen wurde. Nach 90 Tagen unter kontrollierten Bedingungen lag das Maß bei
+  **97,24 %** der Frischmaße (Schwindung **2,76 %**, gleichmäßig in alle Richtungen; Vergleichswürfel 2,44 %). **Über
+  Trocknungsrisse wird nicht berichtet**; die Risse stammen aus der Druckprüfung (2,32 MPa), das Infill hielt die
+  Rissausbreitung auf. Die Druckzeit des Stücks ist nicht angegeben.
+- **Folgerung:**
+  1. Ein gedrucktes Lehmwandstück mit Gitter-Infill (Kreuzungsabstand 150 mm bei 30 mm Düse, also 5 w) trocknete **ohne
+     berichtete Trocknungsrisse**. Das ist ein Hinweis (B), kein Beleg für Fugenwirkung, denn es gab keine Vergleichswand
+     ohne Infill. Unsere Zellen (Knotenabstand a = 240 mm, Steglänge 139 mm) liegen in derselben Größenordnung. E
+  2. Rippen an der Außenhaut entstehen, weil das Infill in die Schale einbindet. Bei uns sind sichtbare Rippen im
+     Fugenabstand erwünscht. E
+  3. **Materialüberschuss an Kreuzungen** begründet, Kreuzungen durch Kehren mit Berührung zu ersetzen (M2) und die
+     Geschwindigkeit an Knoten zu senken. E
+  4. Das gleichmäßige Schwinden zeigt, dass das Gitter sich nicht verzieht. Bei der Fugenwand erwarten wir das Schwinden
+     dagegen in den Feldern gerichtet. E
+
+### 11.2 Tanapornraweekit et al. 2022: glatte, Rauten- und Karpfenwand aus Mörtel
+- **Volle Angabe:** Tanapornraweekit G., Jiramarootapong P., Paudel S., Tangtermsirikul S., Snguanyat C. (2022):
+  *Experimental and Numerical Investigation of 3D Printed Mortar Walls Under Uniform Axial Compression*. Construction
+  and Building Materials 360, 129552. https://doi.org/10.1016/j.conbuildmat.2022.129552
+- **Kernaussage (B, nur Zusammenfassung):** Geprüft wurden glatte (plain), Rauten- (diamond) und Karpfen- (carp) Wände
+  unter Axiallast. Rauten- und Karpfenwand versagten durch **Beulen**; die Rautenwand zeigte die höhere Erstrisslast
+  und Traglast, das duktilere Verhalten und brauchte weniger Druckzeit und weniger Mörtel. Maße, Winkel und Zellgrößen
+  sind in der Zusammenfassung nicht angegeben.
+- **Folgerung:** Rautenzellen sind gegenüber glatter Wand material- und tragfähigkeitsgünstig; wir nutzen das nur als
+  Hinweis, dass die Raute die richtige Grundform ist (Foto). Das Beulen deutet an, dass dünne Raupen bei großer Steglänge
+  seitlich ausweichen: Stegschlankheit L/w begrenzen (a = 240, t = 200: L = 139 mm, L/w = 4,6; ab L/w ≈ 8 am Testdruck
+  prüfen). Der Wert 8 ist eine Annahme. E/A
+
+### 11.3 Texas Tech 2026: Tonmodelle 1:5
+- **Volle Angabe:** Iyoha P. u. a. (2026): Poster NHW 2026, Texas Tech University (Center of Excellence in Capacity-
+  building for Resilient Housing; Vornamen und Autorenliste nicht verifiziert).
+  https://www.depts.ttu.edu/cecreh/documentation/nhw-2026-posters/NHW2026_POSTER_PAUL.pdf (nur Suchergebnis, Poster
+  nicht gelesen)
+- **Kernaussage (B, Zusammenfassung):** An 1:5-Tonmodellen war die Wand „D3T“ schwächer als die stärkste Geometrie, zeigte
+  aber ein **allmähliches, kontrolliertes Versagen mit Lastumlagerung**; die konventionelle Wand versagte plötzlich durch
+  Delamination. Die Innengeometrie steuere das Tragverhalten. Aussagen zu Trocknungsrissen fehlen.
+- **Folgerung:** Gegliederte Innengeometrie versagt gutmütiger. Das stützt die Fugenwand, belegt aber nichts gegen
+  Trocknungsrisse. E
+
+### 11.4 WASP / TECLA / Gaia und eine Patentanmeldung
+- **Quelle:** Sekundärberichte zu Gaia (WASP): 25 % Schluff vom Ort, 40 % gehäckseltes Reisstroh, 25 % Reishülsen, 10 %
+  hydraulischer Kalk; 30 m² Wand, **40 cm dick**, in 10 Tagen gedruckt. https://renewable-carbon.eu/news/?p=143254 und
+  https://materialdistrict.com/article/first-3d-printed-house-earth/ (Primärquelle nicht gelesen). Der WASP-Chef führt das
+  geringe Schwinden auf die Fasern zurück (Aussage des Unternehmens, nicht gemessen).
+- **Kernaussage (B, sekundär):** Gaia ist eine hohle Wand mit wellenförmiger Innengliederung (Teil 1, 1.1). Ein veröffentlichtes
+  **Fugen- oder Rautenmuster mit Maßen** habe ich **nicht** gefunden, auch keine Zellgrößen zu TECLA.
+- **Folgerung:** Die gedruckte Hohlwand mit Zwischenstegen ist Stand der Praxis; die Fugenwand ist eine Fortentwicklung mit
+  Kontakt statt Kreuzung und kann sich auf keine veröffentlichte Maßvorgabe stützen. Die Gaia-Mischung (40 % Stroh) zeigt,
+  dass Fasern das wirksame Mittel sind; Fugen senken das Risiko zusätzlich. E
+- **US-Patentanmeldung 12168320** („Systems and methods for the construction of structures utilizing additive manufacturing
+  techniques“, Anmelder nicht verifiziert, nur Suchergebnis): beschreibt einen Zickzack-Lattice in Wänden mit einem
+  durchgehenden Bahnzug, der am selben Punkt beginnt und endet. Keine Maße. Nur Hinweis auf die Einzelstrang-Topologie. E
+
+### 11.5 Euler- und kreuzungsfreie Gitterpfade (Ergänzung zu Teil 1, 4.2)
+- **Watson, Barton, Aghaei Meibodi (2026)** (Teil 1, 4.2): Gitter mit **Stegabstand 50 mm bei 25,4 mm Düse** (rund 2 Düsenbreiten)
+  in einem Eulerzug; Start und Ende wechseln je Schicht. Ihre Knoten haben Grad 4 (Kreuzung). Unsere Fugenwand hat Knoten
+  mit **Berührung**: Jede Fuge und jeder Knoten wird zweimal besucht, ohne dass sich die Richtungen ineinander schieben.
+  Die Wand ist ein einziger geschlossener Zug je Schicht (Vorderseite, Endkappe, Rückseite, Endkappe). E
+- Zu kreuzungsfreien bzw. durchgehenden Betonpfaden gibt es weitere Arbeiten (Wan et al. 2023, Sahu/Panda 2024 und 2026,
+  eine Preprint-Arbeit zu nicht kreuzenden Pfaden); nur als Titel gesehen. **Nicht verwendet.**
+- **Folgerung:** Ob die Berührung an den Kehren Material überhäuft, ist die Kernfrage des Testdrucks (11.1). E
+
+### 11.6 Zusammenfassung für die Fugenwand
+1. **Fuge stumpf, über die ganze Höhe**, Kerbe aus dem Eckradius; die Fuge ist ein Gelenk (NZS 4299 11.1 bis 11.2). B/E
+2. **Feldlänge a = 240 mm bei 200 mm Wand** (160 bis 300 mm für die Parameterstudie), allgemein a = (t − 2w)/tan θ.
+   Fugenöffnung s · a wird berichtet. E/A
+3. **Stegwinkel θ ≥ 30°** (Ziel 35° bis 45°), sonst füllt sich die Spitze (49 bis 59 mm). Ferretti druckte ±45°. E/B
+4. **Knoten:** Kehre mit R ≥ 15 mm (Ziel 20 bis 30), Vorder- und Rückknoten berühren sich auf Mittellinienabstand w, kein
+   Gurt auf gemeinsamer Mittellinie. E
+5. **Rückseite gespiegelt** als Standard (durchgehende Sollbruchebene), **um a/2 versetzt** als Variante. E/A
+6. **Fugen an Laibungen, Stufen, Dickenwechseln und ≥ 900 mm vom Außeneck** (NZS 4299 11.1.3), Modulstoß = Fuge. B/A
+7. **Mischung zuerst:** Schwindmaß ≤ 2 % (Merkblatt Weimar) bzw. Fasern (Teil 1, 2.2 bis 2.4). Die Fugenwand ordnet Risse,
+   sie verhindert sie nicht. B/E
+8. **Offen:** Keine Quelle zu Fugenabständen gedruckter Lehmwände; Ferrettis 150 mm bei ±45° ist der einzige belegte
+   Gitterwert in Lehm. Der Testdruck mit zwei Feldlängen (200 und 300 mm) und beiden Rückseiten (gespiegelt, versetzt)
+   vergleicht Fugenöffnung, Rissbild und Kontakt der Fuge.
