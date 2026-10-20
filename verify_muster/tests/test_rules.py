@@ -7,7 +7,7 @@ import json
 import numpy as np
 import pytest
 
-from verify_muster import check, geometry
+from verify_muster import check, geometry, rules
 from verify_muster.tests import synth
 
 N_LAYERS = 4
@@ -137,7 +137,7 @@ def test_print_outside_part_is_detected(tmp_path):
 def test_too_tight_radius_is_detected(tmp_path):
     code, p = _run(tmp_path, synth.stack(lambda L: [synth.two_shells(r_out=35.0)], N_LAYERS))
     assert _failed(p) == {"M6"}, _failed(p)
-    assert p["rules"]["M6"]["first"]["radius_mm"] < 7.5
+    assert p["rules"]["M6"]["first"]["radius_mm"] < 0.5 * synth.W
 
 
 def test_print_over_opening_is_detected(tmp_path):
@@ -167,11 +167,12 @@ def test_trajectory_off_toolpath_is_detected(tmp_path):
 @pytest.mark.parametrize("r", [15.0, 30.0, 60.0])
 @pytest.mark.parametrize("seg", [0.5, 2.0, 7.0])
 def test_window_radius_independent_of_sampling(r, seg):
-    """Kreisbogen mit Sehnenlaenge seg: geschaetzter Radius innerhalb der Toleranz R_REL_TOL."""
+    """Kreisbogen mit Sehnenlaenge seg (bis zum Sehnenfehler ~0,4 mm): Radius innerhalb R_REL_TOL."""
     n = int(np.ceil(1.5 * np.pi * r / seg))
     pts = synth.arc((0, 0), r, 0.0, 1.5 * np.pi, step=1.5 * np.pi * r / n)
     R, _, _ = geometry.window_radius(pts, 1.0, 15.0)
-    assert len(R) and R.min() >= r * (1 - 0.03) and R.max() <= r * 1.03
+    tol = rules.R_REL_TOL
+    assert len(R) and R.min() >= r * (1 - tol) and R.max() <= r * (1 + tol)
 
 
 def test_window_radius_sharp_corner_and_reversal():

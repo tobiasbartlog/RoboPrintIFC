@@ -18,6 +18,7 @@ import sys
 import time
 from pathlib import Path
 
+from verify_muster import metrics as mx
 from verify_muster import rules
 from verify_muster.artifacts import ArtifactError, load_json, load_part, part_dirs
 
@@ -31,15 +32,24 @@ def check_part(pdir: Path, need_trajectory: bool = True) -> dict:
     C = rules.build_ctx(part)
     rs = [rules.check_m1(C), rules.check_m2(C), rules.check_m3(C), rules.check_m4(C), rules.check_m5(C),
           rules.check_m6(C), rules.check_m6b(C)]
-    m7, metrics = rules.check_m7_and_metrics(C)
+    m7, metrics = mx.check_m7_and_metrics(C)
     rs.append(m7)
     metrics["share_vertical_layer_change"] = rs[3].metrics.get("share_vertical")
     metrics["min_radius_mm"] = rs[5].metrics.get("min_radius_mm")
     metrics["contact_zones_per_m"] = m7.metrics.get("contact_zones_per_m")
     passed = all(r.passed for r in rs if r.hard)
+    failed = [r for r in rs if r.hard and not r.passed]
+    first = None
+    if failed:  # erstes Gegenbeispiel: kleinste Schicht ueber alle verletzten Regeln
+        cands = [(r.examples[0].get("layer") if r.examples[0].get("layer") is not None else -1, k, r)
+                 for k, r in enumerate(failed) if r.examples]
+        if cands:
+            _, _, r0 = min(cands, key=lambda t: (t[0], t[1]))
+            first = {"rule": r0.name, **r0.examples[0]}
     return {"part_id": part.part_id, "dir": str(pdir), "status": part.status, "pattern": part.pattern,
             "params": {"bead_width_mm": part.w, "layer_height_mm": part.h},
-            "passed": passed, "failed_rules": [r.name for r in rs if r.hard and not r.passed],
+            "passed": passed, "failed_rules": [r.name for r in failed], "first_counterexample": first,
+            "has_pattern_kinds": any(r.kind in ("infill", "web", "outfill") for r in part.rings),
             "rules": {r.name: r.to_json() for r in rs}, "metrics": metrics,
             "runtime_s": round(time.perf_counter() - t0, 3)}
 
@@ -51,7 +61,7 @@ def run(run_dir: Path, scenario: Path | None = None, part: str | None = None,
                                   "m5_margin_mm": rules.M5_MARGIN_MM, "r_rel_tol": rules.R_REL_TOL,
                                   "follow_tol_mm": rules.FOLLOW_TOL_MM,
                                   "contact_tol_mm": rules.CONTACT_TOL_MM,
-                                  "straight_tol_mm": rules.STRAIGHT_TOL_MM,
+                                  "straight_tol_mm": mx.STRAIGHT_TOL_MM,
                                   "assumptions": "eps, delta, Toleranzen mit (A) gekennzeichnet, README"},
                     "parts": [], "errors": []}
     if scenario is not None:
@@ -106,10 +116,10 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("run_dir", type=Path)
     ap.add_argument("--scenario", type=Path, default=None)
-    ap.add_argument("--json", type=Path, default=None, 
+    ap.add_argument("--json", type=Path, default=None,
                     help="Bericht (Default <laufordner>/check_muster.json)")
     ap.add_argument("--part", default=None, help="nur dieses Teil pruefen")
-    ap.add_argument("--no-trajectory", action="store_true", 
+    ap.add_argument("--no-trajectory", action="store_true",
                     help="nur toolpath (M1 ohne Trajektorie, ohne M6b)")
     a = ap.parse_args(argv)
     code, report = run(a.run_dir, a.scenario, a.part, need_trajectory=not a.no_trajectory)

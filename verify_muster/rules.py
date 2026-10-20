@@ -13,6 +13,7 @@ import numpy as np
 import shapely
 from scipy.spatial import cKDTree
 
+from verify_muster import contacts as ct
 from verify_muster import geometry as g
 from verify_muster.artifacts import Part
 
@@ -24,13 +25,9 @@ M5_MARGIN_MM = 1.0  # (A) Raupenflaeche im Querschnitt ⊕ 1 mm
 M5_TOL_MM = 0.05  # numerische Toleranz der Punktpruefung
 Z_TOL_MM = 0.5  # Wegpunkthoehe gegen (L+1)·h (ARTEFAKTE)
 M3_AREA_TOL_MM2 = 1.0  # numerische Restflaeche (Puffer-Polygone)
-R_REL_TOL = 0.03  # (A) relative Toleranz der Fenster-Kruemmung (Sehnen der Eingabe)
+R_REL_TOL = 0.05  # (A) Toleranz der Fenster-Kruemmung: deckt Sehnenfehler <= 0,5 mm der Eingabe ab
 FOLLOW_TOL_MM = 0.5  # Trajektorie <= 0,5 mm neben dem toolpath (Ersatz fuer den Sehnenfehler)
-CONTACT_TOL_MM = 0.5  # (A) Obergrenze Kontakt: Mittellinienabstand <= w + 0,5 mm
-STRAIGHT_TOL_MM = 1.0  # (A) "gerade": Punkte <= 1 mm neben der Sehne
-SHELL_KINDS = ("outer", "inner", "hole", "outfill")
-FILL_KINDS = ("infill", "web")
-OUTER_KINDS = ("outer", "outfill")
+CONTACT_TOL_MM = ct.CONTACT_TOL_MM
 PUMP_KINDS = ("print", "link")
 KNOWN_KINDS = ("print", "link", "approach", "retract", "lift", "transfer", "lower")
 MAX_EXAMPLES = 20
@@ -84,6 +81,7 @@ class Ctx:
     paths: dict  # L -> [LayerPath]
     path_island: dict  # L -> [Inselindex | -1 keine | -2 mehrere]
     ring_group: dict  # Ring -> (L, Inselindex)
+    pairs: dict = field(default_factory=dict)  # L -> [contacts.PairResult] je Schichtpfad
 
 
 def chains(part: Part) -> list[list[int]]:
@@ -123,7 +121,9 @@ def build_ctx(part: Part) -> Ctx:
             p_isl[L].append(idx)
             for r in P.rings:
                 ring_group[r] = (L, idx if idx >= 0 else int(np.argmax(cnt)) if cnt else -1)
-    return Ctx(part, w, h, step, layers, sections, isl, paths, p_isl, ring_group)
+    ring_kind = {r.index: r.kind for r in part.rings}
+    pairs = {L: [ct.analyse(P, w, EPS, ring_kind) for P in Ps] for L, Ps in paths.items()}
+    return Ctx(part, w, h, step, layers, sections, isl, paths, p_isl, ring_group, pairs)
 
 
 # ---------------------------------------------------------------- M1
@@ -190,34 +190,38 @@ def check_m1(C: Ctx) -> Rule:
 # ---------------------------------------------------------------- M2
 
 
-def check_m2(C: Ctx, eps: float = EPS) -> Rule:
+def check_m2(C: Ctx) -> Rule:
+    """Kreuzungsfrei (Methode: verify_muster/contacts.py). Gewollte Kontakte zaehlen nicht als Fehler,
+    sie werden als Kontaktzonen berichtet (M7 wertet sie aus)."""
     R = Rule("M2", "Kreuzungsfrei: Abstand >= (1-eps)·w fuer Pfadpunkte mit Bogenabstand > 2·w", True)
-    thr = (1.0 - eps) * C.w
+    thr = (1.0 - EPS) * C.w
     dmin = np.inf
+    n_zones = {"joint": 0, "node": 0, "shell": 0}
     for L in C.layers:
-        for P in C.paths.get(L, []):
+        for P, res in zip(C.paths.get(L, []), C.pairs.get(L, []), strict=True):
             R.n_checked += 1
-            if len(P.pts) < 2:
+            for z in res.zones:
+                n_zones[z["type"]] += 1
+            if len(res.viol_d) == 0:
                 continue
-            pairs = cKDTree(P.pts).query_pairs(r=thr, output_type="ndarray")
-            if len(pairs) == 0:
-                continue
-            i, j = pairs[:, 0], pairs[:, 1]
-            d = np.linalg.norm(P.pts[i] - P.pts[j], axis=1)
-            gd = g.graph_distance(P, i, j)
-            viol = (gd > 2.0 * C.w) & (d < thr)
-            if not viol.any():
-                continue
-            v = np.flatnonzero(viol)
-            dmin = min(dmin, float(d[v].min()))
-            m = v[np.argmin(d[v])]
-            what = "Kreuzung" if d[m] < 1.5 * C.step else "zu nah / ueberfaehrt Raupe"
-            R.fail(L, P.ring_at(i[m]), P.pts[i[m]], f"{what}: Abstand {d[m]:.2f} mm < {thr:.2f} mm bei "
-                   f"Bogenabstand {gd[m]:.1f} mm (Ring {P.ring_at(i[m])} / Ring {P.ring_at(j[m])})",
-                   distance_mm=float(d[m]), arc_mm=float(gd[m]), other_ring=P.ring_at(j[m]),
-                   other_point_P=[round(float(x), 3) for x in P.pts[j[m]]], n_pairs=int(len(v)))
+            dmin = min(dmin, float(res.viol_d.min()))
+            m = int(np.argmin(res.viol_d))
+            i, j, d, gd = int(res.viol_i[m]), int(res.viol_j[m]), float(res.viol_d[m]), float(res.viol_gd[m])
+            if d < 1.5 * C.step:
+                what = "Kreuzung der Mittellinie"
+            else:
+                what = "zu tiefer Kontakt bzw. ueberfaehrt gelegte Raupe"
+            R.fail(L, P.ring_at(i), P.pts[i], f"{what}: Abstand {d:.2f} mm < {thr:.2f} mm bei "
+                   f"Bogenabstand {gd:.1f} mm (Ring {P.ring_at(i)} / Ring {P.ring_at(j)})",
+                   distance_mm=d, arc_mm=gd, other_ring=P.ring_at(j),
+                   other_point_P=[round(float(x), 3) for x in P.pts[j]], n_pairs=int(len(res.viol_d)),
+                   kind="crossing" if d < 1.5 * C.step else "too_deep")
     R.metrics["min_distance_violation_mm"] = None if not np.isfinite(dmin) else round(dmin, 3)
     R.metrics["threshold_mm"] = round(thr, 3)
+    R.metrics["contact_band_mm"] = [round(thr, 2), round(C.w + CONTACT_TOL_MM, 2)]
+    R.metrics["contact_zones_by_type"] = n_zones
+    R.note = ("Paare mit Bogenabstand > 2·w; < 1,5 Abtastschritte = Kreuzung, sonst zu tiefer Kontakt. "
+              "Kontakte im Band werden als Zonen (joint/node/shell) berichtet.")
     return R
 
 
@@ -263,6 +267,7 @@ def check_m4(C: Ctx) -> Rule:
     rings = C.part.rings
     n_vert = n_exempt = n_link = 0
     tr = C.part.traj
+    kind_arr = np.array(tr.kind) if tr is not None else None
     for L in C.layers:
         if L + 1 not in C.islands:
             continue
@@ -276,15 +281,24 @@ def check_m4(C: Ctx) -> Rule:
         d = float(np.linalg.norm(p_end - p_start))
         linked = rings[re_].link_next and rs_ == re_ + 1
         vertical = d <= M4_TOL_MM and linked
-        if tr is not None and np.any((np.array(tr.kind) == "link") & (tr.ring == rs_)):
-            n_link += 1
-        if vertical:
+        travel = False
+        if tr is not None:
+            if np.any((kind_arr == "link") & (tr.ring == rs_)):
+                n_link += 1
+            elif linked:
+                travel = True
+        if vertical and not travel:
             n_vert += 1
             continue
         if len(C.islands[L]) != len(C.islands[L + 1]):
             n_exempt += 1
             continue
-        why = f"waagrecht {d:.2f} mm" if d > M4_TOL_MM else "kein Verbinder (link_next = false)"
+        if d > M4_TOL_MM:
+            why = f"waagrecht {d:.2f} mm"
+        elif not linked:
+            why = "kein Verbinder (link_next = false)"
+        else:
+            why = "Trajektorie setzt ab (Travel statt link)"
         R.fail(L, re_, p_end, f"Schichtwechsel {L} -> {L + 1} nicht senkrecht: {why} (Ring {re_} -> {rs_})",
                horizontal_mm=d, next_ring=rs_, next_point_P=[round(float(x), 3) for x in p_start])
     n = R.n_checked
@@ -338,7 +352,8 @@ def check_m6(C: Ctx) -> Rule:
     for L in C.layers:
         for P in C.paths.get(L, []):
             R.n_checked += 1
-            Rv, _, q = g.window_radius(P.polyline(), step, 0.5 * C.w)
+            closed = P.cyclic or (len(P.elements) == 1 and P.elements[0].closed)
+            Rv, _, q = g.window_radius(P.polyline(), step, 0.5 * C.w, closed=closed)
             if len(Rv) == 0:
                 continue
             k = int(np.argmin(Rv))
@@ -352,8 +367,9 @@ def check_m6(C: Ctx) -> Rule:
     R.metrics.update(min_radius_mm=None if not np.isfinite(rmin) else round(rmin, 2),
                      hard_mm=round(0.5 * C.w, 2), target_mm=round(C.w, 2), paths_below_target=R.warnings)
     R.note = ("Fenstermethode: Umkreis von p(s-w/2), p(s), p(s+w/2) auf gleichabstaendiger Abtastung; "
-              "Enden der Schichtpfade (w/2) nicht ausgewertet; Sehnenfehler ohne Sollkurve nicht pruefbar, "
-              "ersetzt durch M6b")
+              "offene Schichtpfade ohne die Enden (w/2), geschlossene Zuege zyklisch; Toleranz 5 % fuer "
+              "Sehnenfehler <= 0,5 mm; Knicke mit Ablenkung <= 60° liegen hart nicht unter w/2 (Ziel warnt); "
+              "Sehnenfehler gegen die Sollkurve ohne Sollkurve nicht pruefbar, ersetzt durch M6b")
     return R
 
 
@@ -394,97 +410,3 @@ def check_m6b(C: Ctx) -> Rule:
     return R
 
 
-# ---------------------------------------------------------------- M7 und Kennzahlen
-
-
-def _kind_points(P: g.LayerPath, kinds) -> np.ndarray:
-    ks = np.array([P.elements[e].kind for e in range(len(P.elements))])
-    return np.isin(ks[P.elem], kinds)
-
-
-def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
-    out, start = [], None
-    for i, m in enumerate(mask):
-        if m and start is None:
-            start = i
-        if not m and start is not None:
-            out.append((start, i - 1))
-            start = None
-    if start is not None:
-        out.append((start, len(mask) - 1))
-    return out
-
-
-def check_m7_and_metrics(C: Ctx, eps: float = EPS) -> tuple[Rule, dict]:
-    R = Rule("M7", "Kontakt Infill/Steg an Schale (berichtet, nicht hart)", False)
-    lo, hi = (1.0 - eps) * C.w, C.w + CONTACT_TOL_MM
-    b = C.part.mesh.bounds
-    wall_m = max(float(b[1][0] - b[0][0]), 1e-9) / 1000.0
-    per_layer = []
-    zones_all, len_all = [], []
-    for L in C.layers:
-        paths = C.paths.get(L, [])
-        shell = [P.pts[_kind_points(P, SHELL_KINDS)] for P in paths]
-        fill = [P.pts[_kind_points(P, FILL_KINDS)] for P in paths]
-        shell_pts = np.vstack(shell) if shell else np.zeros((0, 2))
-        fill_pts = np.vstack(fill) if fill else np.zeros((0, 2))
-        n_z, z_len = 0, 0.0
-        if len(shell_pts) and len(fill_pts):
-            tree = cKDTree(shell_pts)
-            for P in paths:
-                for e, el in enumerate(P.elements):
-                    if el.kind not in FILL_KINDS:
-                        continue
-                    sel = np.flatnonzero(P.elem == e)
-                    d, _ = tree.query(P.pts[sel])
-                    for a, z in _runs((d >= lo) & (d <= hi)):
-                        n_z += 1
-                        z_len += float(P.s[sel[z]] - P.s[sel[a]]) + C.step
-        R.n_checked += 1
-        zones_all.append(n_z)
-        len_all.append(z_len)
-        longest = _longest_straight_outer(C, paths, fill_pts)
-        per_layer.append({"layer": L, "n_islands": len(C.islands[L]), "n_paths": len(paths),
-                          "path_length_mm": round(sum(P.length for P in paths), 2),
-                          "contact_zones": n_z, "contact_length_mm": round(z_len, 1),
-                          "longest_straight_unsupported_outer_mm": longest})
-    has_fill = any(len(P.pts[_kind_points(P, FILL_KINDS)]) for Ps in C.paths.values() for P in Ps)
-    R.metrics.update(wall_length_m=round(wall_m, 4),
-                     contact_zones_per_m=round(float(np.mean(zones_all)) / wall_m, 3) if zones_all else None,
-                     contact_length_mm_per_m=round(float(np.mean(len_all)) / wall_m, 2) if len_all else None,
-                     contact_band_mm=[round(lo, 2), round(hi, 2)])
-    if not has_fill:
-        R.note = "kein Infill/Steg (kind infill/web) im toolpath"
-    longest = [x["longest_straight_unsupported_outer_mm"] for x in per_layer
-               if x["longest_straight_unsupported_outer_mm"] is not None]
-    lengths = [x["path_length_mm"] for x in per_layer]
-    metrics = {"layers": per_layer,
-               "longest_straight_unsupported_outer_mm": max(longest) if longest else None,
-               "path_length_mm_mean": round(float(np.mean(lengths)), 2) if lengths else None,
-               "path_length_mm_total": round(float(np.sum(lengths)), 2) if lengths else None,
-               "n_layers": len(C.layers)}
-    return R, metrics
-
-
-def _longest_straight_outer(C: Ctx, paths, fill_pts: np.ndarray) -> float | None:
-    """Laengste gerade, ungestuetzte Aussenstrecke einer Schicht (kind outer/outfill). Gestuetzt ist ein
-    Punkt, an dem ein Infill/Steg mit Mittellinienabstand <= w + 0,5 mm anliegt."""
-    tree = cKDTree(fill_pts) if len(fill_pts) else None
-    best = None
-    for P in paths:
-        for e, el in enumerate(P.elements):
-            if el.kind not in OUTER_KINDS:
-                continue
-            sel = np.flatnonzero(P.elem == e)
-            if len(sel) < 2:
-                continue
-            pts, s = g.resample(P.pts[sel], 5.0)
-            sup = np.zeros(len(pts), bool)
-            if tree is not None:
-                d, _ = tree.query(pts)
-                sup = d <= C.w + CONTACT_TOL_MM
-            runs = g.straight_runs(pts, s, sup, STRAIGHT_TOL_MM)
-            if runs:
-                m = max(r[0] for r in runs)
-                best = m if best is None else max(best, m)
-    return None if best is None else round(best, 1)

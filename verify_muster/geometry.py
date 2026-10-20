@@ -125,6 +125,8 @@ class LayerPath:
     e_closed: np.ndarray = field(default=None)
     e_len: np.ndarray = field(default=None)
     e_s0: np.ndarray = field(default=None)
+    cyclic: bool = False  # Pfad endet am Startpunkt (geschlossener Zug aus offenen Segmenten)
+    c_total: float = 0.0  # Gesamtlaenge in c-Koordinaten
 
     @property
     def length(self) -> float:
@@ -188,19 +190,27 @@ def build_path(layer: int, ring_ids: list[int], rings_xy: dict[int, np.ndarray],
     P.e_len = np.array(e_len)
     P.e_s0 = np.array(e_s0)
     P.e_closed = np.array(e_closed, bool)
+    P.c_total = c_off
+    P.cyclic = bool(len(P.pts) >= 3 and not (len(elements) == 1 and elements[0].closed)
+                    and np.linalg.norm(P.pts[0] - P.pts[-1]) <= CLOSE_TOL and c_off > 0.0)
     return P
 
 
 def graph_distance(P: LayerPath, i: np.ndarray, j: np.ndarray) -> np.ndarray:
     """Abstand entlang des Pfads zwischen dichten Punkten i und j; Schliesspunkte geschlossener Ringe
-    sind Knoten (Abkuerzung der Laenge 0). Innerhalb eines geschlossenen Rings zyklisch."""
+    sind Knoten (Abkuerzung der Laenge 0). Innerhalb eines geschlossenen Rings zyklisch; ist der ganze
+    Schichtpfad ein geschlossener Zug (Ende = Start, z. B. Fugenwand), ebenfalls zyklisch."""
     ei, ej = P.elem[i], P.elem[j]
     same = ei == ej
     ds = np.abs(P.s[i] - P.s[j])
     L = P.e_len[ei]
     cyc = np.where(P.e_closed[ei], np.minimum(ds, L - ds), ds)
-    other = P.o[i] + P.o[j] + np.abs(P.c[i] - P.c[j])
-    return np.where(same, cyc, other)
+    dc = np.abs(P.c[i] - P.c[j])
+    other = P.o[i] + P.o[j] + dc
+    gd = np.where(same, cyc, other)
+    if P.cyclic:  # geschlossener Zug: auch der Weg ueber den Start-/Endpunkt zaehlt
+        gd = np.minimum(gd, P.o[i] + P.o[j] + (P.c_total - dc))
+    return gd
 
 
 def bead_region(paths: list[LayerPath], w: float):
@@ -218,17 +228,22 @@ def bead_region(paths: list[LayerPath], w: float):
 # ---------------------------------------------------------------- Kruemmung
 
 
-def window_radius(pts: np.ndarray, step: float, window: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def window_radius(pts: np.ndarray, step: float, window: float,
+                  closed: bool = False) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Kruemmungsradius ueber ein Bogenlaengen-Fenster: Umkreis von p(s - a), p(s), p(s + a).
 
     Die Mittellinie wird gleichabstaendig (step) abgetastet, a = window. Fuer Punkte auf einem Kreis
     liefert der Umkreis genau dessen Radius, unabhaengig von der Abtastdichte der Eingabe. Ein Knick mit
     Ablenkung φ liefert a / (2 sin(φ/2)). Kollineare Punkte -> inf, Umkehr (p(s ± a) auf derselben
     Seite) -> 0. Rueckgabe: (Radius, Bogenlaenge, Punkt) je auswertbarem Punkt; die Enden
-    (s < a, s > S - a) werden nicht ausgewertet.
+    (s < a, s > S - a) werden bei offenen Pfaden nicht ausgewertet. Bei `closed` (Ende = Start) wird
+    zyklisch fortgesetzt, damit auch die Naht geprueft wird.
     """
     q, s = resample(pts, step)
     k = max(1, int(round(window / step)))
+    if closed and len(q) > 2 * k + 2:
+        q = np.vstack([q[-k - 1 : -1], q, q[1 : k + 1]])
+        s = np.concatenate([s[-k - 1 : -1] - s[-1], s, s[1 : k + 1] + s[-1]])
     if len(q) < 2 * k + 1:
         return np.zeros(0), np.zeros(0), np.zeros((0, 2))
     a, b, c = q[: -2 * k], q[k:-k], q[2 * k :]
