@@ -20,13 +20,13 @@ Die erste Zeile setzt nur das Skript.
 | I-Mehrfach (Doppelwelle, Waben, Fermat-Spirale) | M2 | erledigt, gemergt | v2/muster-mehrfach | d15cb95 |
 | Outfill O1/O3 (nur wenn Zeit; O2 = Fugenwand) | M2 | offen | v2/muster-outfill | |
 | Topologie (Öffnungen, Inseln, Laibungsstege, Naht, Abschrägung) | M2 | erledigt, gemergt | v2/muster-topologie | 6bf2292 |
-| Einbau Slicer + Vertrag + Schema/TS | M3 | erledigt (auf v2/muster-einbau, noch nicht gemergt) | v2/muster-einbau | b78ce7d |
-| Einbau Planer/Timing/DRL | M3 | gebaut, Gegenprüfung läuft (wf_0e4879c6-203) | v2/muster-einbau | 36ced12 |
-| Musterszenarien, `scripts/verify_muster.py`, SPEC-Nachtrag | M3 | wartet (wf_0e4879c6-203) | v2/muster-einbau | |
-| Viewer: Musterwahl im Ablauf, Schichtvorschau des Teils, Legende, Kennzahlen | M4 | läuft (wf_eeffd1a6-6c2) | v2/muster-viewer | |
+| Einbau Slicer + Vertrag + Schema/TS | M3 | erledigt, gemergt (über Viewer) | v2/muster-einbau | b78ce7d |
+| Einbau Planer/Timing/DRL | M3 | erledigt, gemergt (über Viewer) | v2/muster-einbau | 7633e16 |
+| Musterszenarien, `scripts/verify_muster.py`, SPEC-Nachtrag | M3 | läuft (wf_0e4879c6-203; Warteschleife des Agenten um 23:11 von Hand gelöst) | v2/muster-einbau | |
+| Viewer: Musterwahl im Ablauf, Schichtvorschau des Teils, Legende, Kennzahlen (e2e 15/15, 3×) | M4 | erledigt, gemergt | v2/muster-viewer | eba6f5f |
 | Katalog-Generator `scripts/muster_katalog.py` (Vorschau-Kennzahlen, Bilder) | M5 | erledigt, gemergt (Neulauf nach M3 nötig) | v2/muster-katalog | 5755006+ |
 | Vorschau-Laufzeit (metrics): Fugenwand 1200×200 146 → 70 ms; Wellen noch 120–380 ms | M4 | erledigt, gemergt; Wellen offen | v2/muster-perf | 81a874f |
-| Wellen-Fix: Planung < 100 ms, Absturz L-Querschnitt | M2 | läuft (wf_eeffd1a6-6c2) | v2/muster-wellenfix | |
+| Wellen-Fix: Planung ≈ 2× schneller (Bestwert < 100 ms), Rückfall statt Absturz | M2 | erledigt, gemergt | v2/muster-wellenfix | 5b10474 |
 | Vergleich mit Roboterprüfung, MUSTERKATALOG final, Testdrucke | M5 | offen | v2/muster-katalog | |
 | Gegenprüfung und Härtung | M6 | offen | v2/muster | |
 | Kernfehler `shells.shell_chain`/`clear_end` stürzt bei Inseln < ~4·w ab (auch Grundmuster) | M6 | offen | v2/muster-haertung | |
@@ -127,3 +127,14 @@ Die erste Zeile setzt nur das Skript.
 - Laufzeittest der Vorschau bewertet nur, wenn die Last ≤ Kernzahl ist (sonst Skip mit Messwert), damit G8
   unter Last der Agenten nicht zufällig rot wird.
 - Nach Merge: ruff grün, `pytest core verify_muster`: 805 grün (der Laufzeittest rot unter Last 12, jetzt Skip).
+
+### 2026-10-20 23:25 M4 und Wellen-Fix gemergt (Session start)
+- Viewer: Kasten „Druckmuster“ in „Zerlegen & prüfen“ (Standard: kein Muster), „Für Lauf verwenden“ im
+  Musterersteller, Teil-Panel mit Kennzahlen und 2D-Schichtvorschau aus `toolpath.json` (API
+  `/api/pattern-report/*`), 3D-Farben und Legende nur bei Teilen mit Muster. Kernfehler im Registry-Laden
+  (Thread-Race, Katalog nur „schalen“) behoben.
+- Einbau M3.1/M3.2 kam über den Viewer-Zweig mit: Vertrag (`infill`/`web`/`outfill`, `closed=false`,
+  `ToolpathPattern`), `slicer_patterns.py`, Planer mit `psi_hold` am Verbinder der Länge 0, DRL fasst
+  Länge-0-Verbinder zusammen. Ohne Muster ist S1 bitgleich (sha256 der Toolpaths).
+- Der M3.3-Agent hing 30 min in einer Warteschleife (`pgrep -f` fand die eigene Shell); Schleife beendet.
+- Nach Merge: ruff grün, `pytest core verify_muster`: 909 grün, Web lint/typecheck/test (163) grün.
