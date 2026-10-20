@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
+import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -77,6 +78,9 @@ class Pattern:
 
 _PATTERNS: dict[str, Pattern] = {}
 _loaded = False
+# Die API ruft den Katalog aus mehreren Threads gleichzeitig ab: Wer während des ersten Ladens kommt,
+# wartet, statt einen halb gefüllten Katalog (nur „schalen“) zu sehen.
+_load_lock = threading.RLock()
 
 
 def register(p: Pattern) -> Pattern:
@@ -118,15 +122,19 @@ def load_families() -> None:
     global _loaded
     if _loaded:
         return
-    _loaded = True
-    pkg = importlib.import_module("roboprint.patterns.families")
-    for info in sorted(pkgutil.iter_modules(pkg.__path__), key=lambda m: m.name):
-        if not info.name.startswith("_"):
-            importlib.import_module(f"{pkg.__name__}.{info.name}")
-    base = importlib.import_module("roboprint.patterns")
-    for info in sorted(pkgutil.iter_modules(base.__path__), key=lambda m: m.name):
-        if info.name.startswith("family_"):
-            importlib.import_module(f"roboprint.patterns.{info.name}")
+    with _load_lock:
+        if _loaded:
+            return
+        pkg = importlib.import_module("roboprint.patterns.families")
+        for info in sorted(pkgutil.iter_modules(pkg.__path__), key=lambda m: m.name):
+            if not info.name.startswith("_"):
+                importlib.import_module(f"{pkg.__name__}.{info.name}")
+        base = importlib.import_module("roboprint.patterns")
+        for info in sorted(pkgutil.iter_modules(base.__path__), key=lambda m: m.name):
+            if info.name.startswith("family_"):
+                importlib.import_module(f"roboprint.patterns.{info.name}")
+        # erst nach dem letzten Import: Ein zweiter Thread sieht nie einen halb gefüllten Katalog
+        _loaded = True
 
 
 def get(name: str) -> Pattern:
