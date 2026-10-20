@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-20T18:51:39+02:00 · Session: start · Phase: M2 · Status: laeuft
+Herzschlag: 2026-10-20T19:28:16+02:00 · Session: start · Phase: M2 · Status: laeuft
 
 # MUSTER-PROGRESS: Druckmuster (Infill und Outfill)
 
@@ -12,7 +12,7 @@ Die erste Zeile setzt nur das Skript.
 | Einrichtung, Ausgangslage verify --fast, Artefaktformat (`docs/muster/ARTEFAKT-FORMAT.md`) | M0 | erledigt | v2/muster | 9b0510e |
 | R Recherche → `docs/muster/recherche.md` (Teil 1) | M1 | erledigt, gemergt | v2/muster-recherche | a6b6636 |
 | R2 Recherche Sollbruchstellen, Fachwerkwände | M1 | erledigt, gemergt | v2/muster-recherche | ae788b2 |
-| K Kern `core/src/roboprint/patterns/` (Schnittstelle, alternate, 2 Schalen, metrics M1–M7) | M1 | läuft (wf_67176cf2-d22, auf WIP a383b1f) | v2/muster-kern | |
+| K Kern `core/src/roboprint/patterns/` (Schnittstelle, alternate, Schalen, metrics M1–M7, Vorschau, Presets) | M1 | erledigt, gemergt (63 Tests grün) | v2/muster-kern | 074763c |
 | O Orakel `verify_muster/` mit Selbsttests | M1 | läuft (wf_67176cf2-d22, auf WIP add8523) | v2/muster-orakel | |
 | F Fugenwand (Foto, O2) mit Varianten, Presets, Bildern – Priorität 2 | M1/M2 | läuft (wf_67176cf2-d22, nach K) | v2/muster-fugenwand | |
 | 2D-Musterersteller: API `POST /api/patterns/preview`, CLI `pattern-preview`, Web-Reiter „Muster“ – Priorität 3 | M3/M4 | läuft (wf_3c365435-7f4: Backend → Web) | v2/muster-ersteller | |
@@ -74,3 +74,8 @@ Die erste Zeile setzt nur das Skript.
   Datei unter `patterns/families/`. Deshalb startet M2 parallel zur Gegenlese von K/O:
   Workflow wf_3c365435-7f4 mit Wellen, Topologie → Mehrfach/Fermat, Musterersteller Backend → Web,
   je mit Gegenprüfung.
+
+### 2026-10-20 19:30 K gemergt (Session start)
+- Kern mit Gegenprüfung gemergt: `plan_pattern`, `measure`, `preview`, `preview_svg`, Presets, `fit_to_length`,
+  Familien per Datei unter `patterns/families/`. Grundmuster: Schalen als ein Strang, Schalenwechsel als
+  S-Kurve (Radius w) ohne Doppelmaterial, Naht in der Mitte eines Eckbogens. ruff grün, 63 Mustertests grün.
