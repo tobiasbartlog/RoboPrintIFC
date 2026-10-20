@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-20T16:30:00+02:00 · Session: lokal (Integration Strang) · Phase: P6, Strang mit Verbindern integriert, Cloud-verify offen
+Herzschlag: 2026-10-20T17:40:00+02:00 · Session: Cloud (verify Strang) · Phase: P6, Strang mit Verbindern, Cloud-verify G1–G8 grün
 
 # PROGRESS — Nachtlauf v2
 
@@ -10,12 +10,12 @@ Ablauf und Regeln stehen in `spec/NACHTLAUF.md`, die Gates in `spec/SPEC.md` §1
 |---|---|---|---|
 | G1 Kinematik | grün | 2000 FK + 2000 IK gegen Pinocchio | P0 Ende |
 | G2 Kollision | grün | 500 Posen; d_rp ≥ 0,5 mm unter d_coal, |Δ| ≤ 4,3 mm (beide ≥ 0) | P1 A1.4 |
-| G3 Referenzmodul S1 | grün | d_min 10,83 mm; 0 coll/unreach | Cloud-verify 19.10. nach Höhensuche |
-| G4 Beispiel-IFC S2 + S3 | grün | S2 172 Module (4 geprüft), check_run 88 s; S3 bestätigt | Cloud-verify 19.10. nach Höhensuche |
-| G5 DRL | grün | fake_drcf S1 + S2 42,5 s | Cloud-verify 19.10. nach Höhensuche |
-| G6 Viewer | grün | e2e 63 s, Uhr-Invariante S1+S3 | Cloud-verify 19.10. nach Höhensuche |
-| G7 Laufzeit | grün | S1 93,2 s, S2 302,5 s | Cloud-verify 19.10. nach Höhensuche |
-| G8 Qualität | grün | ruff, pytest core, web lint/typecheck/test | Cloud-verify 19.10. nach Höhensuche |
+| G3 Referenzmodul S1 | grün | d_min 10,83 mm; 0 coll/unreach; 1 Strang, 79 Verbinder ≤ 3·10⁻¹² mm neben der Geraden; Orakel d_min_lb 11,85 mm | Cloud-verify Strang 20.10. |
+| G4 Beispiel-IFC S2 + S3 | grün | S2 172 Module machbar, je Vertreter 1 Strang; S3 70 464 Kollisionen bestätigt | Cloud-verify Strang 20.10. |
+| G5 DRL | grün | fake_drcf S1 + S2 16,7 s inkl. Pumpen-/Haltregeln je Strang | Cloud-verify Strang 20.10. |
+| G6 Viewer | grün | e2e 52,5 s, Screenshots mit Druckstand nach Fortschritt und Legende „Verbinder“ | Cloud-verify Strang 20.10. |
+| G7 Laufzeit | grün | S1 23,6 s, S2 91,4 s | Cloud-verify Strang 20.10. |
+| G8 Qualität | grün | ruff, pytest core, web lint/typecheck/test | Cloud-verify Strang 20.10. |
 
 ## Ausgangslage (Vorbereitung 2026-10-18)
 
@@ -76,6 +76,16 @@ Diagnose von v1 durch sechs Review-Agenten, Kurzfassung:
   ihn, nur die Selbstprüfungs-Tests (`core/tests/test_selfcheck.py`), die keine Kollision prüfen. Vorschlag: Seed
   J1 = 90° (Arm zur Arbeitsfläche), Nutzerentscheidung, verify/ gesperrt. G2 nutzt denselben Seed nur für Zufallsposen
   und bleibt aussagekräftig (Abstandsvergleich, grün).
+  **Nachtrag 20.10. (Cloud-verify Strang):** Seit dem Strang hängen fünf Selbsttests in
+  `verify/oracle/selftest_check_run.py` am Mini-Lauf und sind mit echtem Pinocchio/Coal rot: `test_minirun_passes`,
+  `test_strand_minirun_passes`, `test_duplicate_checked_once`, `test_hardlinked_duplicate_and_parallel` (je 1183 bzw.
+  1087 Kollisionen link_3 ↔ Tisch, Orakel d_min_lb 0,03 mm) und `test_collision_detected_mode` (Grundlauf kollidiert
+  schon, die erwartete Fehlermeldung „bestaetigt“ fehlt). Gegenprobe ohne Änderung an `verify/` (Seed per
+  pytest-Plugin im Scratchpad gesetzt): Mit `SEED` J1 = +90° statt −90° besteht der Mini-Lauf (alt und Strang, 2
+  Verbinder) mit d_min_lb 10,19 mm und 0 Kollisionen, und `pytest verify` ist vollständig grün (95 passed). Vorschlag:
+  in `verify/oracle/minirun.py` `SEED = np.deg2rad([90.0, 0.0, 90.0, 0.0, 90.0, 0.0])`. Nicht umgesetzt: Die Ursache
+  ist der Testaufbau von vor dem Strang (Nutzerentscheidung oben), und der Hook sperrt Schreibzugriffe auf `verify/`.
+  Kein Gate nutzt den Mini-Lauf; G1–G8 sind grün.
 - **check_run auf S2 nicht ausführbar (Speicher):** `verify/check_run.py` lädt alle Teile gleichzeitig. Gemessen
   3,6 GB Spitze für 20 der 172 S2-Module, hochgerechnet ~30 GB; auf der 16-GB-VM beendet der OOM-Killer den
   Prüfer nach 1086 s (Exit −9, dmesg: anon-rss 13,9 GB). Systemseitig verkleinert A4.6 die Trajektorien; eine
@@ -822,3 +832,46 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   `link_max_mm` = 0. `zweig_wechsel_in_ringen` zählt über unerreichbare Samples hinweg wie das Orakel (offen: die
   Formulierung in ARTEFAKTE eindeutig machen). Kein Befund: Orakel importieren `roboprint` nicht. Lokal: pytest core
   214 passed (nur `test_traversal_symlink`, Windows), `selftest_strand.py` 23 passed, ruff und web grün.
+
+### 2026-10-20 17:40 Cloud-verify Strang
+- Anlass: Abnahme des durchgehenden Strangs mit Verbindern (Stand 99c802c). Cloud-VM 4 vCPU, Python
+  `/opt/fgc-venv` (Pinocchio, Coal), Branch `v2/strang`.
+- Vorab:
+  - `pytest core -q -n 2`: 255 passed, 2 skipped (322 s), jetzt ohne die 14 Pinocchio-Skips.
+  - `ruff check core verify` grün; web ci/lint/typecheck grün, vitest 118 passed (16 Dateien).
+  - `pytest verify -q -n 2`: 90 passed, **5 failed**, alle am Mini-Lauf mit Seed J1 = −90°. Das ist der bekannte
+    Gate-Einwand vom 19.10., keine Folge der Strang-Änderung. Mit Seed J1 = +90° sind alle 95 grün, auch
+    `test_strand_minirun_passes` und die Strang-Negativfälle in `selftest_fake_drcf.py`. Belege und Vorschlag unter
+    „Gate-Einwände“. Nichts an `verify/` geändert.
+- **Voller verify-Lauf: G1–G8 grün** (556 s gesamt, Bericht `runs/verify/report.json`), nichts zu beheben:
+
+| Gate | Ergebnis | Laufzeit | Kernzahlen |
+|---|---|---|---|
+| G1 | grün | 6,0 s | FK/IK gegen Pinocchio |
+| G2 | grün | 33,9 s | Kollisionsabstand gegen Coal |
+| G3 | grün | 23,6 s, check 19,1 s | S1 machbar, d_min 10,83 mm, 0 coll/unreach; 1 Strang, 79 Verbinder, längster 42,43 mm, Abweichung von der Geraden 3,0·10⁻¹² mm; Zweigwechsel im Strang 0; Orakel d_min_lb 11,85 mm, Abdeckung 99,52 %, Bahnabweichung 5·10⁻¹² mm |
+| G4 | grün | S2 91,4 s, check 39,1 s; S3 30,9 s, check 72,9 s | S2 172 Teile, alle machbar, d_min 10,83 mm; Wandvolumen ± 3·10⁻⁶ %, Überlappung 0; Orakel 4 Vertreter voll geprüft (Rest inhaltsgleich), d_min_lb 11,85 mm, 0 Kollisionen, je Vertreter 1 Strang, Zweigwechsel 0; S3 nicht machbar, 70 469 Kollisionen, Orakel bestätigt 70 464 |
+| G5 | grün | 16,7 s | fake_drcf S1 und S2 (v2 und v3), 0 Fehler: Pumpe nur im Strang, an nur am Strangbeginn, aus nur am Strangende, kein Halt im Strang |
+| G6 | grün | 52,5 s | e2e 10 passed; Screenshots unter `web/e2e/screenshots/` aktualisiert (Druckstand nach tatsächlichem Fortschritt, Legende „Verbinder“) |
+| G7 | grün | — | S1 23,6 s (≤ 180), S2 91,4 s (≤ 1800) |
+| G8 | grün | 169,7 s | ruff, pytest core (153,5 s), web lint/typecheck/test |
+
+- **Kennzahlen Strang** (aus `runs/verify`, `check.json` des Orakels und `program.v2.drl`; „Pumpe an“ =
+  `set_analog_output(ch=1, val=5…)`, `wait(` ohne Kommentarzeilen):
+
+| Teil | Ringe | Stränge | Verbinder | längster | max. Abweichung Gerade | dauer_s | Pumpe an | `wait(` | Orakel d_min_lb | Abdeckung |
+|---|---|---|---|---|---|---|---|---|---|---|
+| S1 box_01 | 80 | 1 | 79 | 42,43 mm | 3,0·10⁻¹² mm | 1128,7 s | 1 | 1 | 11,85 mm | 99,52 % |
+| S2 house_left_r0_c0 | 74 | 1 | 73 | 42,43 mm | 3,0·10⁻¹² mm | 1044,5 s | 1 | 1 | 11,85 mm | 99,52 % |
+| S2 house_left_r9_c0 | 53 | 1 | 52 | 42,43 mm | 3,0·10⁻¹² mm | 702,3 s | 1 | 1 | 11,85 mm | 98,38 % |
+| S2 house_right_back_r0_c0 | 76 | 1 | 75 | 42,43 mm | 3,0·10⁻¹² mm | 1072,5 s | 1 | 1 | 11,85 mm | 99,52 % |
+| S2 house_right_back_r5_c0 | 59 | 1 | 58 | 42,43 mm | 3,0·10⁻¹² mm | 786,5 s | 1 | 1 | 11,85 mm | 98,38 % |
+
+  - S1 trifft die lokalen Werte genau (1 Strang, 79 Verbinder, dauer_s 1128,7 s). Summe der vier S2-Vertreter
+    3605,8 s wie lokal.
+  - `set_analog_output(ch=1, val=0.0)` steht in S1 viermal: Prolog, Strangende, Abschluss- und Fehlersequenz.
+- Vergleich zum Lauf 2026-10-20 14:13: S1 31,9 → 23,6 s, S2 119,0 → 91,4 s, gesamt 683 → 556 s (weniger Travel zu
+  planen und zu prüfen). Orakel-d_min_lb unverändert 11,85 mm. S3: 75 783 → 70 469 Kollisionen (Strang statt
+  Einzelringe), Orakel bestätigt 70 464 (vorher 75 778).
+- Offene Punkte der Umsetzer (Eintrag 16:30, Punkte 1–10) bleiben beim Nutzer; die Cloud-Prüfung hat keinen davon
+  rot gemacht.
