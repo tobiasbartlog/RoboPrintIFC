@@ -426,27 +426,102 @@ def fillet_polyline(
     if n < 3 or radius_mm <= 0:
         out = np.vstack([p, p[:1]]) if closed else p
         return out, math.inf
-    idx = range(n) if closed else range(1, n - 1)
-    pieces: dict[int, np.ndarray] = {}
+    # Alle Ecken auf einmal, bitgleich zur Rechnung Ecke für Ecke: Skalarprodukte über gestapeltes
+    # matmul (dieselbe BLAS-Routine wie `u @ v`), elementweise Arithmetik in derselben Reihenfolge,
+    # Winkelfunktionen über `math` je Ecke wie in `tangent_arc`/`arc_points`.
+    i = np.arange(n) if closed else np.arange(1, n - 1)
+    a, b, c = p[i - 1], p[i], p[(i + 1) % n]
+    u, v = b - a, c - b
+    la, lb = np.sqrt(_rowdot(u, u)), np.sqrt(_rowdot(v, v))
+    u, v = u / la[:, None], v / lb[:, None]
+    th = np.array([math.acos(x) for x in np.clip(_rowdot(u, v), -1.0, 1.0).tolist()])
+    sel = np.array([math.degrees(x) >= min_turn_deg for x in th.tolist()], bool)
+    if not np.any(sel):
+        out = np.vstack([p, p[:1]]) if closed else p
+        return dedupe(out), math.inf
+    i, b, u, v = i[sel], b[sel], u[sel], v[sel]
+    tl_list: list[float] = []
     rmin = math.inf
-    for i in idx:
-        a, b, c = p[i - 1], p[i], p[(i + 1) % n]
-        u, v = b - a, c - b
-        la, lb = float(np.linalg.norm(u)), float(np.linalg.norm(v))
-        u, v = u / la, v / lb
-        th = math.acos(float(np.clip(u @ v, -1.0, 1.0)))
-        if math.degrees(th) < min_turn_deg:
-            continue
-        tan_h = math.tan(th / 2.0)
-        tl = min(radius_mm * tan_h, 0.5 * la, 0.5 * lb)
-        r = tl / tan_h
-        rmin = min(rmin, r)
-        arc, _ = tangent_arc(b - tl * u, u, b + tl * v, chord_tol_mm, step_mm)
-        pieces[i] = arc
-    out: list[np.ndarray] = []
-    for i in range(n):
-        out.append(pieces.get(i, p[i : i + 1]))
-    res = np.vstack(out)
+    for t, x, y in zip(th[sel].tolist(), la[sel].tolist(), lb[sel].tolist(), strict=True):
+        tan_h = math.tan(t / 2.0)
+        tl = min(radius_mm * tan_h, 0.5 * x, 0.5 * y)
+        rmin = min(rmin, tl / tan_h)
+        tl_list.append(tl)
+    tl_arr = np.array(tl_list)[:, None]
+    arcs, sizes = _corner_arcs(b - tl_arr * u, u, b + tl_arr * v, chord_tol_mm, step_mm)
+    # Zusammensetzen: Ecke i → Bogen, sonst der Punkt selbst
+    counts = np.ones(n, int)
+    counts[i] = sizes
+    res = np.empty((int(counts.sum()), 2))
+    start = np.concatenate([[0], np.cumsum(counts)[:-1]])
+    plain = np.ones(n, bool)
+    plain[i] = False
+    res[start[plain]] = p[plain]
+    res[np.repeat(start[i], sizes) + _ramp(sizes)] = arcs
     if closed:
         res = np.vstack([res, res[:1]])
     return dedupe(res), rmin
+
+
+def _rowdot(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Zeilenweise `a[k] @ b[k]`, bitgleich zum Einzelaufruf (gestapeltes matmul)."""
+    return np.matmul(a[:, None, :], b[:, :, None])[:, 0, 0]
+
+
+def _ramp(sizes: np.ndarray) -> np.ndarray:
+    """0, 1, …, sizes[0] − 1, 0, 1, …, sizes[1] − 1, …"""
+    return np.arange(int(sizes.sum())) - np.repeat(np.cumsum(sizes) - sizes, sizes)
+
+
+def _corner_arcs(
+    a: np.ndarray, ta: np.ndarray, b: np.ndarray, chord_tol_mm: float, step_mm: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """`tangent_arc(a[k], ta[k], b[k])[0]` für alle k (bitgleich); Rückgabe (alle Punkte
+    hintereinander, Punktzahl je k). Entartete Bögen (Geraden) laufen über `tangent_arc`."""
+    c = b - a
+    nrm = np.column_stack([-ta[:, 1], ta[:, 0]])
+    den = 2.0 * _rowdot(nrm, c)
+    cc = _rowdot(c, c)
+    if np.any(np.abs(den) < 1e-12 * np.maximum(1.0, cc)):
+        pieces = [tangent_arc(a[k], ta[k], b[k], chord_tol_mm, step_mm)[0] for k in range(len(a))]
+        return np.vstack(pieces), np.array([len(q) for q in pieces], int)
+    rs = cc / den
+    ctr = a + rs[:, None] * nrm
+    va, vb = a - ctr, b - ctr
+    cross = va[:, 0] * vb[:, 1] - va[:, 1] * vb[:, 0]
+    a0_l, sw_l, r_l, cnt_l = [], [], [], []
+    for cr, dt, r_s, x, y in zip(
+        cross.tolist(),
+        _rowdot(va, vb).tolist(),
+        rs.tolist(),
+        va[:, 0].tolist(),
+        va[:, 1].tolist(),
+        strict=True,
+    ):
+        sweep = math.atan2(cr, dt)
+        if r_s > 0 and sweep < 0:
+            sweep += 2 * math.pi
+        elif r_s < 0 and sweep > 0:
+            sweep -= 2 * math.pi
+        r = abs(r_s)
+        dphi = math.pi / 2
+        if r > chord_tol_mm:
+            dphi = min(dphi, 2.0 * math.acos(1.0 - chord_tol_mm / r))
+        if r > 0:
+            dphi = min(dphi, 2.0 * math.asin(min(1.0, step_mm / (2.0 * r))))
+        a0_l.append(math.atan2(y, x))
+        sw_l.append(sweep)
+        r_l.append(r)
+        cnt_l.append(max(1, math.ceil(abs(sweep) / dphi - 1e-9)))
+    cnt = np.array(cnt_l, int)
+    sizes = cnt + 1
+    rep = np.repeat(np.arange(len(cnt)), sizes)
+    ang = np.array(a0_l)[rep] + np.array(sw_l)[rep] * _ramp(sizes) / cnt[rep]
+    r_rep = np.array(r_l)[rep]
+    pts = np.empty((len(rep), 2))
+    pts[:, 0] = ctr[rep, 0] + r_rep * np.cos(ang)
+    pts[:, 1] = ctr[rep, 1] + r_rep * np.sin(ang)
+    last = np.cumsum(sizes) - 1
+    pts[last - cnt] = a  # Anfang und Ende exakt (wie `tangent_arc`)
+    pts[last] = b
+    return pts, sizes
