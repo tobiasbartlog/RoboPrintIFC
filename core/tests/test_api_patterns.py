@@ -192,8 +192,11 @@ def test_presets_save_list_get_overwrite(tmp_path):
         assert entry.id == "fugen-test-ue" and entry.source == "user"
         assert (presets / "fugen-test-ue.json").is_file()
         assert pt.load_preset(presets / "fugen-test-ue.json")["params"]["shells"] == 1  # Kernformat
-        ids = [e["id"] for e in client.get("/api/patterns/presets").json()]
-        assert ids[0] == "schalen" and "fugen-test-ue" in ids  # mitgelieferte zuerst
+        entries = client.get("/api/patterns/presets").json()
+        ids = [e["id"] for e in entries]
+        assert "schalen" in ids and "fugen-test-ue" in ids
+        sources = [e["source"] for e in entries]
+        assert sources == sorted(sources, key=lambda s: s != "builtin")  # mitgelieferte zuerst
         got = client.get("/api/patterns/presets/fugen-test-ue").json()
         assert got["preset"]["outline"] == {"length_mm": 900.0, "thickness_mm": 200.0}
         # gleiche id überschreibt die eigene Vorlage
