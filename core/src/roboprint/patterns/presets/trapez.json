@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "name": "Trapezwelle",
+  "pattern": "trapez",
+  "params": {
+    "bead_width_mm": 30.0,
+    "layer_height_mm": 10.0,
+    "shells": 2,
+    "layer_order": "alternate",
+    "wavelength_mm": 250.0,
+    "phase_deg": 0.0,
+    "contact_overlap_pct": 5.0,
+    "round_radius_mm": 30.0,
+    "plateau_mm": 60.0
+  },
+  "outline": {
+    "length_mm": 600.0,
+    "thickness_mm": 200.0
+  },
+  "description": "Trapezwelle mit 60-mm-Plateaus an den Schalen (lange Kontaktzonen)."
+}

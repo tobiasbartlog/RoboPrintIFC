@@ -1,0 +1,6 @@
+# Lint-Konfiguration fuer verify_muster/ (gleiche Regeln wie verify/ruff.toml).
+line-length = 110
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]

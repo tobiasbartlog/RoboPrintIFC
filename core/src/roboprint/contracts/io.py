@@ -8,7 +8,21 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
-from .api import Example, Health, JobCreate, JobCreated, JobState, ProjectCreate, ProjectCreated, ProjectInfo
+from .api import (
+    Example,
+    Health,
+    JobCreate,
+    JobCreated,
+    JobState,
+    PatternCatalog,
+    PatternPresetCreate,
+    PatternPresetEntry,
+    PatternPreview,
+    PatternPreviewRequest,
+    ProjectCreate,
+    ProjectCreated,
+    ProjectInfo,
+)
 from .artifacts import PartArtifact, Scene, Summary, Toolpath, Trajectory
 from .scenario import Scenario
 
@@ -18,6 +32,7 @@ M = TypeVar("M", bound=BaseModel)
 TOP_LEVEL_MODELS: tuple[type[BaseModel], ...] = (
     Summary, Scene, PartArtifact, Toolpath, Trajectory, Scenario,
     Health, Example, ProjectCreate, ProjectCreated, ProjectInfo, JobCreate, JobCreated, JobState,
+    PatternCatalog, PatternPreviewRequest, PatternPreview, PatternPresetCreate, PatternPresetEntry,
 )  # fmt: skip
 
 

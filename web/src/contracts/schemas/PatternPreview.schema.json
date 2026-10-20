@@ -1,0 +1,1206 @@
+{
+  "$defs": {
+    "PatternArrow": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "dir": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "at",
+        "dir"
+      ],
+      "title": "PatternArrow",
+      "type": "object"
+    },
+    "PatternCell": {
+      "additionalProperties": false,
+      "properties": {
+        "area_mm2": {
+          "type": "number"
+        },
+        "at": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "span_mm": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "area_mm2",
+        "span_mm",
+        "at"
+      ],
+      "title": "PatternCell",
+      "type": "object"
+    },
+    "PatternConnector": {
+      "additionalProperties": false,
+      "description": "Gerader Verbinder zwischen zwei Segmenten (Länge 0, wenn sie aneinanderstoßen).",
+      "properties": {
+        "from": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "length_mm": {
+          "type": "number"
+        },
+        "to": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "length_mm"
+      ],
+      "title": "PatternConnector",
+      "type": "object"
+    },
+    "PatternContact": {
+      "additionalProperties": false,
+      "description": "Kontaktzone (Fuge, Knoten, Steg an Schale); `overlap_mm` = w − Mittellinienabstand.",
+      "properties": {
+        "at": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "distance_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "joint",
+            "node",
+            "shell"
+          ],
+          "type": "string"
+        },
+        "length_mm": {
+          "type": "number"
+        },
+        "overlap_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "segments": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "at",
+        "length_mm",
+        "segments",
+        "distance_mm",
+        "overlap_mm"
+      ],
+      "title": "PatternContact",
+      "type": "object"
+    },
+    "PatternContactSum": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "length_mm": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "count",
+        "length_mm"
+      ],
+      "title": "PatternContactSum",
+      "type": "object"
+    },
+    "PatternFit": {
+      "additionalProperties": false,
+      "description": "Ergebnis von `fit_to_length` aus den Musterdaten: tatsächliche Feldzahl und Feldlänge.",
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "deviation_mm": {
+          "type": "number"
+        },
+        "island": {
+          "type": "integer"
+        },
+        "key": {
+          "description": "Ort in `meta` des Pfads, z. B. `fit` oder `fit_back`",
+          "type": "string"
+        },
+        "length_mm": {
+          "type": "number"
+        },
+        "positions_mm": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "target_mm": {
+          "type": "number"
+        },
+        "total_mm": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "island",
+        "key",
+        "count",
+        "length_mm",
+        "total_mm",
+        "target_mm",
+        "deviation_mm",
+        "positions_mm"
+      ],
+      "title": "PatternFit",
+      "type": "object"
+    },
+    "PatternLayerChange": {
+      "additionalProperties": false,
+      "properties": {
+        "distance_mm": {
+          "type": "number"
+        },
+        "from": {
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "vertical",
+            "restart",
+            "diagonal"
+          ],
+          "type": "string"
+        },
+        "to": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "distance_mm",
+        "status"
+      ],
+      "title": "PatternLayerChange",
+      "type": "object"
+    },
+    "PatternMetrics": {
+      "additionalProperties": false,
+      "description": "Kennzahlen der Schicht (Summe über alle Inseln) und je Insel (`paths`).",
+      "properties": {
+        "cells": {
+          "items": {
+            "$ref": "#/$defs/PatternCell"
+          },
+          "type": "array"
+        },
+        "contact_length_mm": {
+          "type": "number"
+        },
+        "contacts": {
+          "type": "integer"
+        },
+        "contacts_per_m": {
+          "type": "number"
+        },
+        "joint_spacing_mm": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "longest_straight_outer_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "material_l_per_m2": {
+          "type": "number"
+        },
+        "material_l_per_m_layer": {
+          "type": "number"
+        },
+        "min_clearance_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_radius_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path_length_mm": {
+          "type": "number"
+        },
+        "paths": {
+          "items": {
+            "$ref": "#/$defs/PatternPathMetrics"
+          },
+          "type": "array"
+        },
+        "print_time_s": {
+          "type": "number"
+        },
+        "shell_coverage": {
+          "description": "kleinste Abdeckung des Schalenbereichs über alle Inseln, 0..1",
+          "type": "number"
+        },
+        "strands": {
+          "type": "integer"
+        },
+        "v_print_mm_s": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "path_length_mm",
+        "print_time_s",
+        "v_print_mm_s",
+        "strands",
+        "material_l_per_m_layer",
+        "material_l_per_m2",
+        "contacts",
+        "contact_length_mm",
+        "contacts_per_m",
+        "joint_spacing_mm",
+        "longest_straight_outer_mm",
+        "min_radius_mm",
+        "min_clearance_mm",
+        "shell_coverage",
+        "cells",
+        "paths"
+      ],
+      "title": "PatternMetrics",
+      "type": "object"
+    },
+    "PatternNextLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "layer": {
+          "type": "integer"
+        },
+        "paths": {
+          "items": {
+            "$ref": "#/$defs/PatternPath"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "layer",
+        "paths"
+      ],
+      "title": "PatternNextLayer",
+      "type": "object"
+    },
+    "PatternOutlineOut": {
+      "additionalProperties": false,
+      "properties": {
+        "bounds": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "polygons": {
+          "items": {
+            "$ref": "#/$defs/PatternOutlinePolygonOut"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "polygons",
+        "bounds"
+      ],
+      "title": "PatternOutlineOut",
+      "type": "object"
+    },
+    "PatternOutlinePolygonOut": {
+      "additionalProperties": false,
+      "properties": {
+        "exterior": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "holes": {
+          "items": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "exterior",
+        "holes"
+      ],
+      "title": "PatternOutlinePolygonOut",
+      "type": "object"
+    },
+    "PatternPath": {
+      "additionalProperties": false,
+      "description": "Ein Strang einer Schicht und Insel, Segmente in Druckreihenfolge.",
+      "properties": {
+        "closed": {
+          "type": "boolean"
+        },
+        "connectors": {
+          "items": {
+            "$ref": "#/$defs/PatternConnector"
+          },
+          "type": "array"
+        },
+        "declared_contacts": {
+          "items": {
+            "$ref": "#/$defs/PatternContact"
+          },
+          "type": "array"
+        },
+        "direction": {
+          "enum": [
+            "out_in",
+            "in_out"
+          ],
+          "type": "string"
+        },
+        "end": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "island": {
+          "type": "integer"
+        },
+        "layer": {
+          "type": "integer"
+        },
+        "length_mm": {
+          "type": "number"
+        },
+        "meta": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "restart": {
+          "type": "boolean"
+        },
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/PatternSegment"
+          },
+          "type": "array"
+        },
+        "start": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "layer",
+        "island",
+        "direction",
+        "restart",
+        "closed",
+        "start",
+        "end",
+        "segments",
+        "connectors",
+        "length_mm",
+        "meta",
+        "declared_contacts"
+      ],
+      "title": "PatternPath",
+      "type": "object"
+    },
+    "PatternPathMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "cells": {
+          "items": {
+            "$ref": "#/$defs/PatternCell"
+          },
+          "type": "array"
+        },
+        "connectors_mm": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "contact_length_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contact_lengths_mm": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "contacts": {
+          "type": "integer"
+        },
+        "contacts_by_kind": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PatternContactSum"
+          },
+          "type": "object"
+        },
+        "contacts_per_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "direction": {
+          "type": "string"
+        },
+        "end": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "island": {
+          "type": "integer"
+        },
+        "joint_spacing_mm": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "joint_x_mm": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "layer": {
+          "type": "integer"
+        },
+        "longest_straight_outer_at": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "longest_straight_outer_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "material_l_per_m2": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "material_l_per_m_layer": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_cell_area_mm2": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_cell_span_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_chord_error_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_clearance_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_radius_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "n_cells": {
+          "type": "integer"
+        },
+        "n_segments": {
+          "type": "integer"
+        },
+        "path_length_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "print_time_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shell_coverage": {
+          "description": "Abdeckung des Schalenbereichs, 0..1 (Maß wie G3)",
+          "type": "number"
+        },
+        "start": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "layer",
+        "island",
+        "direction",
+        "path_length_mm",
+        "print_time_s",
+        "n_segments",
+        "connectors_mm",
+        "min_clearance_mm",
+        "min_radius_mm",
+        "max_chord_error_mm",
+        "shell_coverage",
+        "contacts",
+        "contacts_by_kind",
+        "contact_length_mm",
+        "contacts_per_m",
+        "contact_lengths_mm",
+        "longest_straight_outer_mm",
+        "longest_straight_outer_at",
+        "joint_x_mm",
+        "joint_spacing_mm",
+        "cells",
+        "n_cells",
+        "max_cell_area_mm2",
+        "max_cell_span_mm",
+        "material_l_per_m_layer",
+        "material_l_per_m2",
+        "start",
+        "end"
+      ],
+      "title": "PatternPathMetrics",
+      "type": "object"
+    },
+    "PatternResolved": {
+      "additionalProperties": false,
+      "properties": {
+        "full": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "infill": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outfill": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "full",
+        "outfill",
+        "infill"
+      ],
+      "title": "PatternResolved",
+      "type": "object"
+    },
+    "PatternSegment": {
+      "additionalProperties": false,
+      "properties": {
+        "arrows": {
+          "items": {
+            "$ref": "#/$defs/PatternArrow"
+          },
+          "type": "array"
+        },
+        "closed": {
+          "type": "boolean"
+        },
+        "end": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "end_dir": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "outer",
+            "inner",
+            "hole",
+            "infill",
+            "web",
+            "outfill"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "length_mm": {
+          "type": "number"
+        },
+        "points": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "shell": {
+          "type": "integer"
+        },
+        "start": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "start_dir": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "index",
+        "kind",
+        "shell",
+        "label",
+        "closed",
+        "points",
+        "start",
+        "end",
+        "start_dir",
+        "end_dir",
+        "length_mm",
+        "arrows"
+      ],
+      "title": "PatternSegment",
+      "type": "object"
+    },
+    "PatternSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "infill": {
+          "type": "string"
+        },
+        "layer_order": {
+          "enum": [
+            "same",
+            "alternate"
+          ],
+          "type": "string"
+        },
+        "outfill": {
+          "type": "string"
+        },
+        "resolved": {
+          "$ref": "#/$defs/PatternResolved"
+        }
+      },
+      "required": [
+        "infill",
+        "outfill",
+        "layer_order",
+        "resolved"
+      ],
+      "title": "PatternSelection",
+      "type": "object"
+    },
+    "PatternTiming": {
+      "additionalProperties": false,
+      "properties": {
+        "api": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Gesamtzeit der Anfrage im Server (ms)"
+        },
+        "measure": {
+          "type": "number"
+        },
+        "plan": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "plan",
+        "measure",
+        "total",
+        "api"
+      ],
+      "title": "PatternTiming",
+      "type": "object"
+    },
+    "PatternViolation": {
+      "additionalProperties": false,
+      "description": "Verstoß gegen M1–M7: `error` macht das Muster ungültig, `warn` ist eine Zielverfehlung.",
+      "properties": {
+        "at": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "island": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "layer": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "rule": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warn"
+          ],
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "rule",
+        "severity",
+        "layer",
+        "island",
+        "at",
+        "value",
+        "limit",
+        "message"
+      ],
+      "title": "PatternViolation",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Antwort von `POST /api/patterns/preview`: Schicht `layer` und Folgeschicht (blass).",
+  "properties": {
+    "contacts": {
+      "items": {
+        "$ref": "#/$defs/PatternContact"
+      },
+      "type": "array"
+    },
+    "fit": {
+      "items": {
+        "$ref": "#/$defs/PatternFit"
+      },
+      "type": "array"
+    },
+    "layer": {
+      "type": "integer"
+    },
+    "layer_change": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PatternLayerChange"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "metrics": {
+      "$ref": "#/$defs/PatternMetrics"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "next_layer": {
+      "$ref": "#/$defs/PatternNextLayer"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "outline": {
+      "$ref": "#/$defs/PatternOutlineOut"
+    },
+    "params": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "type": "object"
+    },
+    "paths": {
+      "items": {
+        "$ref": "#/$defs/PatternPath"
+      },
+      "type": "array"
+    },
+    "pattern": {
+      "$ref": "#/$defs/PatternSelection"
+    },
+    "schema_version": {
+      "type": "integer"
+    },
+    "timing_ms": {
+      "$ref": "#/$defs/PatternTiming"
+    },
+    "violations": {
+      "items": {
+        "$ref": "#/$defs/PatternViolation"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "name",
+    "layer",
+    "pattern",
+    "params",
+    "outline",
+    "paths",
+    "next_layer",
+    "layer_change",
+    "contacts",
+    "violations",
+    "ok",
+    "metrics",
+    "fit",
+    "timing_ms"
+  ],
+  "title": "PatternPreview",
+  "type": "object"
+}
