@@ -98,8 +98,9 @@ Länge 0 in der Schicht ein `link`-Sample und für den senkrechten Schichtwechse
   Punkte entfallen.
 - `link_next` zwischen allen aufeinanderfolgenden Ringen nach derselben Regel wie ohne Muster
   (`slicer.link_allowed`, SPEC §5.3). Mit `alternate` liegen Ende von L und Anfang von L + 1
-  waagrecht übereinander (≤ 10⁻⁹ mm, Fall `Point`): senkrechter Schichtwechsel. Mit `same` bleibt
-  der Schichtwechsel ein gewöhnlicher (diagonaler) Verbinder, wenn er ≤ `link_max_mm` ist.
+  waagrecht übereinander (≤ 10⁻⁹ mm, Fall `Point`): senkrechter Schichtwechsel. Mit ausdrücklich
+  gesetztem `same` bleibt der Schichtwechsel ein gewöhnlicher (diagonaler) Verbinder, wenn er
+  ≤ `link_max_mm` ist (M4-Fehler, nur zum Vergleich).
   Ändert sich der Querschnitt (`restart` im Kern), entscheidet dieselbe Regel (Verbinder oder Travel).
 - `link_max_mm = 0` schaltet auch die Musterverbinder ab (jeder Ring ein eigener Strang, M1 verletzt;
   so gewollt, damit die Bedeutung des Parameters gleich bleibt).
@@ -118,10 +119,18 @@ Länge 0 in der Schicht ein `link`-Sample und für den senkrechten Schichtwechse
 `pattern_preset` (Pfad zu einem Preset-JSON, relativ zum Repo, z. B.
 `core/src/roboprint/patterns/presets/fugenwand.json` oder `docs/muster/presets/fugenwand_gurt.json`),
 `shells` (wie bisher). Rangfolge: Preset → Szenariowerte, die vom Standard abweichen →
-`pattern_params`. w, h, `step_mm` und `link_max_mm` kommen immer aus dem Szenario. Unbekannte
+`pattern_params`. `layer_order` fehlt (intern leer): ohne Muster heutige Folge, mit Muster die des
+Presets bzw. des Kerns (`alternate`, M4); ausdrücklich gesetzt gilt es auch gegen das Preset.
+`layer_order = same` allein ist kein Muster (Gegenprüfung M3.1: vorher ergab z. B.
+`infill_pattern = sinus` ohne `layer_order` die Folge `same`, also auf 600 × 200 einen diagonalen
+Schichtwechsel von 504 mm als Travel). w, h, `step_mm` und `link_max_mm` kommen immer aus dem Szenario. Unbekannte
 Muster oder widersprüchliche Kombinationen (z. B. Fugenwand plus Infill) sind ein Fehler beim Start.
 
 **summary.json und DRL:** `summary.params` führt die Musterparameter nur, wenn sie gesetzt sind
 (`pattern_params` als JSON-Text, damit `params` skalar bleibt). `summary.assumptions` bekommt dann
 eine Zeile „Druckmuster (opt-in, A): Schichtfolge …, Infill …, Outfill …, Parameter …“, der
-DRL-Kopf einen Block „A Schichtfolge / A Muster / A Muster-Preset / A Musterparameter“.
+DRL-Kopf einen Block „A Schichtfolge / A Muster / A Muster-Preset / A Musterparameter“. Schichtfolge
+und Muster stehen dort aufgelöst (aus `Toolpath.pattern`), also auch bei einem Preset richtig.
+
+**Vertragsname:** Das Objekt `Toolpath.pattern` heißt im Schema `ToolpathPattern` (der Katalog-Eintrag
+der Muster-API heißt `PatternInfo`; beide kamen beim Merge von `v2/muster` zusammen).

@@ -292,16 +292,19 @@ def _header(pp: PlannedPart, dialect: str, steps: list[Step]) -> list[str]:
         f"  A Dialekt                   {dialect} (Firmware am Teach Pendant pruefen)",
     ]
     pattern = {k: pp.run_params[k] for k in PATTERN_KEYS if k in pp.run_params}
-    if pattern:  # Druckmuster (opt-in, docs/muster/ARTEFAKT-FORMAT.md); ohne Muster keine Zeile
+    info = getattr(pp.toolpath, "pattern", None)  # aufgelöst (Preset, Szenario, Kern); ohne Muster None
+    if pattern or info is not None:  # Druckmuster (opt-in, docs/muster/ARTEFAKT-FORMAT.md)
+        order = info.layer_order if info else pattern.get("layer_order") or "same"
+        infill = info.infill if info else pattern.get("infill_pattern", "none")
+        outfill = info.outfill if info else pattern.get("outfill_pattern", "none")
         lines += [
-            f"  A Schichtfolge              {pattern.get('layer_order', 'same')} (Druckmuster, opt-in)",
-            f"  A Muster                    Infill {pattern.get('infill_pattern', 'none')}, "
-            f"Outfill {pattern.get('outfill_pattern', 'none')}",
+            f"  A Schichtfolge              {order} (Druckmuster, opt-in)",
+            f"  A Muster                    Infill {infill}, Outfill {outfill}",
         ]
         if "pattern_preset" in pattern:
             lines.append(f"  A Muster-Preset             {pattern['pattern_preset']}")
         if "pattern_params" in pattern:
-            lines.append(f"  A Musterparameter          {pattern['pattern_params']}")
+            lines.append(f"  A Musterparameter           {pattern['pattern_params']}")
     known = {f.name for f in fields(DrlParams)} | set(PATTERN_KEYS)
     extra = {k: v for k, v in pp.run_params.items() if k not in known}
     if extra:

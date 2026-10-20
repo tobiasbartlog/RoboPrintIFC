@@ -2,7 +2,8 @@
 
 Format nach docs/muster/ARTEFAKT-FORMAT.md (Nachtrag M3). Nur aktiv, wenn ein Musterparameter vom
 Standard abweicht (`layer_order = alternate`, `infill_pattern`, `outfill_pattern`, `pattern_params`
-oder `pattern_preset`); sonst schneidet `roboprint.slicer` wie bisher (SPEC §5.1).
+oder `pattern_preset`); sonst schneidet `roboprint.slicer` wie bisher (SPEC §5.1). `layer_order = same`
+allein ist kein Muster (das ist die heutige Schichtfolge).
 
 Festlegungen
 - Die Querschnitte des **ganzen Teils** (alle Schichten, Frame P, bei (L + 0,5)·h) gehen an
@@ -24,6 +25,9 @@ Festlegungen
   L + 1 waagrecht übereinander (Fall `Point`, reiner Z-Hub um h).
 - Präzedenz der Parameter: Preset → Szenariowerte, die vom Standard abweichen → `pattern_params`.
   w, h, step_mm und link_max_mm kommen immer aus dem Szenario (die Planung nutzt dieselben).
+- Schichtfolge: `layer_order` leer (Standard) heißt „nicht gesetzt“: mit Muster gilt dann die des
+  Presets bzw. des Kerns (`alternate`, senkrechter Schichtwechsel nach M4). Ein ausdrücklich
+  gesetztes `same` oder `alternate` gilt immer, auch gegen das Preset.
 """
 
 from __future__ import annotations
@@ -45,7 +49,7 @@ JOIN_TOL_MM = 1e-6
 DUP_TOL_MM = 1e-9
 #: Standardwerte der Musterparameter in SliceParams (= kein Muster)
 PATTERN_FIELDS: dict[str, Any] = {
-    "layer_order": "same",
+    "layer_order": "",
     "infill_pattern": "none",
     "outfill_pattern": "none",
     "pattern_params": "",
@@ -55,9 +59,18 @@ PATTERN_FIELDS: dict[str, Any] = {
 SHELLS_DEFAULT = 2
 
 
-def uses_pattern(p: SliceParams) -> bool:
-    """True, wenn ein Musterparameter vom Standard abweicht."""
-    return any(getattr(p, k) != v for k, v in PATTERN_FIELDS.items())
+#: Schichtfolgen; "" = nicht gesetzt (ohne Muster wie `same`, mit Muster Preset bzw. Kern)
+LAYER_ORDERS = ("", "same", "alternate")
+
+
+def uses_pattern(p: Any) -> bool:
+    """True, wenn ein Musterparameter vom Standard abweicht (SliceParams oder PlannerParams).
+    `layer_order = same` allein ist die heutige Schichtfolge und kein Muster."""
+    if p.layer_order not in LAYER_ORDERS:
+        raise ValueError(f"layer_order = {p.layer_order!r}, erlaubt {LAYER_ORDERS[1:]}")
+    return p.layer_order == "alternate" or any(
+        getattr(p, k) != v for k, v in PATTERN_FIELDS.items() if k != "layer_order"
+    )
 
 
 def resolve_preset_path(path: str) -> Path:
@@ -79,11 +92,11 @@ def pattern_params(p: SliceParams) -> PatternParams | None:
     from roboprint.patterns import load_preset, params_from_dict, preset_params
     from roboprint.patterns.plan import resolve_patterns
 
-    data: dict[str, Any] = {"layer_order": p.layer_order}
+    data: dict[str, Any] = {}
     if p.pattern_preset:
         data = preset_params(load_preset(resolve_preset_path(p.pattern_preset))).to_dict()
-        if p.layer_order != PATTERN_FIELDS["layer_order"]:
-            data["layer_order"] = p.layer_order
+    if p.layer_order:  # ausdrücklich gesetzt; sonst Preset bzw. Kern (alternate)
+        data["layer_order"] = p.layer_order
     if p.infill_pattern != "none":
         data["infill"] = p.infill_pattern
     if p.outfill_pattern != "none":

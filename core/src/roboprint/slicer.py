@@ -65,7 +65,7 @@ class SliceParams:
     approach_mm: float = 20.0
     link_max_mm: float = 60.0  # längster Verbinder (SPEC §5.3); <= 0: keine Verbinder
     # Druckmuster (opt-in, roboprint.slicer_patterns); Standard = kein Muster
-    layer_order: str = "same"  # same | alternate
+    layer_order: str = ""  # "" (nicht gesetzt) | same | alternate
     infill_pattern: str = "none"
     outfill_pattern: str = "none"
     pattern_params: str = ""  # JSON-Objekt als Text

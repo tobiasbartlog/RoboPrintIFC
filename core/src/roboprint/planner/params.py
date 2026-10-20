@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 
 from roboprint import params as speeds
+from roboprint import slicer_patterns
 
 
 @dataclass(frozen=True)
@@ -62,8 +63,9 @@ class PlannerParams:
     # Druckmuster (opt-in, docs/muster/ARTEFAKT-FORMAT.md). Alle auf dem Standard: Slicer wie bisher
     # (SPEC §5.1). `pattern_params` ist ein JSON-Objekt als Text (sortierte Schluessel), damit die
     # Parameter hashbar bleiben und in summary.params passen; `pattern_preset` ein Pfad zu einem
-    # Preset-JSON (roboprint.patterns.load_preset), relativ zum Repo oder absolut.
-    layer_order: str = "same"
+    # Preset-JSON (roboprint.patterns.load_preset), relativ zum Repo oder absolut. `layer_order` leer:
+    # nicht gesetzt (ohne Muster heutige Folge, mit Muster die des Presets bzw. `alternate`, M4).
+    layer_order: str = ""
     infill_pattern: str = "none"
     outfill_pattern: str = "none"
     pattern_params: str = ""
@@ -71,13 +73,13 @@ class PlannerParams:
 
     def __post_init__(self) -> None:
         check_spot(self.spot_x_mm, self.spot_y_mm)
-        if self.layer_order not in LAYER_ORDERS:
-            raise ValueError(f"layer_order = {self.layer_order!r}, erlaubt {LAYER_ORDERS}")
+        slicer_patterns.uses_pattern(self)  # prüft layer_order
 
     @property
     def uses_pattern(self) -> bool:
-        """True, wenn ein Musterparameter vom Standard abweicht (Slicer plant dann mit Muster)."""
-        return any(getattr(self, k) != v for k, v in PATTERN_DEFAULTS.items())
+        """True, wenn ein Musterparameter vom Standard abweicht (Slicer plant dann mit Muster);
+        dieselbe Regel wie im Slicer (`slicer_patterns.uses_pattern`)."""
+        return slicer_patterns.uses_pattern(self)
 
     @property
     def psi_grid(self) -> np.ndarray:
@@ -95,15 +97,8 @@ class PlannerParams:
         return out
 
 
-LAYER_ORDERS = ("same", "alternate")
 #: Musterparameter und ihre Standardwerte (= kein Muster, Verhalten wie SPEC §5.1)
-PATTERN_DEFAULTS: dict[str, str] = {
-    "layer_order": "same",
-    "infill_pattern": "none",
-    "outfill_pattern": "none",
-    "pattern_params": "",
-    "pattern_preset": "",
-}
+PATTERN_DEFAULTS: dict[str, str] = slicer_patterns.PATTERN_FIELDS
 
 
 def pattern_params_json(value: Any) -> str:

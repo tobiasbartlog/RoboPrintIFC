@@ -299,3 +299,98 @@ def test_link_allowed_vertical_point_case() -> None:
     # mit link_max_mm = 0 sind auch Musterverbinder aus (jeder Ring ein eigener Strang)
     off = slice_part(_box(600.0, 200.0, 20.0), replace(SliceParams(layer_order="alternate"), link_max_mm=0.0))
     assert not any(r.link_next for r in off.rings)
+
+
+# --------------------------------------------------------------------------- Gegenprüfung M3.1
+
+
+def _window_wall():
+    """1200 x 200 x 200 mit Öffnung x -200..200, z 60..150: Schichten 6..14 haben zwei Inseln."""
+    import trimesh
+
+    hole = trimesh.creation.box(extents=[400.0, 400.0, 90.0])
+    hole.apply_translation([0.0, 0.0, 105.0])
+    return _box(1200.0, 200.0, 200.0).difference(hole)
+
+
+def test_layer_order_unset_means_alternate_with_pattern() -> None:
+    """Ohne `layer_order` gilt mit Muster die Schichtfolge des Kerns bzw. Presets (alternate, M4);
+    `same` allein ist die heutige Folge und kein Muster."""
+    assert SliceParams().layer_order == "" and PlannerParams().layer_order == ""
+    assert not uses_pattern(SliceParams(layer_order="same"))
+    assert not PlannerParams(layer_order="same").uses_pattern
+    assert "layer_order" not in PlannerParams(outfill_pattern="fugenwand").as_summary()
+    sliced = _slice(outfill_pattern="fugenwand")
+    assert sliced.pattern["layer_order"] == "alternate"
+    _check_strand(sliced, 6)
+    with pytest.raises(ValueError):
+        PlannerParams(layer_order="zickzack")
+    with pytest.raises(ValueError):
+        uses_pattern(SliceParams(layer_order="Alternate"))
+
+
+@pytest.mark.skipif("sinus" not in patterns.names(), reason="Familie Wellen noch nicht gemergt")
+def test_infill_without_layer_order_is_vertical() -> None:
+    """Vorher: infill_pattern allein ergab `same`, Schichtwechsel diagonal 504 mm und ohne Verbinder."""
+    sliced = _slice(infill_pattern="sinus")
+    assert sliced.pattern["layer_order"] == "alternate"
+    _check_strand(sliced, 6)
+    _check_closed_flags(sliced)
+
+
+def test_explicit_same_overrides_preset() -> None:
+    assert pattern_params(SliceParams(pattern_preset=FUGENWAND)).layer_order == "alternate"
+    assert pattern_params(SliceParams(pattern_preset=FUGENWAND, layer_order="same")).layer_order == "same"
+    assert pattern_params(SliceParams(shells=1, outfill_pattern="none", pattern_params="{}",
+                                      layer_order="alternate")).layer_order == "alternate"
+
+
+def test_drl_header_shows_resolved_pattern() -> None:
+    """Mit Preset steht im Programmkopf das aufgelöste Muster, nicht die Standardwerte."""
+    from types import SimpleNamespace
+
+    from roboprint.contracts import ToolpathPattern
+
+    info = ToolpathPattern(layer_order="alternate", infill="none", outfill="fugenwand")
+    part = SimpleNamespace(part_id="P", wall_id="W", status="machbar")
+    run_params = {"pattern_preset": "f.json", "pattern_params": "{}"}
+    pp = SimpleNamespace(params=drl.DrlParams(), provenance=None, scenario_id="S", part=part,
+                         toolpath=SimpleNamespace(rings=[], pattern=info),
+                         trajectory=SimpleNamespace(t_s=[0.0]), run_params=run_params)
+    txt = "\n".join(drl._header(pp, "v2", []))
+    assert "A Schichtfolge              alternate (Druckmuster, opt-in)" in txt
+    assert "A Muster                    Infill none, Outfill fugenwand" in txt
+    assert "A Musterparameter           {}" in txt
+
+
+@pytest.mark.parametrize("kw", [{"layer_order": "alternate"}, {"pattern_preset": FUGENWAND}])
+def test_opening_links_never_cross_opening(kw: dict) -> None:
+    """Teil mit Öffnung (Inselwechsel): jeder Verbinder liegt im Querschnitt beider Schichten
+    (unabhängig nachgerechnet, ± 1 mm), Schichtwechsel senkrecht außer beim Wechsel der Inselzahl,
+    `kind` und `closed` stimmen, der Vertrag nimmt den Toolpath an."""
+    from shapely.geometry import LineString, MultiPolygon, Polygon
+
+    mesh = _window_wall()
+    sliced = slice_part(mesh, SliceParams(**kw))
+    sections, islands = {}, {}
+    for L in range(sliced.n_layers):
+        sec = mesh.section(plane_origin=[0, 0, (L + 0.5) * 10.0], plane_normal=[0, 0, 1])
+        planar, _ = sec.to_2D(to_2D=np.eye(4))
+        polys = [Polygon(p.exterior, p.interiors) for p in planar.polygons_full]
+        sections[L], islands[L] = MultiPolygon(polys).buffer(0), len(polys)
+    assert islands[5] == 1 and islands[6] == 2 and islands[14] == 2 and islands[15] == 1
+    allowed = {"outer", "inner", "hole", "infill", "web", "outfill"}
+    assert {r.kind for r in sliced.rings} <= allowed
+    _check_closed_flags(sliced)
+    for a, b in zip(sliced.rings[:-1], sliced.rings[1:], strict=True):
+        pa, pb = a.points[-1, :2], b.points[0, :2]
+        gap = float(np.linalg.norm(pb - pa))
+        if a.link_next:
+            geom = LineString([pa, pb]) if gap > 1e-9 else Point(pa)
+            for L in {a.layer, b.layer}:
+                assert sections[L].buffer(1.0).covers(geom), (a.layer, b.layer, gap)
+        if b.layer == a.layer + 1 and islands[a.layer] == islands[b.layer]:
+            assert gap <= 0.5 and a.link_next, f"Schichtwechsel {a.layer}->{b.layer}: {gap:.1f} mm"
+        if b.layer == a.layer and gap > 1e-6:  # Inselwechsel in der Schicht: Travel, nie Verbinder
+            assert islands[a.layer] == 2 and not a.link_next
+    Toolpath.model_validate(to_toolpath(sliced, np.eye(4), "w").model_dump(mode="json"))
