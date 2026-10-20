@@ -11,7 +11,7 @@ Die erste Zeile setzt nur das Skript.
 |---|---|---|---|---|
 | Einrichtung, Ausgangslage verify --fast, Artefaktformat (`docs/muster/ARTEFAKT-FORMAT.md`) | M0 | erledigt | v2/muster | 9b0510e |
 | R Recherche → `docs/muster/recherche.md` (Teil 1) | M1 | erledigt, gemergt | v2/muster-recherche | a6b6636 |
-| R2 Recherche Sollbruchstellen, Fachwerkwände | M1 | läuft (wf_67176cf2-d22) | v2/muster-recherche | |
+| R2 Recherche Sollbruchstellen, Fachwerkwände | M1 | erledigt, gemergt | v2/muster-recherche | ae788b2 |
 | K Kern `core/src/roboprint/patterns/` (Schnittstelle, alternate, 2 Schalen, metrics M1–M7) | M1 | läuft (wf_67176cf2-d22, auf WIP a383b1f) | v2/muster-kern | |
 | O Orakel `verify_muster/` mit Selbsttests | M1 | läuft (wf_67176cf2-d22, auf WIP add8523) | v2/muster-orakel | |
 | F Fugenwand (Foto, O2) mit Varianten, Presets, Bildern – Priorität 2 | M1/M2 | läuft (wf_67176cf2-d22, nach K) | v2/muster-fugenwand | |
