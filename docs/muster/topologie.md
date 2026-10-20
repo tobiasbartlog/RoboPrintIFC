@@ -16,7 +16,7 @@ Die gewählte Art und ihre Gründe stehen in `meta["topology"]` jedes Inselpfads
 
 Parameter: `sill_middle_mm` (Lage des Mittellaufs im Brüstungsfeld, 0 = Wandmitte) und
 `seam_check` (Nahtkandidaten prüfen, Standard an). Nicht passende Fälle (Mittelpfeiler,
-Schräge und Öffnung im selben Teil, Pfeiler < 151 mm, Wand < 136 mm, `shells` ≠ 2) laufen als
+Schräge und Öffnung im selben Teil, Pfeiler < 151 mm, Wand < 150 mm, `shells` ≠ 2) laufen als
 `allgemein` mit Hinweis in `meta["topology"]["note"]`.
 
 ## Befund zu S2
@@ -136,8 +136,10 @@ hinter der IFC-Fläche zurück.
 
 ## Grenzen (mit Zahlen)
 
-- Öffnung: Pfeiler ≥ 151 mm, Wand ≥ 136 mm, Feld zwischen den Laibungen ≥ 61 mm; nur Randpfeiler
-  (Mittelpfeiler: zwei Öffnungen in einem Modul, nicht unterstützt); nur eine Teilung je Teil.
+- Öffnung: Pfeiler ≥ 151 mm, Wand ≥ max(2·(1,5·w + r), 3,5·w + r) = 150 mm (w = r = 30 mm),
+  Fensterfeld zwischen den Laibungen ≥ 61 mm, Randfeld bis zum Modulende ≥ 3·w + 2·r = 150 mm;
+  nur Randpfeiler (Mittelpfeiler: zwei Öffnungen in einem Modul, nicht unterstützt); nur eine
+  Teilung je Teil. Mittellauf `sill_middle_mm` wird auf 1,5·w … T − 1,5·w begrenzt.
 - Schräge: nur von einer Seite und nur kleiner werdend; Schräge und Öffnung im selben Teil nicht.
 - Hals schmaler als 2·Schalen·w (Kerbe 100 mm tief in 200 mm): Schalenzahl der Insel sinkt.
 - Wachsender Querschnitt (z. B. Sturz über einer Öffnung im selben Teil) ist Überhang und bleibt
@@ -159,3 +161,35 @@ hinter der IFC-Fläche zurück.
 3. **Kern:** Die schrittweise Eckenrundung (`island_lanes`) und die geprüfte Naht (`best_chain`)
    wären auch im Grundmuster sinnvoll (Rechteckkerbe heute M2/M6-Fehler). Nicht übernommen, weil
    Kerndateien parallel bearbeitet werden; Vorschlag an den Kern-Agenten.
+
+## Gegenprüfung (adversarial, nach Merge von Kern 074763c)
+
+Eigene Nachrechnung mit shapely (Raupen von L + 1 ⊆ Raupen von L ⊕ 2 mm über alle Schichten,
+Strangzahl = Inselzahl, keine Kreuzung der Mittellinie, Mindestabstand nicht benachbarter
+Bahnteile ≥ (1 − ε)·w − 1 mm) und Zufallsprüfung (rund 1200 Teile aus neun Startwerten: Fenster, Randöffnung, Schräge mit
+w 25…40 mm, r 10…50 mm, Mittellauf 0…400 mm, Wand 90…400 mm).
+
+| Fall | Ergebnis |
+|---|---|
+| Fenster (Standard, 2000 mm hoch, am Rand 152 mm, schmal 62 mm, Brüstung 1 Schicht, Wand 150/300/365) | ok, Überhang 0 mm², ein Strang je Insel, keine Kreuzung |
+| Randöffnung links/rechts, Pfeiler 160…1000 mm | ok, Überhang 0 mm² |
+| Tür bis zum Boden (zwei Inseln ab Schicht 0) | ok (prismatisch, allgemein) |
+| Zwei Fenster (Mittelpfeiler) | nicht unterstützt: allgemein mit Hinweis, M3 18 161 mm² |
+| Sturz im Modul (Tür oder Fenster schließt oben) | M3 73 943 mm² (Brücke, physikalisch unvermeidbar; Zerlegung schneidet an der Sturzlinie) |
+| Randfeld 100 mm (Pfeiler 1100 von 1200 mm) | allgemein, M3 5171 mm² (Randfeld < 150 mm) |
+| `layer_order = same` | M4-Fehler „Schichtwechsel nicht senkrecht“, wie beim Grundmuster (Kernsemantik) |
+
+Behobene Fehler: Abbruch (`ValueError: Rückwärtsfahrt`) bei Wänden 136…149 mm, bei Mittellauf
+außerhalb 45…155 mm und bei Schrägen mit w = 40 mm und T < w + 2·r; Überhang 4,4 mm² am
+Stirnschenkel der Schräge bei w = 40 mm (Kappe ragte 10 mm über die Wende, Grenze 9,1 mm,
+`turn_cap_reach`); M6-Fehler bei Eckradius < w/2 (jetzt auf w/2 angehoben); Abbruch in
+`shells.clear_end` (Kern) bei Inseln, deren innere Spur kürzer als 2·w ist (Kandidat wird
+verworfen, weniger Schalen).
+
+**Warum ein Mittelpfeiler nicht als ein Strang geht (Begründung, kein Beweis für jede Bahn):** Die
+Pfeilerbahn über der Brüstung hat einen Endpunkt innen auf Spur 1, der von Spur 0 eingeschlossen
+ist. Liegt sie unten als zusammenhängendes Stück im Brüstungsstrang, ist dieser innere Endpunkt ein
+Strangende. Die beiden Randpfeiler belegen schon die zwei Enden. Eine Mittelpfeilerbahn mit beiden
+Enden außen braucht zwei Durchgänge durch Spur 0 an derselben Stelle. Dann liegen beide Enden
+nebeneinander auf einer Laibungsseite, und das andere Feld ist nicht erreichbar. Empfehlung: Die
+Zerlegung schneidet bei zwei Öffnungen im Mittelpfeiler (senkrechte Fuge) oder an der Brüstung.

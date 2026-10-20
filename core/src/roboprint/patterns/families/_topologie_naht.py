@@ -143,7 +143,12 @@ def _chain_candidates(
         cands = cands[:1]
     best: tuple[int, int, IslandPlan, float] | None = None
     for k, s in enumerate(cands):
-        plan = _chain_from(ctx, s, loops, extras)
+        try:
+            plan = _chain_from(ctx, s, loops, extras)
+        except ValueError:
+            # Kern `shells.clear_end` bricht ab, wenn eine innere Spur kürzer als 2·w ist (sehr
+            # kleine Insel); dann diese Schalenzahl verwerfen, `best_chain` versucht weniger
+            continue
         if not plan.segments:
             continue
         lp = LayerPath(ctx.layer, ctx.island, plan.segments)

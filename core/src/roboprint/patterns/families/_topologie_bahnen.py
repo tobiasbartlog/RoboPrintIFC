@@ -130,7 +130,25 @@ def fermat_min_top(w: float, rc: float) -> float:
     return 1.5 * w + rc + w - 1.0
 
 
-def fermat_rect(W: float, T: float, t: float, w: float, rc: float, eps: float, yu_max: float) -> list[Piece]:
+def turn_cap_reach(w: float, delta: float) -> float:
+    """Wie weit (mm) ein gerades Strangende mit runder Kappe über den Anfang einer Wende
+    (Halbkreis r = w/2) auf derselben Spur in der Schicht darunter hinausragen darf, ohne zu hängen:
+    Die Wendenraupe deckt die Kreisscheibe mit Radius w um den Wendenmittelpunkt; jeder Punkt der
+    Kappe muss in dieser Scheibe ⊕ δ liegen. Für w = 30 mm, δ = 2 mm sind das 7,9 mm, für w = 40 mm
+    9,1 mm; die Abschrägung mit 10 mm Versatz je Schicht ragt w/2 − 10 mm hinaus (bei w = 40 mm
+    also 10 mm: 4,4 mm² Überhang vor dieser Grenze)."""
+    th = np.linspace(0.0, math.pi / 2.0, 181)
+    lo, hi = 0.0, w
+    for _ in range(40):
+        d = 0.5 * (lo + hi)
+        f = np.hypot(w / 2.0 * (1.0 + np.cos(th)), d + w / 2.0 * np.sin(th)).max()
+        lo, hi = (d, hi) if f <= w + delta else (lo, d)
+    return lo - 0.1
+
+
+def fermat_rect(
+    W: float, T: float, t: float, w: float, rc: float, eps: float, yu_max: float, delta: float = 2.0
+) -> list[Piece]:
     """Fermat-Doppelring im Rechteck [0, W] × [0, T], oben nur bis t verfügbar (t ≤ T).
 
     Wende am rechten Stirnende (u = W) auf Höhe yu = min(yu_max, t + 1 − w). Leere Liste, wenn
@@ -163,7 +181,10 @@ def fermat_rect(W: float, T: float, t: float, w: float, rc: float, eps: float, y
     elif ya0 + rc + w / 2.0 <= t + 1.0 and min(yb0 - rc, t + 1.0 - w / 2.0) >= ya0 + rc:
         top = min(yb0 - rc, t + 1.0 - w / 2.0)
         tt = Turtle((xa0, top), (0.0, -1.0))
-        tt.to(1, ya0 + rc).turn(rc, 90).to(0, xb0 - rc).turn(rc, 90).to(1, top)
+        # Stirnschenkel an der Wende: höchstens `turn_cap_reach` über die Wende der Schicht
+        # darunter (deren Wende liegt bei t_unten + 1 − w ≥ t + 1 − w), sonst hängt die Kappe
+        right = max(ya0 + rc, min(top, t + 1.0 - w + turn_cap_reach(w, delta)))
+        tt.to(1, ya0 + rc).turn(rc, 90).to(0, xb0 - rc).turn(rc, 90).to(1, right)
         out.append(Piece("outer", 0, tt.cut(), "Spur 0 (U)"))
     elif ya0 + w / 2.0 <= t + 1.0 and xb0 - xa0 > 2 * rc:
         tt = Turtle((xa0 + rc, ya0), (1.0, 0.0)).to(0, xb0 - rc)

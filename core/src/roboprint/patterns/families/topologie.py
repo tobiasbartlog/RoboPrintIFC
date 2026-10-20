@@ -230,8 +230,14 @@ def _split(rects: dict[int, list[Rect]]) -> tuple[Rect, list[Rect], int] | None:
     return base, top, k
 
 
+def _corner(p: PatternParams) -> float:
+    """Eckradius der Rechteckbahnen: mindestens w/2 (kleiner wäre ein M6-Fehler, die Bahnen
+    hätten keinen Vorteil davon)."""
+    return max(p.corner_radius, p.w / 2.0)
+
+
 def _plan_bevel(sections, rects, p: PatternParams, base: Rect, side: str, t: dict[int, float]) -> _PartPlan:
-    w, rc, eps = p.w, p.corner_radius, p.eps
+    w, rc, eps = p.w, _corner(p), p.eps
     T = base.y1 - base.y0
     frame = Frame(base.x0, base.y0, 1.0, 1.0) if side == "top" else Frame(base.x0, base.y1, 1.0, -1.0)
     yu = fermat_yu(T, w, rc, eps)
@@ -240,7 +246,7 @@ def _plan_bevel(sections, rects, p: PatternParams, base: Rect, side: str, t: dic
     for L, tl in t.items():
         key = round(tl, 3)
         if key not in done:
-            pieces = fermat_rect(base.width, T, tl, w, rc, eps, yu)
+            pieces = fermat_rect(base.width, T, tl, w, rc, eps, yu, p.delta_mm)
             meta = {"mode": "abschraegung", "side": side, "thickness_mm": round(tl, 2)}
             if not pieces:
                 meta["empty"] = "zu dünn für eine Raupe"
@@ -250,7 +256,7 @@ def _plan_bevel(sections, rects, p: PatternParams, base: Rect, side: str, t: dic
 
 
 def _plan_split(sections, rects, p: PatternParams, base: Rect, top: list[Rect], k: int) -> _PartPlan | None:
-    w, rc, eps = p.w, p.corner_radius, p.eps
+    w, rc, eps = p.w, _corner(p), p.eps
     T = base.y1 - base.y0
     W = base.width
     ym_lo, ym_hi = sill_middle_range(T, w)
@@ -311,6 +317,16 @@ def _plan_split(sections, rects, p: PatternParams, base: Rect, top: list[Rect], 
     return plan
 
 
+def _changes(sections: Mapping[int, Any]) -> bool:
+    """Ändert sich der Querschnitt zwischen zwei Schichten (mehr als Rundung)?"""
+    layers = sorted(sections)
+    return any(
+        not sections[a].equals_exact(sections[b], 1e-6)
+        and sections[a].symmetric_difference(sections[b]).area > 1.0
+        for a, b in zip(layers[:-1], layers[1:], strict=True)
+    )
+
+
 def _fingerprint(sections: Mapping[int, Any], p: PatternParams) -> tuple:
     rows = []
     for L in sorted(sections):
@@ -352,6 +368,13 @@ def part_plan(ctx: IslandContext) -> _PartPlan:
             # Sicherheitsnetz: Bahnbausteine passen nicht in den Querschnitt (Maße am Rand der
             # Mindestwerte); lieber allgemein mit Hinweis als ein Abbruch der Planung
             plan = _PartPlan("allgemein", note=f"Bahnbau nicht möglich ({exc}); allgemein geplant")
+    if plan.mode == "allgemein" and not plan.note and _changes(ctx.sections):
+        # z. B. zwei Fenster (Mittelpfeiler), Sturz im Modul, Öffnung + Schräge: keine passende
+        # Betriebsart; jede Schicht für sich, M3 an neuen Kanten meldet die Prüfung
+        plan.note = (
+            "Querschnittswechsel nicht unterstützt (Mittelpfeiler, Sturz im Modul, Nicht-Rechteck "
+            "oder shells ≠ 2); Schichten einzeln geplant"
+        )
     _CACHE[key] = plan
     while len(_CACHE) > _CACHE_SIZE:
         _CACHE.popitem(last=False)
@@ -377,12 +400,14 @@ def build(ctx: IslandContext) -> IslandPlan:
         res = _ISLANDS.get(key)
         if res is None:
             res = best_chain(ctx)
-            if plan.note:
-                res.meta["topology"]["note"] = plan.note
             _ISLANDS[key] = res
             while len(_ISLANDS) > 256:
                 _ISLANDS.popitem(last=False)
-    return replace(res, segments=list(res.segments), contacts=list(res.contacts), meta=dict(res.meta))
+    # Kopie: der Zwischenspeicher wird über Teile hinweg geteilt (Hinweis gehört zum Teil)
+    meta = {k: dict(v) if isinstance(v, dict) else v for k, v in res.meta.items()}
+    if plan.mode == "allgemein" and plan.note:
+        meta.setdefault("topology", {})["note"] = plan.note
+    return replace(res, segments=list(res.segments), contacts=list(res.contacts), meta=meta)
 
 
 def part_preview(

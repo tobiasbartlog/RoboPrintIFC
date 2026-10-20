@@ -198,11 +198,12 @@ def test_general_shapes_ok(name):
     assert all(v.value >= 0.95 * P.w / 2 for v in radius)
 
 
-def test_rectangular_notch_standard_has_sharp_corners_topology_not():
+def test_rectangular_notch_rounded_corners():
+    # Seit dem Kern-Fix 074763c verkleinert auch offset_region den Radius schrittweise; das
+    # Grundmuster ist hier gültig. Topologie bleibt gültig und hält Radius ≥ w/2 überall.
     sec = {L: SHAPES["kerbe_rechteck"] for L in range(2)}
-    p = pt.PatternParams()
-    assert not pt.measure(pt.plan_pattern(sec, p), sec, p).ok  # Kern: scharfe Ecken in Spur 1
-    _ok(sec)
+    _, rep = _ok(sec)
+    assert all(m.min_radius_mm >= 0.95 * P.w / 2 for m in rep.paths)
 
 
 def test_deep_notch_reduces_shells():
@@ -276,3 +277,142 @@ def test_rect_detection():
         if lp.layer >= 4:
             hit = shapely.intersection(LineString(lp.polyline()), box(-290, -100, 290, 100))
             assert hit.is_empty
+
+
+# --------------------------------------------------------------------------- Gegenprüfung
+
+
+def _own_overhang(paths, sections, params=P):
+    """Unabhängige M3-Nachrechnung mit shapely: größte Fläche (mm²) der Raupen von L + 1, die
+    nicht auf den Raupen von L ⊕ δ liegt (Raupe = Mittellinie ⊕ w/2, runde Enden)."""
+    w = params.w
+    by: dict[int, list] = {}
+    for lp in paths:
+        by.setdefault(lp.layer, []).append(lp)
+
+    def beads(lps):
+        return unary_union([LineString(lp.polyline()).buffer(w / 2.0, quad_segs=16) for lp in lps])
+
+    worst = 0.0
+    for L in sorted(sections):
+        if L + 1 in by and L in by:
+            worst = max(worst, beads(by[L + 1]).difference(beads(by[L]).buffer(params.delta_mm)).area)
+    return worst
+
+
+def _no_crossing(lp):
+    """Mittellinie ohne echte Kreuzung oder Überdeckung (nicht benachbarte Stücke)."""
+    pl = lp.polyline()
+    segs = [LineString(pl[i : i + 2]) for i in range(len(pl) - 1)]
+    tree = shapely.STRtree(segs)
+    for i, s in enumerate(segs):
+        if s.length < 1e-9:
+            continue
+        for j in tree.query(s):
+            if j > i + 1 and segs[j].length > 1e-9 and (s.crosses(segs[j]) or s.overlaps(segs[j])):
+                return False
+    return True
+
+
+def two_windows(X=2400.0, T=200.0, wins=((300.0, 900.0), (1500.0, 2100.0)), n_sill=6, n_top=6):
+    full = box(0, 0, X, T)
+    piers = full
+    for a, b in wins:
+        piers = piers.difference(box(a, -1, b, T + 1))
+    return {L: full if L < n_sill else piers for L in range(n_sill + n_top)}
+
+
+OPENINGS = {
+    "fenster": lambda: window(z_sill=60.0, z_top=120.0),
+    "fenster_kante_152": lambda: window(z_sill=60.0, z_top=120.0, a=152.0, b=1048.0),
+    "fenster_schmal_62": lambda: window(z_sill=60.0, z_top=120.0, a=569.0, b=631.0),
+    "bruestung_eine_schicht": lambda: window(z_sill=10.0, z_top=60.0),
+    "fenster_365": lambda: window(z_sill=60.0, z_top=120.0, T=365.0),
+    "rand_rechts_160": lambda: edge(a=160.0, right=True),
+    "rand_1000": lambda: edge(a=1000.0),
+}
+
+
+@pytest.mark.parametrize("name", sorted(OPENINGS))
+def test_openings_own_m3_islands_no_crossing(name):
+    sec = OPENINGS[name]()
+    paths, _ = _ok(sec)
+    assert _mode(paths) == {"oeffnung"}
+    assert _own_overhang(paths, sec) <= 1.0  # Laibungsstege unter jeder neuen Kante
+    count: dict[int, int] = {}
+    for lp in paths:
+        count[lp.layer] = count.get(lp.layer, 0) + 1
+    assert all(count[L] == len(pt.polygons(g)) for L, g in sec.items())  # ein Strang je Insel
+    assert all(_no_crossing(lp) for lp in paths)
+
+
+def test_door_to_floor_is_prismatic_and_ok():
+    g = box(0, 0, 1200, 200).difference(box(300, -1, 900, 201))
+    paths, _ = _ok({L: g for L in range(4)})
+    assert _mode(paths) == {"allgemein"} and len(paths) == 8
+
+
+def test_two_windows_middle_pier_is_reported_not_hidden():
+    """Mittelpfeiler: nicht unterstützt. Das Muster muss das sagen, und die Prüfung muss den
+    Überhang an den Laibungen melden (nicht still „ok“)."""
+    sec = two_windows()
+    paths = pt.plan_pattern(sec, P)
+    assert _mode(paths) == {"allgemein"}
+    assert all("nicht unterstützt" in lp.meta["topology"]["note"] for lp in paths)
+    rep = pt.measure(paths, sec, P)
+    assert "M3" in rep.rules_violated() and _own_overhang(paths, sec) > 1000.0
+    # derselbe Inselzwischenspeicher trägt den Hinweis nicht in ein prismatisches Teil
+    g = sec[max(sec)]
+    plain = pt.plan_pattern({0: g, 1: g}, P)
+    assert all("note" not in lp.meta["topology"] for lp in plain)
+
+
+@pytest.mark.parametrize("T", [136.0, 140.0, 149.0])
+@pytest.mark.parametrize("kind", ["fenster", "rand"])
+def test_walls_thinner_than_pier_minimum_do_not_crash(T, kind):
+    sec = window(z_sill=60.0, z_top=120.0, T=T) if kind == "fenster" else edge(T=T)
+    paths = pt.plan_pattern(sec, P)
+    assert _mode(paths) == {"allgemein"} and "zu dünn" in paths[0].meta["topology"]["note"]
+
+
+def test_pier_minimum_thickness_is_exact():
+    from roboprint.patterns.families._topologie_bahnen import pillar_min_thickness
+
+    assert pillar_min_thickness(30.0, 30.0) == pytest.approx(150.0)
+    paths, _ = _ok(window(z_sill=60.0, z_top=120.0, T=150.0))
+    assert _mode(paths) == {"oeffnung"}
+
+
+@pytest.mark.parametrize("ym", [10.0, 45.0, 155.0, 160.0, 300.0])
+def test_sill_middle_is_clamped(ym):
+    p = pt.params_from_dict({"outfill": "topologie", "sill_middle_mm": ym})
+    sec = window(z_sill=60.0, z_top=120.0)
+    paths, _ = _ok(sec, p)
+    used = paths[0].meta["topology"]["sill_middle_mm"]
+    assert 45.0 - 1e-9 <= used <= 155.0 + 1e-9
+    assert ("note" in paths[0].meta["topology"]) == (not 45.0 <= ym <= 155.0)
+
+
+def test_bevel_wide_bead_cap_does_not_hang_over_turn():
+    """w = 40 mm: Der Stirnschenkel der U-Form ragte 10 mm über die Wende der Schicht darunter
+    (Grenze 9,1 mm), 4,4 mm² Überhang. Jetzt begrenzt (`turn_cap_reach`)."""
+    from roboprint.patterns.families._topologie_bahnen import turn_cap_reach
+
+    assert turn_cap_reach(30.0, 2.0) == pytest.approx(7.8, abs=0.15)
+    assert turn_cap_reach(40.0, 2.0) == pytest.approx(9.0, abs=0.15)
+    p = pt.params_from_dict({"outfill": "topologie", "bead_width_mm": 40.0})
+    sec = bevel(X=888.0, T=282.0, n_full=2)
+    paths, _ = _ok(sec, p)
+    assert _own_overhang(paths, sec, p) <= 1.0
+
+
+def test_corner_radius_below_half_bead_is_raised():
+    p = pt.params_from_dict({"outfill": "topologie", "corner_radius_mm": 12.0})
+    for sec in (edge(), bevel(X=900.0, T=166.0, n_full=2)):
+        _ok(sec, p)
+
+
+def test_tiny_pier_islands_do_not_crash():
+    # Inseln 96 × 104 mm: die innere Spur ist kürzer als 2·w (Kern `clear_end` brach ab)
+    paths = pt.plan_pattern(edge(n_sill=3, n_top=3, X=545.0, T=104.0, a=96.0), P)
+    assert paths and _mode(paths) == {"allgemein"}
