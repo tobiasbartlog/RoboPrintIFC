@@ -41,10 +41,14 @@ Infill, das Schale 0 berührt) bleibt an ihrem Sollort. Damit gilt für die Ausl
 - **eine Schale mit Infill**: Das Infill berührt Schale 0 selbst schon mit seiner eigenen
   Überlappung (Wellen: 5 % = 1,5 mm). Für die Welle bleibt die Hälfte des Kontaktbudgets:
   D ≤ ε·w/2 − 0,25 mm = 2,0 mm, A ≤ 1,0 mm.
-- **eine Schale ohne Infill**: Innen ist Hohlraum. D ≤ (t − 2·w)/2 − 1 mm mit t = Teildicke in y
-  (200 mm: 69 mm); die Startwerte A = 8 mm, λ = 150 mm passen unverändert (D = 16 mm,
-  R_min = 71 mm, Bogenzuwachs ≈ 2,8 %).
-Die angeforderte Amplitude wird auf diese Grenze gekappt; `meta` nennt beide Werte und den Grund
+- **eine Schale ohne Infill**: Innen ist Hohlraum. D ≤ (t − 2·w)/2 − 1 mm mit t = örtliche
+  Dicke hinter der Wellenzone über alle Schichten (`local_thickness`; 200 mm: 69 mm); die
+  Startwerte A = 8 mm, λ = 150 mm passen unverändert (D = 16 mm, R_min = 71 mm, Bogenzuwachs
+  (πA/λ)² ≈ 2,8 %, gemessen mit eingepasstem λ 2,2–2,7 %).
+- **je Zone M6** (`_profile`): Sinus A ≤ λ²/(4π²·w) (Ziel R ≥ w), Zickzack mit ungekürztem
+  Scheitelradius max(r, w/2) und ohne Überlappung von Fuß- und Scheitelbogen; sonst wird D
+  kleiner.
+Die angeforderte Amplitude wird auf diese Grenzen gekappt; `meta` nennt beide Werte und den Grund
 (`amplitude_limited_by`). Eine volle 8-mm-Welle bei zwei Schalen bräuchte eine mitwellende bzw.
 um D nach innen gerückte Schale 1; das kann die Outfill-Schnittstelle (`shell_chain(ring0=…)`)
 nicht ausdrücken (Kerneinwand, docs/muster/aussenwelle.md).
@@ -62,6 +66,7 @@ from typing import Any
 
 import numpy as np
 import shapely.wkb
+from shapely.geometry import box
 
 from roboprint.patterns import IslandContext, IslandPlan, ParamSpec, Segment, pattern
 from roboprint.patterns.geometry import dedupe, fillet_polyline, offset_ring, resample_curve, tangent_arc
@@ -142,6 +147,45 @@ def amplitude_limit(ctx: IslandContext) -> tuple[float, str]:
     return max((t - 2.0 * p.w) / 2.0 - 1.0, 0.0), "Gegenseite (Hohlraum)"
 
 
+def local_thickness(ctx: IslandContext, y_line: float, lo: float, hi: float) -> float:
+    """Örtliche Wanddicke hinter einer Wellenzone [lo, hi] auf der Fläche y_line, über alle Schichten.
+
+    Die Grenze „Gegenseite“ in `amplitude_limit` rechnet mit der Dicke der Teil-Bounding-Box. Bei
+    einem L- oder T-förmigen Teil ist der Arm mit der Welle dünner (gemessen: Arm 100 mm in einem
+    600 mm tiefen L-Teil, A = 30 mm, λ = 600 mm → Welle 10 mm Mittellinienabstand zur Gegenseite,
+    M2-Fehler). Gemessen wird deshalb je Schicht in der Spalte [lo − w, hi + w] der Abstand von der
+    Fläche bis zum ersten Rand der Insel nach innen (Teile des Komplements, die die Fläche selbst
+    berühren, liegen seitlich neben der Zone und zählen nicht)."""
+    w = ctx.params.w
+    _, y0, _, y1 = ctx.part_bounds
+    lower = y_line < 0.5 * (y0 + y1)
+    face = y0 if lower else y1
+    best = y1 - y0
+    seen: set[bytes] = set()
+    for geom in ctx.sections.values():
+        if geom is None or geom.is_empty or geom.wkb in seen:
+            continue
+        seen.add(geom.wkb)
+        best = min(best, _column_depth(geom.wkb, round(lo - w, 6), round(hi + w, 6), face, lower, y1 - y0))
+    return best
+
+
+@lru_cache(maxsize=256)
+def _column_depth(wkb: bytes, x0: float, x1: float, face: float, lower: bool, t: float) -> float:
+    geom = shapely.wkb.loads(wkb)
+    y_lo, y_hi = (face, face + t) if lower else (face - t, face)
+    rest = box(x0, y_lo, x1, y_hi).difference(geom)
+    depth = t
+    for part in getattr(rest, "geoms", [rest]):
+        if part.is_empty or part.area < 1e-6:
+            continue
+        b = part.bounds
+        gap = (b[1] - face) if lower else (face - b[3])
+        if gap > LINE_TOL_MM:  # berührt die Fläche nicht: liegt innen gegenüber
+            depth = min(depth, gap)
+    return depth
+
+
 def _face_runs(ring: np.ndarray, ctx: IslandContext, faces: str) -> list[tuple[int, int, float]]:
     """Gerade Ringstücke an den y-Flächen: (i0, i1, Flächen-y) mit Ringindizes i0 < i1, ohne
     Umlauf über den Ringanfang (der Ring beginnt bei offset_ring an einer Ecke)."""
@@ -171,6 +215,46 @@ def _face_runs(ring: np.ndarray, ctx: IslandContext, faces: str) -> list[tuple[i
 
 
 def _profile(
+    shape: str,
+    length: float,
+    D: float,
+    lam_target: float,
+    radius: float,
+    base_radius: float = 0.0,
+    min_radius: float = 0.0,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    """Wellenprofil wie `_profile_once`, mit Auslenkung so weit verkleinert, dass M6 hält.
+
+    `min_radius` ist der Zielradius des Sinus (w). Zickzack: Die Scheitel behalten den Radius
+    max(`radius`, w/2) ungekürzt, und Fußbogen (`base_radius`) und Scheitelbogen dürfen sich auf
+    einer Flanke nicht überlappen. Sonst entstünde bei kurzen Zonen bzw. steiler Welle ein Knick
+    (gemessen: R = 3,5 mm bei λ = 86 mm, D = 34 mm, w = 25). Hält eine Bedingung nicht, wird D in
+    Schritten von 15 % verkleinert (Zickzack: auch, wenn die Fußbögen keine Zone übrig lassen);
+    unter 0,2 mm bleibt die Strecke gerade."""
+    d = D
+    while d > 0.2:
+        prof, info = _profile_once(shape, length, d, lam_target, radius, base_radius)
+        if not len(prof):
+            if shape == "sinus":  # Zone < λ/2 hängt beim Sinus nicht an D
+                break
+            d *= 0.85
+            continue
+        if not info.pop("_ok", True):
+            d *= 0.85
+            continue
+        if shape == "sinus" and info["min_radius_mm"] < min_radius - 1e-6:
+            # R = λ²/(4π²·A): A direkt aus der eingepassten Wellenlänge (hängt nicht an D)
+            lam = info["wavelength_mm"]
+            d = min(0.999 * d, 0.999 * 2.0 * lam * lam / (4.0 * math.pi**2 * min_radius))
+            continue
+        info["amplitude_mm"] = round(d / 2.0, 3)
+        if d < D - 1e-9:
+            info["amplitude_limited_by"] = "Krümmungsradius (M6)"
+        return prof, info
+    return np.empty((0, 2)), {}
+
+
+def _profile_once(
     shape: str, length: float, D: float, lam_target: float, radius: float, base_radius: float = 0.0
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """Wellenprofil (s, d) einer geraden Strecke der Länge `length`, d ∈ [0, D], d(0) = d(L) = 0.
@@ -215,6 +299,9 @@ def _profile(
     back = np.array([math.cos(theta), -math.sin(theta)])
     tail = tangent_arc(verts[-1] - tb * back, back, np.array([verts[-1][0] + tb, 0.0]), FINE_TOL_MM, 2.0)[0]
     prof = np.vstack([[0.0, 0.0], head, zz[1:-1], tail, [length, 0.0]])
+    # M6: Scheitelradius ungekürzt, Fußbogen und erster/letzter Scheitelbogen ohne Überlappung
+    leg_len = math.hypot(lam / 2.0, D)
+    info["_ok"] = bool(r_used >= radius - 1e-6 and tb + r_used * math.tan(theta) <= leg_len + 1e-9)
     r_used = min(r_used, base_radius)
     info["min_radius_mm"] = round(r_used, 2)
     info["longest_straight_mm"] = round(
@@ -332,7 +419,15 @@ def wave_ring(ctx: IslandContext) -> tuple[np.ndarray | None, dict[str, Any]]:
         pieces: list[tuple[float, np.ndarray]] = []
         for lo, hi in _intersect([(lo_run, hi_run)], zones.get(round(y_line, 6), [])):
             s0, s1 = sorted((abs(lo - float(a[0])), abs(hi - float(a[0]))))
-            prof, info = _profile(shape, s1 - s0, D, lam, radius, base_r)
+            D_z, local = D, None
+            if p.shells == 1 and p.infill == "none":
+                t_loc = local_thickness(ctx, y_line, lo, hi)
+                D_loc = max((t_loc - 2.0 * p.w) / 2.0 - 1.0, 0.0)
+                if D_loc < D - 1e-9:
+                    D_z, local = D_loc, f"Gegenseite (örtliche Dicke {t_loc:.0f} mm)"
+            prof, info = _profile(shape, s1 - s0, D_z, lam, max(radius, p.w / 2.0), base_r, p.w)
+            if local and len(prof) and "amplitude_limited_by" not in info:
+                info["amplitude_limited_by"] = local
             if not len(prof):
                 continue
             pts = a + (prof[:, :1] + s0) * u + prof[:, 1:] * n_in
@@ -363,6 +458,14 @@ def wave_ring(ctx: IslandContext) -> tuple[np.ndarray | None, dict[str, Any]]:
     meta["longest_straight_face_mm"] = round(longest_straight_on_faces(res, ctx, D), 2)
     if meta["runs"]:
         meta["min_radius_mm"] = min(r["min_radius_mm"] for r in meta["runs"])
+        a_min = min(r["amplitude_mm"] for r in meta["runs"])
+        if a_min < meta["amplitude_mm"] - 1e-9:
+            # mindestens eine Zone wegen M6 flacher: ehrlich die kleinste gebaute Amplitude nennen
+            meta["amplitude_mm"] = a_min
+            meta["peak_to_peak_mm"] = round(2.0 * a_min, 3)
+            meta["amplitude_limited_by"] = next(
+                r.get("amplitude_limited_by") for r in meta["runs"] if r["amplitude_mm"] == a_min
+            )
     return res, meta
 
 

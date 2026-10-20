@@ -204,3 +204,58 @@ def test_opening_waves_aligned_over_all_layers(sill):
         {round(x) for lp in paths for r in lp.meta["outfill"]["runs"] for x in (r["from"][0], r["to"][0])}
     )
     assert xs == [-555, -245, 245, 555]  # nur neben der Öffnung, in allen Schichten gleich
+
+
+@pytest.mark.parametrize(
+    ("w", "lam", "amp", "shape", "window"),
+    [
+        (40.0, 80.0, 15.0, "sinus", False),  # vorher R = 11,4 mm < w/2 = 20 (M6-Fehler)
+        (30.0, 80.0, 30.0, "sinus", True),  # vorher R = 7 mm
+        (25.0, 150.0, 30.0, "zickzack", True),  # kurze Zone: Fuß- und Scheitelbogen überlappten, R = 3,5
+        (40.0, 150.0, 8.0, "zickzack", False),  # Scheitelradius 15 < w/2 = 20 angefordert
+    ],
+)
+def test_steep_wave_keeps_radius(w, lam, amp, shape, window):
+    """M6 hart: Steile oder kurze Wellen werden flacher statt geknickt. Sinus erreicht das Ziel
+    R ≥ w, Zickzack behält den Scheitelradius max(r, w/2); keine M6-Fehler, nicht mehr Fehler als
+    das Grundmuster."""
+    full = box(-500, -125, 500, 125) if not window else box(-300, -182.5, 300, 182.5)
+    sec = {L: full for L in range(2)}
+    if window:
+        sec[2] = sec[3] = full.difference(box(-60, -200, 60, 200))
+    p, paths, rep = _plan(
+        sec,
+        shells=1,
+        bead_width_mm=w,
+        outer_wavelength_mm=lam,
+        outer_amplitude_mm=amp,
+        outer_shape=shape,
+        outer_round_radius_mm=15.0 if w == 40.0 else 30.0,
+    )
+    assert not [v for v in rep.errors if v.rule in ("M2", "M5", "M6")], [v.to_dict() for v in rep.errors]
+    for lp in paths:
+        r = pt.curvature_radius(_outfill(lp).points, closed=True)
+        assert r.min() >= p.w / 2 - 1e-6
+        m = lp.meta["outfill"]
+        assert m["runs"]
+        if amp == 30.0:  # steil bzw. kurz: flacher gebaut, Grund genannt
+            assert m["amplitude_limited_by"] == "Krümmungsradius (M6)" and m["amplitude_mm"] < amp
+        for run in m["runs"]:
+            assert run["min_radius_mm"] >= (p.w if shape == "sinus" else p.w / 2) - 0.01
+
+
+def test_local_thickness_on_l_shaped_part():
+    """Eine Schale ohne Infill: Die Grenze „Gegenseite“ gilt für die örtliche Dicke, nicht für die
+    Bounding-Box. L-Teil mit 100-mm-Arm (Box 600 mm tief): vorher D = 60 mm und 10 mm Abstand zur
+    Gegenseite (M2-Fehler), jetzt D ≤ (100 − 2w)/2 − 1 = 19 mm."""
+    g = unary_union([box(0, 0, 1000, 100), box(0, 0, 200, 600)])
+    sec = {0: g, 1: g}
+    p, paths, rep = _plan(sec, shells=1, outer_amplitude_mm=30.0, outer_wavelength_mm=600.0)
+    assert rep.ok, [v.to_dict() for v in rep.errors]
+    assert rep.paths[0].min_clearance_mm >= (1 - p.eps) * p.w
+    runs = paths[0].meta["outfill"]["runs"]
+    arm = [r for r in runs if r["from"][1] < 50]
+    assert arm and all(r["amplitude_mm"] <= 9.5 + 1e-6 for r in arm)
+    assert arm[0]["amplitude_limited_by"].startswith("Gegenseite")
+    leg = [r for r in runs if r["from"][1] > 500]  # Kopf des 200-mm-Schenkels: Dicke 600 mm
+    assert all(r["amplitude_mm"] > 9.5 for r in leg)

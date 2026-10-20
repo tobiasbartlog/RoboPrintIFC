@@ -59,7 +59,26 @@ Grenzen für die Auslenkung D nach innen (w = 30 mm, ε = 0,15):
 
 Die Kappung ist gewollt: Mit A = 8 mm bei zwei Schalen kämen die Wellentäler Schale 1 auf
 30 − 16 = 14 mm nahe, also Doppelmaterial (M2-Fehler). `meta.outfill` nennt die angeforderte und
-die gebaute Amplitude sowie den Grund (`amplitude_limited_by`).
+die gebaute Amplitude sowie den Grund (`amplitude_limited_by`, je Zone auch in `runs`).
+
+Zwei weitere Kappungen je Wellenzone (Gegenprüfung, nachgetragen):
+- **Krümmungsradius (M6).** Sinus: A ≤ λ²/(4π²·w) mit der eingepassten Wellenlänge, also
+  Ziel R ≥ w. Zickzack: Der Scheitelradius bleibt max(`outer_round_radius_mm`, w/2) ungekürzt,
+  und Fuß- und Scheitelbogen dürfen sich auf der Flanke nicht überlappen; sonst wird D in
+  15-%-Schritten kleiner. Vorher entstanden bei steilen oder kurzen Wellen harte M6-Fehler
+  (gemessen: Sinus λ = 80, A = 15, w = 40: R = 11,4 mm; Zickzack in einer 165-mm-Zone neben
+  einem Fenster, w = 25: Knick mit R = 3,5 mm). Die Startwerte (A = 8, λ = 150) sind nicht
+  betroffen (R = 71 mm).
+- **Örtliche Dicke (eine Schale ohne Infill).** Die Grenze (t − 2w)/2 − 1 gilt für die Dicke
+  hinter der Zone über alle Schichten, nicht für die Teil-Bounding-Box. Vorher wellte ein
+  L-Teil (Arm 100 mm, Box 600 mm tief, A = 30, λ = 600) mit D = 60 mm bis auf 10 mm an die
+  Gegenseite (M2-Fehler); jetzt D = 19 mm im Arm.
+
+Restbefunde der Gegenprüfung (nicht behoben, nicht Sache der Welle): Mit Infill und Fenster
+verschiebt sich das Infill neben den neuen Laibungen geringfügig (Überhang +1 bis +2 % gegenüber
+dem Grundmuster, dessen Laibungsüberhang ohnehin ein M3-Fehler ist, Familie Topologie). Mit
+`corner_radius_mm = 0` (Grundmuster schon voller M6-Fehler) und `transition_radius_mm = 15`
+kommt ein M2-Fehler hinzu (Abstand 18,7 mm).
 
 **Folgerung.** Nur mit **einer Schale ohne Infill** liefert O1 die Startwerte aus der Recherche
 (A = 8 mm, λ = 150 mm). Der Bogenzuwachs von 2,2–2,7 % liegt dann in der Größenordnung des
