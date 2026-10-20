@@ -63,6 +63,14 @@ akzeptiert nur, was hier steht.
   Wegpunkte bei konstanter Geschwindigkeit, ohne Online-Blending zum nächsten Befehl.
   `spline_type = DR_HERMITE` und `amovesx` zum Verketten gibt es nur in neuerer Firmware.
   - Quelle: https://manual.doosanrobotics.com/en/programming-manual/3.7.0/publish/movesx
+- **Unsere Nutzung im Strang** (SPEC §5.6, `roboprint.drl`): Druck und Verbinder als `movel` mit
+  `radius = min(r_blend, ½ der angrenzenden Segmente)` und `ra = DR_MV_RA_DUPLICATE` an allen
+  Zielen, auch am Ringende und an den Verbinder-Ecken. Nur das letzte `movel` des Strangs hat
+  `radius = 0`, damit `set_analog_output(…, 0)` dort und nicht in der Blending-Zone schaltet. Hinter
+  einem `movel` mit `radius > 0` steht nie ein `set_analog_output`. `movesx` (nur Dialekt `v3`,
+  optional) nutzen wir nur für einen Strang aus einem Ring mit ≤ 100 Zielen: Mehrere Blöcke würden
+  den Strang an jeder Blockgrenze mit laufender Pumpe anhalten, und der Spline fährt einen Verbinder
+  nicht als Gerade.
 - `moveb(seg_list, …)`: Linien- und Kreissegmente mit Blending, höchstens 50 Segmente
   (offen: Verfügbarkeit in 2.x prüfen).
 - Der Präfix `a…` (z. B. `amovel`) startet eine Bewegung asynchron. Mit `mwait()` wartet man auf ihr
@@ -87,9 +95,13 @@ akzeptiert nur, was hier steht.
 - v1 nutzte die Indizes 0/1/2. Damit bricht `ch=0` das Programm ab, und `pump_b` landete auf dem
   Kanal von `pump_a`.
 - **Totzeit:** v1 kompensierte nur in der Simulation, das Programm bekam unverschobene Werte.
-  v2 setzt heute „Pumpe an am Ringstart + `wait(t_tot)`“ (SPEC §5.6). Eine bahnsynchrone Lösung
-  (asynchrone Bewegung plus Zeitplan, oder räumlich vorgezogenes Schalten) folgt nach den
-  Messungen am Gerät.
+  v2 setzt heute „Pumpe an am **Strangbeginn** + `wait(t_tot)`“ (SPEC §5.3, §5.6; Nutzerentscheidung
+  20.10.2026): Ringe, die über gedruckte Verbinder zu einem Strang verbunden sind, laufen mit
+  durchgehender Pumpe und ohne Halt. Die Pumpe schaltet je Strang genau einmal ein (im Stillstand
+  nach der Anfahrt, danach `wait(t_tot)` als Pumpen-Vorlauf) und genau einmal aus (nach dem letzten
+  `movel` des Strangs mit `radius = 0`). Ein Ring ohne Verbinder ist ein Strang aus einem Ring.
+  Eine bahnsynchrone Lösung (asynchrone Bewegung plus Zeitplan, oder räumlich vorgezogenes
+  Schalten) folgt nach den Messungen am Gerät.
 
 ## Programmstruktur
 
