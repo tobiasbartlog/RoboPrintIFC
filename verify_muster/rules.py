@@ -271,7 +271,7 @@ def _nearest_ring(C: Ctx, L: int, pt) -> int | None:
 def check_m4(C: Ctx) -> Rule:
     R = Rule("M4", "Senkrechter Schichtwechsel: Ende L und Anfang L+1 waagrecht <= 0,5 mm", True)
     rings = C.part.rings
-    n_vert = n_exempt = n_link = 0
+    n_vert = n_exempt = n_link = n_seam_face = 0
     tr = C.part.traj
     kind_arr = np.array(tr.kind) if tr is not None else None
     for L in C.layers:
@@ -295,6 +295,13 @@ def check_m4(C: Ctx) -> Rule:
                 travel = True
         if vertical and not travel:
             n_vert += 1
+            # Naht (Materialpunkt des Hubs) auf der Teiloberflaeche (Sichtflaeche, Laibung, Modulstoss)?
+            # AUFTRAG M4 verlangt eine begruendete Wahl abseits davon; das Orakel meldet es als Warnung.
+            sec = C.sections.get(L)
+            if sec is not None and not sec.is_empty and \
+                    sec.boundary.distance(shapely.Point(p_end)) <= 0.5 * C.w + M5_MARGIN_MM:
+                n_seam_face += 1
+                R.warnings += 1
             continue
         if len(C.islands[L]) != len(C.islands[L + 1]):
             n_exempt += 1
@@ -311,7 +318,10 @@ def check_m4(C: Ctx) -> Rule:
     R.metrics.update(n_changes=n, n_vertical=n_vert, n_exempt_island_change=n_exempt,
                      share_vertical=None if n == 0 else round(n_vert / n, 4),
                      share_vertical_required=None if n - n_exempt == 0 else round(n_vert / (n - n_exempt), 4),
-                     n_changes_as_link_in_trajectory=n_link if tr is not None else None)
+                     n_changes_as_link_in_trajectory=n_link if tr is not None else None,
+                     n_seam_on_surface=n_seam_face)
+    R.note = ("Warnung je senkrechtem Wechsel, dessen Naht <= w/2 + 1 mm neben dem Querschnittsrand liegt "
+              "(Sichtflaeche, Laibung oder Modulstoss)")
     return R
 
 

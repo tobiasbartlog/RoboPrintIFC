@@ -51,6 +51,7 @@ def test_fugenwand_closed_loop_is_green_with_joints_and_nodes(tmp_path):
     # senkrechter Schichtwechsel in der Gurtmitte, alle Wechsel als link
     m4 = p["rules"]["M4"]["metrics"]
     assert m4["share_vertical"] == 1.0 and m4["n_changes_as_link_in_trajectory"] == N_LAYERS - 1
+    assert m4["n_seam_on_surface"] == 0  # Naht mitten auf dem Gurt, innen
     # Kehren r = 16 mm: hart erfuellt, Ziel w verfehlt (Warnung)
     assert p["rules"]["M6"]["pass"] and p["rules"]["M6"]["warnings"] > 0
     # Felder sind kurz: laengste gerade Aussenstrecke deutlich unter der Teilung

@@ -32,6 +32,10 @@ def test_two_shells_alternating_is_green(tmp_path):
     code, p = _run(tmp_path, synth.stack(lambda L: [synth.two_shells()], N_LAYERS))
     assert code == 0, _failed(p)
     assert p["rules"]["M4"]["metrics"]["share_vertical"] == 1.0
+    # Naht bei alternate: 0 -> 1 am Ende der Innenbahn (y = -55, 45 mm vom Rand, innen), 1 -> 2 am
+    # Anfang der Aussenbahn (y = -85, auf der Sichtflaeche: Warnung), 2 -> 3 wieder innen
+    assert p["rules"]["M4"]["metrics"]["n_seam_on_surface"] == 1
+    assert p["rules"]["M4"]["warnings"] == 1
     assert p["rules"]["M4"]["metrics"]["n_changes_as_link_in_trajectory"] == N_LAYERS - 1
     assert p["rules"]["M6"]["warnings"] == 0
     assert p["rules"]["M1"]["metrics"]["groups_continuous"] == N_LAYERS
@@ -100,6 +104,19 @@ def test_overhang_is_detected(tmp_path):
     code, p = _run(tmp_path, synth.stack(layer, N_LAYERS))
     assert _failed(p) == {"M3"}, _failed(p)
     assert p["rules"]["M3"]["first"]["layer"] == N_LAYERS - 1
+
+
+def test_seam_on_outer_face_is_warned(tmp_path):
+    """Sinus-Muster umgekehrt (Infill -> Aussenbahn): gerade Schichten enden am Anfang der Aussenbahn,
+    die Naht liegt auf der Sichtflaeche -> Warnung, keine harte Verletzung (Wechsel 0 -> 1 und 2 -> 3)."""
+    def layer(L):
+        rs = synth.sine_infill()
+        return [[dict(r, xy=r["xy"][::-1]) for r in reversed(rs)]]
+
+    code, p = _run(tmp_path, synth.stack(layer, N_LAYERS))
+    assert code == 0, _failed(p)
+    m4 = p["rules"]["M4"]
+    assert m4["metrics"]["n_seam_on_surface"] == 2 and m4["warnings"] == 2
 
 
 def test_diagonal_layer_change_is_detected(tmp_path):
