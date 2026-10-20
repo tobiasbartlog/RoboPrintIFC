@@ -12,13 +12,21 @@ SCENARIO_SCHEMA_VERSION = "1"
 Status = Literal["ok", "warn", "collision", "unreachable"]
 Kind = Literal["print", "link", "approach", "retract", "lift", "transfer", "lower"]
 PartStatus = Literal["machbar", "nicht machbar"]
-RingKind = Literal["outer", "inner", "hole"]
+# Schalen (outer, inner, hole) und Druckmuster (docs/muster/ARTEFAKT-FORMAT.md): infill im Hohlraum,
+# web = Quersteg, outfill = gegliederte bzw. gewellte Außenhaut
+RingKind = Literal["outer", "inner", "hole", "infill", "web", "outfill"]
+LayerOrder = Literal["same", "alternate"]
 PlannerMode = Literal["collision_aware", "ignore_collision"]
 
 Vec3 = Annotated[list[float], Field(min_length=3, max_length=3)]
 Pose7 = Annotated[list[float], Field(min_length=7, max_length=7)]
 Joints6 = Annotated[list[float], Field(min_length=6, max_length=6)]
 ParamValue = float | str | bool
+#: Werte in `pattern_params` (Szenario) und `Toolpath.pattern.params`: Zahl, Text, Wahrheitswert
+#: oder Zahlenliste (z. B. seam_corner)
+PatternParamValue = float | str | bool | list[float]
+#: Wert in Szenario- bzw. Job-`params`: skalar, nur `pattern_params` ist ein Objekt
+ScenarioParamValue = ParamValue | dict[str, PatternParamValue]
 
 
 def _check_mat4(m: list[list[float]]) -> list[list[float]]:

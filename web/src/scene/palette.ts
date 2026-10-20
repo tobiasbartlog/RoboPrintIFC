@@ -15,6 +15,10 @@ export interface ScenePalette {
   toolpathDone: string;
   toolpathTodo: string;
   accent: string;
+  /** Segmentarten des Druckmusters (gleiche Farben wie die 2D-Vorschau und die Legende) */
+  infill: string;
+  web: string;
+  outfill: string;
 }
 
 const VARS: Record<keyof ScenePalette, [string, string]> = {
@@ -28,6 +32,9 @@ const VARS: Record<keyof ScenePalette, [string, string]> = {
   toolpathDone: ['--mantine-color-dark-6', '#373a40'],
   toolpathTodo: ['--mantine-color-gray-5', '#adb5bd'],
   accent: ['--mantine-color-blue-6', '#228be6'],
+  infill: ['--mantine-color-pink-6', '#e64980'],
+  web: ['--mantine-color-green-6', '#40c057'],
+  outfill: ['--mantine-color-violet-6', '#7950f2'],
 };
 
 export function readPalette(root: HTMLElement = document.documentElement): ScenePalette {

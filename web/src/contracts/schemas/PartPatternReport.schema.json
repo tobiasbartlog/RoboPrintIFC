@@ -1,0 +1,236 @@
+{
+  "$defs": {
+    "PartKindStat": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "outer",
+            "inner",
+            "hole",
+            "infill",
+            "web",
+            "outfill"
+          ],
+          "type": "string"
+        },
+        "length_mm": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "rings": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "share": {
+          "description": "Anteil an der gesamten Druckbahnlänge",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "rings",
+        "length_mm",
+        "share"
+      ],
+      "title": "PartKindStat",
+      "type": "object"
+    },
+    "PartLayerChanges": {
+      "additionalProperties": false,
+      "properties": {
+        "diagonal": {
+          "description": "Verbinder mit größerem waagrechtem Versatz",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_offset_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "größter waagrechter Versatz eines Verbinders, None ohne Verbinder"
+        },
+        "travel": {
+          "description": "Schichtwechsel mit Absetzen",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "vertical": {
+          "description": "Verbinder mit waagrechtem Versatz ≤ 0,5 mm (reiner Z-Hub)",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "vertical",
+        "diagonal",
+        "travel",
+        "max_offset_mm"
+      ],
+      "title": "PartLayerChanges",
+      "type": "object"
+    },
+    "PartLayerStat": {
+      "additionalProperties": false,
+      "properties": {
+        "layer": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "length_mm": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "rings": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "strands": {
+          "description": "Zusammenhängende Stränge innerhalb der Schicht (ohne Absetzen)",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "layer",
+        "rings",
+        "strands",
+        "length_mm"
+      ],
+      "title": "PartLayerStat",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Kennzahlen des Druckmusters eines Teils (ohne Muster: nur Schalen).",
+  "properties": {
+    "bead_width_mm": {
+      "type": "number"
+    },
+    "has_pattern": {
+      "type": "boolean"
+    },
+    "infill": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "kinds": {
+      "items": {
+        "$ref": "#/$defs/PartKindStat"
+      },
+      "type": "array"
+    },
+    "layer_changes": {
+      "$ref": "#/$defs/PartLayerChanges"
+    },
+    "layer_height_mm": {
+      "type": "number"
+    },
+    "layer_order": {
+      "anyOf": [
+        {
+          "enum": [
+            "same",
+            "alternate"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "layers": {
+      "items": {
+        "$ref": "#/$defs/PartLayerStat"
+      },
+      "type": "array"
+    },
+    "max_strands_per_layer": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "n_layers": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "n_open_rings": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "n_rings": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "n_strands": {
+      "description": "Stränge im ganzen Teil (Pumpe an, kein Halt)",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "outfill": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "part_id": {
+      "type": "string"
+    },
+    "print_time_s": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "total_length_mm": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "v_print_mm_s": {
+      "type": "number"
+    },
+    "volume_l": {
+      "minimum": 0,
+      "type": "number"
+    }
+  },
+  "required": [
+    "part_id",
+    "has_pattern",
+    "layer_order",
+    "infill",
+    "outfill",
+    "n_layers",
+    "bead_width_mm",
+    "layer_height_mm",
+    "v_print_mm_s",
+    "total_length_mm",
+    "print_time_s",
+    "volume_l",
+    "n_rings",
+    "n_open_rings",
+    "n_strands",
+    "max_strands_per_layer",
+    "kinds",
+    "layer_changes",
+    "layers"
+  ],
+  "title": "PartPatternReport",
+  "type": "object"
+}

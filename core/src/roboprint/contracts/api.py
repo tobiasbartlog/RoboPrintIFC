@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import ConfigDict, Field
 
-from ._types import ContractModel, ParamValue, PlannerMode
+from ._types import ContractModel, PlannerMode, ScenarioParamValue
 from .artifacts import WallEntry
 
 
@@ -46,7 +46,7 @@ class ProjectInfo(ContractModel):
 
 class JobCreate(ContractModel):
     wall_id: str
-    params: dict[str, ParamValue] = Field(default_factory=dict)
+    params: dict[str, ScenarioParamValue] = Field(default_factory=dict)
     planner_mode: PlannerMode = "collision_aware"
 
 
@@ -374,3 +374,90 @@ class PatternCatalog(ContractModel):
     base_patterns: list[str]
     patterns: list[PatternInfo]
     presets: list[PatternPresetEntry]
+
+
+# --------------------------------------------------------------------------- Muster eines gerechneten Teils
+# Kennzahlen und Schichtvorschau aus `toolpath.json` eines Laufs (`roboprint.pattern_report`).
+# Der Viewer rechnet nichts davon selbst (SPEC §9).
+
+SegmentKind = Literal["outer", "inner", "hole", "infill", "web", "outfill"]
+
+
+class PartKindStat(ContractModel):
+    kind: SegmentKind
+    rings: int = Field(ge=0)
+    length_mm: float = Field(ge=0)
+    share: float = Field(ge=0, le=1, description="Anteil an der gesamten Druckbahnlänge")
+
+
+class PartLayerStat(ContractModel):
+    layer: int = Field(ge=0)
+    rings: int = Field(ge=0)
+    strands: int = Field(ge=0, description="Zusammenhängende Stränge innerhalb der Schicht (ohne Absetzen)")
+    length_mm: float = Field(ge=0)
+
+
+class PartLayerChanges(ContractModel):
+    vertical: int = Field(ge=0, description="Verbinder mit waagrechtem Versatz ≤ 0,5 mm (reiner Z-Hub)")
+    diagonal: int = Field(ge=0, description="Verbinder mit größerem waagrechtem Versatz")
+    travel: int = Field(ge=0, description="Schichtwechsel mit Absetzen")
+    max_offset_mm: float | None = Field(
+        description="größter waagrechter Versatz eines Verbinders, None ohne Verbinder"
+    )
+
+
+class PartPatternReport(ContractModel):
+    """Kennzahlen des Druckmusters eines Teils (ohne Muster: nur Schalen)."""
+
+    part_id: str
+    has_pattern: bool
+    layer_order: Literal["same", "alternate"] | None
+    infill: str | None
+    outfill: str | None
+    n_layers: int = Field(ge=0)
+    bead_width_mm: float
+    layer_height_mm: float
+    v_print_mm_s: float
+    total_length_mm: float = Field(ge=0)
+    print_time_s: float = Field(ge=0)
+    volume_l: float = Field(ge=0)
+    n_rings: int = Field(ge=0)
+    n_open_rings: int = Field(ge=0)
+    n_strands: int = Field(ge=0, description="Stränge im ganzen Teil (Pumpe an, kein Halt)")
+    max_strands_per_layer: int = Field(ge=0)
+    kinds: list[PartKindStat]
+    layer_changes: PartLayerChanges
+    layers: list[PartLayerStat]
+
+
+class PartLayerSegment(ContractModel):
+    ring: int = Field(ge=0)
+    kind: SegmentKind
+    shell: int
+    closed: bool
+    link_next: bool
+    points: list[Point2]
+
+
+class PartLayerPath(ContractModel):
+    layer: int = Field(ge=0)
+    segments: list[PartLayerSegment]
+    start: Point2 | None
+    end: Point2 | None
+    length_mm: float = Field(ge=0)
+
+
+class PartPatternLayer(ContractModel):
+    """Eine Schicht des gerechneten Teils im Teil-Frame P (mm, XY) samt Nachbarschicht."""
+
+    part_id: str
+    layer: int = Field(ge=0)
+    n_layers: int = Field(ge=0)
+    z_mm: float
+    bead_width_mm: float
+    bounds: Annotated[list[Point2], Field(min_length=2, max_length=2)] = Field(
+        description="Ecken [min, max] aller Punkte der gezeigten Schichten"
+    )
+    path: PartLayerPath
+    neighbor: PartLayerPath | None = Field(description="Folgeschicht (letzte Schicht: Vorgängerschicht)")
+    neighbor_relation: Literal["next", "previous"] | None

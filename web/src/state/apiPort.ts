@@ -2,7 +2,7 @@
  * Schmale Schnittstelle der Shell zum Backend. Der Orchestrator verdrahtet sie beim Merge mit
  * dem echten Client (`src/api/client.ts`); Tests und Fixture-Betrieb nutzen `fakeApi.ts`.
  */
-import type { Example, JobCreate, JobState, ProjectInfo } from '../contracts';
+import type { Example, JobCreate, JobState, PartPatternLayer, PartPatternReport, ProjectInfo } from '../contracts';
 
 export type ProjectSource = { examplePath: string } | { file: File };
 export type WallFrame = 'L' | 'building';
@@ -26,6 +26,10 @@ export interface ApiPort {
   wallMeshUrl(projectId: string, wallId: string, frame?: WallFrame): string;
   /** URL der übrigen Bauteile (Decken, Dach, ...) für die Hausansicht (STL, mm). */
   contextMeshUrl(projectId: string): string;
+  /** Kennzahlen des Druckmusters eines Teils (die API rechnet sie aus `toolpath.json`). */
+  patternReport(runId: string, partId: string): Promise<PartPatternReport>;
+  /** Eine Schicht des Teils im Frame P samt Nachbarschicht (2D-Vorschau). */
+  patternLayer(runId: string, partId: string, layer: number): Promise<PartPatternLayer>;
   /** Basis-URL der Assets (URDF, Tisch- und Werkzeug-STL), z. B. `/api/assets`. */
   readonly assetBase: string;
 }

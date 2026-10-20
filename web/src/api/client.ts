@@ -9,6 +9,8 @@ import type {
   JobCreated,
   JobState,
   PartArtifact,
+  PartPatternLayer,
+  PartPatternReport,
   ProjectCreated,
   ProjectInfo,
   Scene,
@@ -145,6 +147,15 @@ export const loadToolpath = (runId: string, partId: string): Promise<Toolpath> =
   getJson(runUrl(runId, partPath(partId, 'toolpath.json')));
 export const loadTrajectory = (runId: string, partId: string): Promise<Trajectory> =>
   getJson(runUrl(runId, partPath(partId, 'trajectory.json')));
+
+const reportQuery = (runId: string, partId: string): string =>
+  `run_id=${encodeURIComponent(runId)}&part_id=${encodeURIComponent(partId)}`;
+/** Kennzahlen des Druckmusters eines Teils (gerechnet im Kern aus `toolpath.json`). */
+export const loadPatternReport = (runId: string, partId: string): Promise<PartPatternReport> =>
+  getJson(`/pattern-report/metrics?${reportQuery(runId, partId)}`);
+/** Eine Schicht des Teils im Teil-Frame P samt Nachbarschicht. */
+export const loadPatternLayer = (runId: string, partId: string, layer: number): Promise<PartPatternLayer> =>
+  getJson(`/pattern-report/layer?${reportQuery(runId, partId)}&layer=${layer}`);
 
 export async function loadDrl(
   runId: string,

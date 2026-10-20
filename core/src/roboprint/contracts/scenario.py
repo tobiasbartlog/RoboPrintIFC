@@ -6,7 +6,13 @@ from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
-from ._types import SCENARIO_SCHEMA_VERSION, ContractModel, ParamValue, PlannerMode, Vec3
+from ._types import (
+    SCENARIO_SCHEMA_VERSION,
+    ContractModel,
+    PlannerMode,
+    ScenarioParamValue,
+    Vec3,
+)
 
 
 class BoxSource(ContractModel):
@@ -44,7 +50,9 @@ class Scenario(ContractModel):
     urdf: str
     tool: str
     workstation: str
-    params: dict[str, ParamValue]
+    # Prozessparameter (SPEC §10). Opt-in für Druckmuster: `pattern_params` als Objekt
+    # (docs/muster/ARTEFAKT-FORMAT.md), alle übrigen Werte skalar
+    params: dict[str, ScenarioParamValue]
     planner_mode: PlannerMode
     placement_override: PlacementOverride | None = None
     expect: dict[str, Any]

@@ -80,6 +80,23 @@ def assumptions(params: PlannerParams) -> list[str]:
         f"tau_max = {_de(p.tau_max_deg)} Grad ({tag('tau_max_deg')})",
         f"tcp_name {p.tcp_name} muss am Teach Pendant angelegt sein ({tag('tcp_name')})",
         "Duese rotationssymmetrisch, Gierwinkel psi frei (SPEC §13/3)",
+    ] + _pattern_assumptions(params)
+
+
+def _pattern_assumptions(params: PlannerParams) -> list[str]:
+    """Druckmuster (opt-in): eine Zeile mit dem aufgeloesten Muster; ohne Muster keine."""
+    if not params.uses_pattern:
+        return []
+    from roboprint import slicer_patterns
+    from roboprint.planner import slice_params
+
+    pp = slicer_patterns.pattern_params(slice_params(params))
+    info = slicer_patterns.pattern_info(pp) if pp is not None else {}
+    extra = ", ".join(f"{k} = {v}" for k, v in sorted(info.get("params", {}).items()))
+    return [
+        f"Druckmuster (opt-in, A): Schichtfolge {info.get('layer_order')}, Infill {info.get('infill')}, "
+        f"Outfill {info.get('outfill')}" + (f", {extra}" if extra else "")
+        + "; Musterregeln M1-M7 mit eps = 0,15 und delta = 2 mm (A, docs/muster/AUFTRAG.md)"
     ]
 
 

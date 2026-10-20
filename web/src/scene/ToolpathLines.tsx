@@ -2,7 +2,8 @@ import { useThree } from '@react-three/fiber';
 import { useEffect, useLayoutEffect, useMemo } from 'react';
 import { BufferAttribute, BufferGeometry } from 'three';
 import type { PrintedState } from './progress';
-import { cutStart, linesDone, strandCut, strandLines, type StrandLayout } from './strand';
+import { kindColorFn } from './kindColors';
+import { cutStart, hasPatternKinds, linesDone, strandCut, strandLines, type StrandLayout } from './strand';
 
 interface ToolpathLinesProps {
   layout: StrandLayout;
@@ -10,6 +11,8 @@ interface ToolpathLinesProps {
   printed: PrintedState | null;
   doneColor: string;
   todoColor: string;
+  /** Farben der Musterarten (infill, web, outfill); null = einfarbige Bahn wie ohne Muster. */
+  kindColors?: Record<string, string> | null;
 }
 
 /**
@@ -17,19 +20,25 @@ interface ToolpathLinesProps {
  * der Rest blass. Die Punkte liegen einmal im Speicher; ein Uhrschritt verschiebt nur die
  * drawRanges und setzt die Spitze (ein Linienstueck vom letzten Wegpunkt bis zum Schnitt).
  */
-export function ToolpathLines({ layout, printed, doneColor, todoColor }: ToolpathLinesProps) {
+export function ToolpathLines({ layout, printed, doneColor, todoColor, kindColors = null }: ToolpathLinesProps) {
   const invalidate = useThree((s) => s.invalidate);
-  const { done, todo, tip, start, count } = useMemo(() => {
-    const lines = strandLines(layout);
+  const { done, todo, tip, start, count, colored } = useMemo(() => {
+    const colorOf = kindColors && hasPatternKinds(layout) ? kindColorFn(kindColors, doneColor) : undefined;
+    const lines = strandLines(layout, colorOf);
     const attr = new BufferAttribute(lines.positions, 3);
     const done = new BufferGeometry();
     done.setAttribute('position', attr);
     const todo = new BufferGeometry();
     todo.setAttribute('position', attr);
+    if (lines.colors) {
+      const col = new BufferAttribute(lines.colors, 3);
+      done.setAttribute('color', col);
+      todo.setAttribute('color', col);
+    }
     const tip = new BufferGeometry();
     tip.setAttribute('position', new BufferAttribute(new Float32Array(6), 3));
-    return { done, todo, tip, start: lines.start, count: lines.positions.length / 3 };
-  }, [layout]);
+    return { done, todo, tip, start: lines.start, count: lines.positions.length / 3, colored: lines.colors !== null };
+  }, [layout, kindColors, doneColor]);
   useEffect(
     () => () => {
       done.dispose();
@@ -60,13 +69,13 @@ export function ToolpathLines({ layout, printed, doneColor, todoColor }: Toolpat
   return (
     <group name="toolpath">
       <lineSegments geometry={done} frustumCulled={false}>
-        <lineBasicMaterial color={doneColor} />
+        <lineBasicMaterial color={colored ? 'white' : doneColor} vertexColors={colored} />
       </lineSegments>
       <lineSegments geometry={tip} frustumCulled={false}>
         <lineBasicMaterial color={doneColor} />
       </lineSegments>
       <lineSegments geometry={todo} frustumCulled={false}>
-        <lineBasicMaterial color={todoColor} transparent opacity={0.5} />
+        <lineBasicMaterial color={colored ? 'white' : todoColor} vertexColors={colored} transparent opacity={colored ? 0.35 : 0.5} />
       </lineSegments>
     </group>
   );

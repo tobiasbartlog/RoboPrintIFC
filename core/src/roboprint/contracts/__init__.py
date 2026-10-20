@@ -1,12 +1,14 @@
 """Verträge: Pydantic-Modelle aller Artefakte, API- und Szenario-Formate, Schema-Export."""
 
-from ._types import SCENARIO_SCHEMA_VERSION, SCHEMA_VERSION, Kind, PartStatus, RingKind, Status
+from ._types import SCENARIO_SCHEMA_VERSION, SCHEMA_VERSION, Kind, LayerOrder, PartStatus, RingKind, Status
 from .api import (
     Example,
     Health,
     JobCreate,
     JobCreated,
     JobState,
+    PartPatternLayer,
+    PartPatternReport,
     PatternCatalog,
     PatternContact,
     PatternFit,
@@ -40,6 +42,7 @@ from .artifacts import (
     SceneWorkstation,
     Summary,
     Toolpath,
+    ToolpathPattern,
     Trajectory,
     TrajectorySummary,
     WallEntry,
@@ -61,9 +64,12 @@ __all__ = [
     "JobCreated",
     "JobState",
     "Kind",
+    "LayerOrder",
     "PartArtifact",
     "PartEntry",
     "PartStatus",
+    "PartPatternLayer",
+    "PartPatternReport",
     "PatternCatalog",
     "PatternContact",
     "PatternFit",
@@ -96,6 +102,7 @@ __all__ = [
     "Status",
     "Summary",
     "Toolpath",
+    "ToolpathPattern",
     "Trajectory",
     "TrajectorySummary",
     "WallEntry",
