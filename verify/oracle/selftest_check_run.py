@@ -219,10 +219,17 @@ def _link_samples(tr: dict, ring: int) -> list[int]:
     return [i for i, (k, r) in enumerate(pairs) if k == "link" and r == ring]
 
 
-def _set_link_max(run_dir: Path, value: float) -> None:
+def _set_link_max(run_dir: Path, value: float | None, scenario: bool = True) -> None:
+    """link_max_mm in summary.json setzen (None: Schluessel entfernen), mit scenario auch im Szenario."""
     summ = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
-    summ["params"]["link_max_mm"] = value
+    summ["params"].pop("link_max_mm", None)
+    if value is not None:
+        summ["params"]["link_max_mm"] = value
     _save(run_dir / "summary.json", summ)
+    if scenario and value is not None:
+        scen = json.loads((run_dir / "scenario.json").read_text(encoding="utf-8"))
+        scen["params"] = {**scen.get("params", {}), "link_max_mm": value}
+        _save(run_dir / "scenario.json", scen)
 
 
 def test_strand_minirun_passes(minirun_strand_copy):
@@ -282,12 +289,30 @@ def test_link_outside_section_fails(minirun_strand_copy):
 
 
 def test_link_too_long_or_disabled_fails(minirun_strand_copy):
+    """Szenario und summary.json einig (40 mm bzw. 0): der 42,43-mm-Verbinder ist zu lang bzw. verboten."""
     _set_link_max(minirun_strand_copy, 40.0)
     ok, rep = _check(minirun_strand_copy)
     assert not ok and any("> link_max_mm 40" in e for e in rep["errors"]), rep["errors"]
+    assert not any("summary.params.link_max_mm" in e for e in rep["errors"]), rep["errors"]
     _set_link_max(minirun_strand_copy, 0.0)
     ok, rep = _check(minirun_strand_copy)
     assert not ok and any("link_max_mm = 0" in e for e in rep["errors"]), rep["errors"]
+
+
+def test_link_max_self_report_not_trusted(minirun_strand_copy):
+    """Szenario ohne Wert: Sollwert ist der SPEC-Default 60 mm. Traegt summary.json einen anderen Wert ein
+    oder fehlt er, ist das ein Fehler; die Verbinderpruefung rechnet weiter mit 60 mm."""
+    _set_link_max(minirun_strand_copy, 500.0, scenario=False)
+    ok, rep = _check(minirun_strand_copy)
+    assert not ok and any("summary.params.link_max_mm = 500.0, erwartet 60.0" in e for e in rep["errors"]), \
+        rep["errors"]
+    _set_link_max(minirun_strand_copy, 40.0, scenario=False)
+    ok, rep = _check(minirun_strand_copy)
+    assert not ok and any("erwartet 60.0" in e for e in rep["errors"]), rep["errors"]
+    assert not any("> link_max_mm" in e for e in rep["errors"]), rep["errors"]  # Pruefung mit 60 mm
+    _set_link_max(minirun_strand_copy, None)
+    ok, rep = _check(minirun_strand_copy)
+    assert not ok and any("summary.params.link_max_mm fehlt" in e for e in rep["errors"]), rep["errors"]
 
 
 def test_link_layer_rule_fails(minirun_strand_copy):

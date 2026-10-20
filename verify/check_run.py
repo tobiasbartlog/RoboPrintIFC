@@ -189,22 +189,6 @@ def params_for(scenario: dict, ws: dict) -> Params:
                   link_max=float(p.get("link_max_mm", LINK_MAX_DEFAULT)))
 
 
-def apply_link_max(summary: dict | None, scenario: dict, prm: Params, F: Findings) -> None:
-    """link_max_mm (SPEC §10, Default 60 mm, 0 = keine Verbinder) aus summary.json params. Nennt auch das
-    Szenario einen Wert, muessen beide uebereinstimmen."""
-    sp = (summary or {}).get("params", {}) or {}
-    if "link_max_mm" not in sp:
-        return
-    try:
-        val = float(sp["link_max_mm"])
-    except (TypeError, ValueError):
-        F.err(f"summary.params.link_max_mm = {sp['link_max_mm']!r} ist keine Zahl")
-        return
-    if "link_max_mm" in (scenario.get("params", {}) or {}) and abs(val - prm.link_max) > 1e-9:
-        F.err(f"summary.params.link_max_mm = {val}, erwartet {prm.link_max} (Szenario)")
-    prm.link_max = val
-
-
 def check_run_level(run: Path, scenario: dict, prm: Params, F: Findings):
     summary = scene = None
     for name in ("summary.json", "scene.json"):
@@ -219,9 +203,12 @@ def check_run_level(run: Path, scenario: dict, prm: Params, F: Findings):
         if summary.get("scenario_id") != scenario.get("id"):
             F.err(f"summary.json: scenario_id {summary.get('scenario_id')!r} != {scenario.get('id')!r}")
         sp = summary.get("params", {})
+        # Sollwerte aus Szenario bzw. SPEC §10 (params_for); summary.json muss sie tragen. link_max_mm
+        # ebenso: die Verbinderpruefung rechnet mit dem Sollwert, nicht mit der Selbstauskunft.
         for key, val in (("layer_height_mm", prm.h), ("bead_width_mm", prm.w), ("d_hard_mm", prm.d_hard),
                          ("d_target_mm", prm.d_target),
-                         ("d_target_printed_mm", prm.d_target_printed), ("r_free_mm", prm.r_free)):
+                         ("d_target_printed_mm", prm.d_target_printed), ("r_free_mm", prm.r_free),
+                         ("link_max_mm", prm.link_max)):
             if key in sp and abs(float(sp[key]) - val) > 1e-9:
                 F.err(f"summary.params.{key} = {sp[key]}, erwartet {val}")
             if key not in sp:
@@ -341,7 +328,6 @@ def run(run_dir: Path, scenario_path: Path, jobs: int, legacy_status: bool = Fal
     mode = "s3" if expect.get("parts") == "collision_detected" else (
         "s2" if "eligible_walls" in expect else "s1")
     summary, _ = check_run_level(run_dir, scenario, prm, F)
-    apply_link_max(summary, scenario, prm, F)
     pdirs = sorted(p for p in (run_dir / "parts").glob("*") if p.is_dir())
     if summary is not None:
         listed = [p.get("part_id") for p in summary.get("parts", [])]

@@ -41,8 +41,9 @@ Verbinder über einer Bohrung im Teil, Verbinder länger als `link_max_mm` oder 
 falsche Schicht im Verbinder, Zweigwechsel im Verbinder, falsches `zweig_wechsel_in_ringen`, Pumpe aus
 zwischen `print` und `link`, Pumpe an während `retract`, Halt im Strang (`radius = 0` oder `wait`, auch
 mit erneutem Pumpe-an ohne Zustandswechsel), `wait` am Strangende vor Pumpe aus, zu großer Radius am
-Verbinder, fehlendes `toolpath.json`. `oracle/selftest_strand.py` prüft dieselben
-Regeln zusätzlich auf synthetischen Daten; diese Datei braucht weder Pinocchio noch Coal.
+Verbinder, fehlendes `toolpath.json`, `summary.params.link_max_mm` fehlend oder abweichend vom Sollwert
+(Szenario-Wert, sonst 60 mm). `oracle/selftest_strand.py` prüft dieselben Regeln zusätzlich auf
+synthetischen Daten; diese Datei braucht weder Pinocchio noch Coal.
 
 ## Methoden
 
@@ -99,8 +100,9 @@ innerer Puffer shells·w, Druckbahnen mit w/2 gepuffert, shapely), Summen in `tr
   `link`-Sample ≤ 0,5 mm an B; Schichtsprung L(r+1) − L(r) ∈ {0, 1}; waagrechte Länge |A–B|_xy ≤
   `link_max_mm` + 0,01 mm, bei `link_max_mm` = 0 ist kein Verbinder erlaubt; die waagrechte Projektion
   von A–B (Frame P) liegt im Querschnitt von `part.stl` bei z = (L(r+1)+0,5)·h, beim Schichtwechsel auch
-  bei z = (L(r)+0,5)·h, Toleranz 1 mm (Querschnitt um 1 mm gepuffert). `link_max_mm` kommt aus `summary.json params`
-  (Default 60 mm, SPEC §10); nennt das Szenario einen Wert, muss `summary.json` ihn tragen.
+  bei z = (L(r)+0,5)·h, Toleranz 1 mm (Querschnitt um 1 mm gepuffert). Sollwert von `link_max_mm` ist
+  der Szenario-Wert, sonst 60 mm (SPEC §10), wie bei den übrigen Parametern: `summary.json params` muss
+  ihn tragen (fehlt oder weicht ab → Fehler), geprüft wird immer mit dem Sollwert.
 - `trajectory.summary.zweig_wechsel_in_ringen` = Anzahl der `branch`-Wechsel zwischen aufeinanderfolgenden
   erreichbaren Samples innerhalb eines Strangs (ARTEFAKTE), exakt nachgezählt; G3 verlangt zusätzlich 0.
 - Status: Der Prüfer hält je Paar ein Intervall [lb, ub] (`interval_checker.py`): lb aus der letzten

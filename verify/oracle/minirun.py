@@ -3,10 +3,11 @@
 Erzeugt ohne roboprint, nur mit Pinocchio-FK, numerischer IK und dem Kollisions-Orakel, einen
 kleinen Quader (2 Schichten, 2 Schalen) mit Trajektorie und DRL nach spec/ARTEFAKTE.md.
 
-- `build(out)`: alter Ablauf, jeder Ring ein eigener Strang (link_max_mm = 0, alle link_next false).
+- `build(out)`: alter Ablauf, jeder Ring ein eigener Strang (link_max_mm = 0 im Szenario und in
+  summary.json, alle link_next false).
 - `build(out, strand=True)`: Strang-Variante (SPEC §5.3): Ring 0 -> 1 (gleiche Schicht) und 1 -> 2
   (Schichtwechsel) ueber Verbinder, danach Travel zu Ring 3 (link_next von Ring 2 ist true, wird aber
-  nicht genutzt). link_max_mm = 60.
+  nicht genutzt). link_max_mm = 60 (Szenario ohne Wert, also SPEC-Default).
 """
 
 from __future__ import annotations
@@ -208,7 +209,8 @@ def build(out: Path, part_id: str = "box_0", size=SIZE, center=CENTER_S, strand:
                                                 "layer_height_mm")}}})
     scen = out / "scenario.json"
     _dump(scen, {"schema_version": "1", "id": "MINI", "mode": "modul",
-                 "source": {"kind": "box", "size_mm": list(size)}, "decompose": False, "params": {},
+                 "source": {"kind": "box", "size_mm": list(size)}, "decompose": False,
+                 "params": {} if strand else {"link_max_mm": 0.0},  # Strang: Default 60 mm (SPEC §10)
                  "planner_mode": "collision_aware", "expect": {"parts": "all_feasible"}})
     for dialect in ("v2", "v3"):
         (pdir / f"program.{dialect}.drl").write_text(emit_drl(b, traj, rings, dialect), encoding="utf-8")
