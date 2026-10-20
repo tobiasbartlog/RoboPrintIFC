@@ -143,6 +143,8 @@ class Ring(ContractModel):
     shell: int = Field(ge=0)
     kind: RingKind
     closed: bool
+    # Verbinder zum Ring mit dem naechsthoeheren Index erlaubt (SPEC §5.3)
+    link_next: bool = False
     waypoints: list[Pose7]
 
     @model_validator(mode="after")

@@ -18,6 +18,10 @@
           "minimum": 0,
           "type": "integer"
         },
+        "link_next": {
+          "default": false,
+          "type": "boolean"
+        },
         "shell": {
           "minimum": 0,
           "type": "integer"
@@ -39,6 +43,7 @@
         "shell",
         "kind",
         "closed",
+        "link_next",
         "waypoints"
       ],
       "title": "Ring",
