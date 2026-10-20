@@ -1,0 +1,224 @@
+{
+  "$defs": {
+    "TrajectorySummary": {
+      "additionalProperties": false,
+      "properties": {
+        "d_min_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dauer_s": {
+          "type": "number"
+        },
+        "n": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "n_collision": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "n_ok": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "n_unreachable": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "n_warn": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "zweig_wechsel_in_ringen": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "n",
+        "n_ok",
+        "n_warn",
+        "n_collision",
+        "n_unreachable",
+        "d_min_mm",
+        "dauer_s",
+        "zweig_wechsel_in_ringen"
+      ],
+      "title": "TrajectorySummary",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "branch": {
+      "items": {
+        "type": "integer"
+      },
+      "type": "array"
+    },
+    "d_mm": {
+      "items": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "type": "array"
+    },
+    "kind": {
+      "items": {
+        "enum": [
+          "print",
+          "approach",
+          "retract",
+          "lift",
+          "transfer",
+          "lower"
+        ],
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "layer": {
+      "items": {
+        "type": "integer"
+      },
+      "type": "array"
+    },
+    "pair": {
+      "items": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "type": "array"
+    },
+    "part_id": {
+      "type": "string"
+    },
+    "psi_rad": {
+      "items": {
+        "type": "number"
+      },
+      "type": "array"
+    },
+    "q": {
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "maxItems": 6,
+        "minItems": 6,
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "ring": {
+      "items": {
+        "type": "integer"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "2",
+      "default": "2",
+      "type": "string"
+    },
+    "status": {
+      "items": {
+        "enum": [
+          "ok",
+          "warn",
+          "collision",
+          "unreachable"
+        ],
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "summary": {
+      "$ref": "#/$defs/TrajectorySummary"
+    },
+    "t_s": {
+      "items": {
+        "type": "number"
+      },
+      "type": "array"
+    },
+    "tcp": {
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "maxItems": 7,
+        "minItems": 7,
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "witness": {
+      "items": {
+        "anyOf": [
+          {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "part_id",
+    "t_s",
+    "q",
+    "tcp",
+    "layer",
+    "ring",
+    "kind",
+    "branch",
+    "status",
+    "d_mm",
+    "pair",
+    "witness",
+    "psi_rad",
+    "summary"
+  ],
+  "title": "Trajectory",
+  "type": "object"
+}

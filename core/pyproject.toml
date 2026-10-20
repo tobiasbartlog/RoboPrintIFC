@@ -1,23 +1,29 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
 
 [project]
-name = "fgc-core"
-version = "0.1.0"
-description = "RoboPrintIFC Core: IFC -> Slicing -> Kinematik -> KRL/DRL fuer funktional gradierten Lehm-3D-Druck"
-license = { text = "MIT" }
-authors = [{ name = "Tobias Bartlog", email = "bartlog@icom.rwth-aachen.de" }]
+name = "roboprint"
+version = "2.0.0.dev0"
+description = "RoboPrintIFC v2: vom IFC-Wandmodell zum druckbaren Doosan-M1013-Programm"
 requires-python = ">=3.12"
 dependencies = [
     "jsonschema>=4.21",
     "fastapi>=0.110",
-    # [standard] zieht watchfiles mit: der event-basierte Reloader, den der
-    # GUI-Start (viewer_launch, --reload) braucht, damit ein laufender Server
-    # dem Arbeitsbaum folgt statt Code UND @cache-Schemas aus der Startzeit
-    # einzufrieren — inkl. der validierten JSON-Stammdaten (schemas/, robots/),
-    # die der Fallback-StatReload (nur *.py) nicht beobachtet.
     "uvicorn[standard]>=0.29",
+    "pydantic>=2",
+    "ifcopenshell",
+    "trimesh",
+    "shapely",
+    "numpy",
+    "scipy",
+    "networkx",
+    "rtree",
+    "pycollada",
+    "python-fcl",
+    "mapbox-earcut",
+    "vhacdx",
+    "manifold3d",
 ]
 
 [project.optional-dependencies]
@@ -27,49 +33,21 @@ dev = [
     "ruff>=0.6",
     "httpx>=0.27",
 ]
-# Geometrie-/IFC-Stack kommt mit M0 dazu (Wheel-Verfuegbarkeit je Python-Version pruefen):
-geo = [
-    "ifcopenshell",
-    "trimesh",
-    "shapely",
-    "numpy",
-    # trimesh.section()/polygons_full braucht diese optionalen Extras zur Laufzeit (Spike S2):
-    "scipy",
-    "networkx",
-    "rtree",
-    # DAE-Import fuer core/scripts/convert_robot_meshes.py (M1013-Meshes, Issue #40):
-    "pycollada",
-    # Kollisionskontrolle (ADR-024, Issue #125): Mesh-Distanzen + VHACD-Zerlegung.
-    # python-fcl = exakte/konvexe Distanzen via trimesh.collision; mapbox-earcut =
-    # Triangulation (Kappen/Footprint-Extrusion, spaetere Scheiben); vhacdx =
-    # Konvexzerlegung der Urteilsgeometrie. Wheels fuer Python 3.14/Windows vorhanden
-    # (Spike S0). Bereits im Projekt-venv installiert.
-    "python-fcl",
-    "mapbox-earcut",
-    "vhacdx",
-]
 
 [project.scripts]
-fgc = "fgc.pipeline.cli:main"
+roboprint = "roboprint.cli:main"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/fgc"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
+pythonpath = ["src"]
 testpaths = ["tests"]
-markers = [
-    "slow: langsame Tests (z. B. Kollisions-Performance-Anker) — mit '-m slow' ausführen",
-]
-# Der Performance-Anker (25 217 Samples) läuft nur explizit mit '-m slow',
-# damit die normale Suite schnell bleibt.
-# -n auto: pytest-xdist verteilt die ~850 Tests über alle Kerne (16 lokal),
-# damit der Prüf-Loop im lokalen und im CI-Betrieb nicht an einzelnen schweren
-# Geometrie-Tests hängt.
-addopts = "-m 'not slow' -n auto"
 
 [tool.ruff]
-line-length = 100
-src = ["src"]
+line-length = 110
+target-version = "py312"
+src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B"]
+select = ["E", "F", "I", "UP", "B"]

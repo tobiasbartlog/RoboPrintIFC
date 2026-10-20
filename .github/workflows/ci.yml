@@ -1,5 +1,8 @@
 name: ci
 
+# v2 (geführter Neustart): legacy/ wird nicht mehr geprüft.
+# G1/G2 laufen als Schritte, sobald die Orakel-Dateien existieren (hashFiles).
+
 on:
   push:
   pull_request:
@@ -13,29 +16,33 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install
-        # [geo] muss mit: die Testmodule importieren numpy/trimesh/ifcopenshell/
-        # fcl direkt (kein importorskip), ohne den Stack bricht die Collection ab.
-        run: python -m pip install -e "core[dev,geo]"
+        # pin/coal: unabhaengige Orakel fuer G1/G2 (verify/), nicht Teil von roboprint
+        run: python -m pip install -e "core[dev]" "pin==4.1.0" "coal==3.0.3"
       - name: Lint
-        run: python -m ruff check core
-      - name: Test
-        run: python -m pytest core
+        run: python -m ruff check core verify
+      - name: Unit-Tests
+        run: python -m pytest core -q
+      - name: Gate G1 (Kinematik)
+        if: ${{ hashFiles('verify/oracle/test_g1_kinematics.py') != '' }}
+        run: python -m pytest verify/oracle/test_g1_kinematics.py -q
+      - name: Gate G2 (Kollision)
+        if: ${{ hashFiles('verify/oracle/test_g2_collision.py') != '' }}
+        run: python -m pytest verify/oracle/test_g2_collision.py -q
 
-  viewer:
+  web:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
-          cache-dependency-path: viewer/package-lock.json
+          cache-dependency-path: web/package-lock.json
       - name: Install
-        run: npm --prefix viewer ci
-      # vitest schließt die Py↔TS-Paritätshälften (ADR-009): die geteilten Goldens
-      # (fk, nozzle-*, staleness) prüft der Core in pytest, der Viewer hier.
-      - name: Test
-        run: npm --prefix viewer test
-      # tsc --noEmit + vite build — fängt Typ-/Build-Drift (z. B. Konstanten-Umbau).
-      - name: Build
-        run: npm --prefix viewer run build
+        run: npm --prefix web ci
+      - name: Lint
+        run: npm --prefix web run lint
+      - name: Typecheck
+        run: npm --prefix web run typecheck
+      - name: Unit-Tests
+        run: npm --prefix web run test

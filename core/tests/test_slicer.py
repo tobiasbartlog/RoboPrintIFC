@@ -1,236 +1,168 @@
-"""Slicer v0: Schnitte, Schalen, Toolpath-Bau — synthetische Meshes."""
+"""Tests für den Slicer (A1.3)."""
 
-import math
+from __future__ import annotations
 
 import numpy as np
 import pytest
 import trimesh
-from shapely.geometry import Polygon, box
+from shapely.geometry import LineString, Point, Polygon
+from shapely.ops import unary_union
 
-from fgc import domain
-from fgc.domain.process_params import PROVISIONAL_DEFAULTS, ProcessWindow, SliceParams
-from fgc.pipeline.provenance import make_provenance
-from fgc.slicer import section_layers, shell_rings, slice_wall
+from roboprint.contracts import Toolpath
+from roboprint.slicer import SliceParams, slice_part, to_toolpath
 
-PARAMS = SliceParams(strand_width_mm=30.0, layer_height_mm=100.0, n_shells=2)
-
-
-def wall_mesh(length=2000.0, thickness=200.0, height=1000.0) -> trimesh.Trimesh:
-    mesh = trimesh.creation.box(extents=[length, thickness, height])
-    mesh.apply_translation([0, 0, height / 2])
-    return mesh
+P = SliceParams()
 
 
-def test_section_layer_count_and_heights():
-    layers = section_layers(wall_mesh(height=1000.0), layer_height_mm=100.0)
-    assert len(layers) == 10
-    assert layers[0].z_mm == pytest.approx(50.0)
-    assert layers[-1].z_mm == pytest.approx(950.0)
-    assert all(len(layer.polygons) == 1 for layer in layers)
+def _box(lx, ly, lz):
+    m = trimesh.creation.box([lx, ly, lz])
+    m.apply_translation([0, 0, lz / 2])
+    return m
 
 
-def test_disjoint_cross_sections_yield_multiple_polygons():
-    """S2-Befund: eine Schnittebene kann mehrere getrennte Konturen treffen."""
-    a = wall_mesh(length=800.0)
-    b = wall_mesh(length=800.0)
-    b.apply_translation([1500.0, 0, 0])
-    layers = section_layers(trimesh.util.concatenate([a, b]), layer_height_mm=100.0)
-    assert all(len(layer.polygons) == 2 for layer in layers)
+def _wall_with_window():
+    wall = trimesh.creation.box([1000, 200, 500])
+    win = trimesh.creation.box([300, 300, 200])
+    bore = trimesh.creation.box([100, 60, 700])  # senkrechte Aussparung -> echtes Loch
+    bore.apply_translation([400, 0, 0])
+    m = wall.difference(win).difference(bore)
+    m.apply_translation([0, 0, 250])
+    return m
 
 
-def test_shell_rings_inset_and_closed():
-    poly = Polygon([(0, 0), (2000, 0), (2000, 200), (0, 200)])
-    rings = shell_rings(poly, strand_width_mm=30.0, n_shells=2)
-    assert {r.shell for r in rings} == {0, 1}
-    for ring in rings:
-        assert ring.points_xy[0] == ring.points_xy[-1]  # geschlossen
-    shell0 = next(r for r in rings if r.shell == 0)
-    ys = [y for _, y in shell0.points_xy]
-    assert min(ys) == pytest.approx(15.0)  # halbe Strangbreite innen
-    assert max(ys) == pytest.approx(185.0)
+def _section_poly(mesh, z):
+    sec = mesh.section(plane_origin=[0, 0, z], plane_normal=[0, 0, 1])
+    planar, _ = sec.to_2D(to_2D=np.eye(4))
+    return unary_union(planar.polygons_full)
 
 
-def test_shells_stop_when_contour_vanishes():
-    """Schmale Kontur: zweite Schale hat keinen Platz mehr -> keine Geister-Ringe."""
-    poly = Polygon([(0, 0), (2000, 0), (2000, 80), (0, 80)])  # 80 mm dick
-    rings = shell_rings(poly, strand_width_mm=30.0, n_shells=3)
-    assert {r.shell for r in rings} == {0}
+def _signed_area(xy):
+    x, y = xy[:, 0], xy[:, 1]
+    return 0.5 * np.sum(x[:-1] * y[1:] - x[1:] * y[:-1])
 
 
-def _notch_polygon(angle_deg: float, w: float, leg_length_w=25.0, wall_span_w=15.0) -> Polygon:
-    """Materialblock mit scharfer konkaver Reflex-Kerbe (V-Kerbe von unten).
-
-    Nachbau der `notch`-Familie aus Spike S4 (docs/spikes/s4_scripts/contours.py),
-    hier direkt in mm statt normierten Strangbreiten w=1.0.
-    """
-    leg_length = leg_length_w * w
-    wall_span = wall_span_w * w
-    big = box(-leg_length, -wall_span, leg_length, wall_span)
-    half = math.radians(angle_deg) / 2.0
-    depth = wall_span * 1.5
-    apex = (0.0, 0.0)
-    p1 = (-depth * math.sin(half), -depth * math.cos(half))
-    p2 = (depth * math.sin(half), -depth * math.cos(half))
-    cut_wedge = Polygon([apex, p2, p1])
-    return big.difference(cut_wedge)
-
-
-def test_shell_rings_survive_sharp_reflex_notch():
-    """S4-Regressionstest (docs/spikes/S4_offset_robustheit.md, notch-Familie).
-
-    Scharfe konkave Reflex-Kerbe (Kerbwinkel 15°): mit shapely-Default
-    mitre_limit=5 loest sich die Mitre-Spitze ab Schale k=2 als eigene
-    Teilflaeche ab (MultiPolygon-Zerfall) -- mit dem Produktionswert
-    mitre_limit=2.0 bleibt jede Schale eine einzelne, geschlossene Kontur.
-    """
-    w = PARAMS.strand_width_mm
-    poly = _notch_polygon(angle_deg=15.0, w=w)
-    n_shells = 3  # Schalen k=0,1,2 -> Inset bis 2.5*w
-
-    # Kontroll-Assertion: der shapely-Default (mitre_limit=5, hier explizit
-    # nachgestellt) zerfaellt bei der dritten Schale (k=2) tatsaechlich in ein
-    # MultiPolygon -- sonst waere dieser Test kein echter Regressionstest.
-    inset_k2 = w * (0.5 + 2)
-    shrunk_default = poly.buffer(-inset_k2, join_style="mitre")
-    assert shrunk_default.geom_type == "MultiPolygon"
-
-    rings = shell_rings(poly, strand_width_mm=w, n_shells=n_shells)
-    rings_per_shell: dict[int, int] = {}
-    for ring in rings:
-        rings_per_shell[ring.shell] = rings_per_shell.get(ring.shell, 0) + 1
-    assert set(rings_per_shell) == {0, 1, 2}
-    assert all(count == 1 for count in rings_per_shell.values())  # kein Zerfall
+def test_box_rings():
+    sl = slice_part(_box(600, 200, 400), P)
+    assert sl.n_layers == 40
+    for L in range(40):
+        rs = [r for r in sl.rings if r.layer == L]
+        assert len(rs) == 2
+        assert [r.shell for r in rs] == [0, 1]
+        assert [r.kind for r in rs] == ["outer", "inner"]
+        for r in rs:
+            assert np.allclose(r.points[:, 2], (L + 1) * 10)
+            assert np.allclose(r.points[0], r.points[-1])
+            assert np.allclose(r.approach, r.points[0] + [0, 0, 20])
+            assert np.allclose(r.retract, r.points[-1] + [0, 0, 20])
+    xy = sl.rings[0].points[:, :2]
+    assert np.isclose(xy[:, 0].max(), 285) and np.isclose(xy[:, 1].min(), -85)
+    assert np.allclose(xy[0], [-285, -85])  # Ringstart an (x_min, y_min)
 
 
-def test_mitre_limit_sourced_from_process_window_card():
-    """Issue #2: ``mitre_limit`` ist eine Quelle für E1 und Slicer (ADR-013).
-
-    Kartenwert (``materialcards/process_window.provisional.json``) und
-    Code-Default (``PROVISIONAL_DEFAULTS``) müssen übereinstimmen, und
-    ``SliceParams.from_window`` muss den Kartenwert übernehmen -- sonst könnten
-    Slicer und ``fgc.eligibility.footprint.has_narrow_web`` mit
-    unterschiedlichen mitre_limit-Werten laufen, obwohl beide dieselbe Karte
-    lesen sollen.
-    """
-    window = ProcessWindow.load()
-    assert window.mitre_limit == PROVISIONAL_DEFAULTS["mitre_limit"] == 2.0
-    params = SliceParams.from_window(window)
-    assert params.mitre_limit == window.mitre_limit
+def test_sampling_corners_orientation():
+    sl = slice_part(_box(600, 200, 100), P)
+    xy = sl.rings[0].points[:, :2]
+    assert np.linalg.norm(np.diff(xy, axis=0), axis=1).max() <= 20 + 1e-6
+    for c in [(-285, -85), (285, -85), (285, 85), (-285, 85)]:
+        assert np.min(np.linalg.norm(xy - c, axis=1)) < 1e-6
+    assert _signed_area(xy) > 0
 
 
-def test_slice_wall_toolpath_is_schema_valid():
-    mesh = wall_mesh()
-    toolpath = slice_wall(
-        np.asarray(mesh.vertices), np.asarray(mesh.faces), "TESTWALL00000000000000", PARAMS
-    )
-    artifact = toolpath.to_artifact(make_provenance("pytest"))
-    domain.validate(artifact, "toolpath")
+def test_window_holes_and_coverage():
+    mesh = _wall_with_window()
+    sl = slice_part(mesh, P)
+    assert sl.n_layers == 50
+    assert {r.kind for r in sl.rings if r.layer == 20} == {"outer", "inner", "hole"}
+    assert len([r for r in sl.rings if r.layer == 20 and r.shell == 0 and r.kind == "outer"]) == 2
+    assert {r.kind for r in sl.rings if r.layer == 2} == {"outer", "inner", "hole"}
+    for r in sl.rings:
+        a = _signed_area(r.points[:, :2])
+        assert (a < 0) if r.kind == "hole" else (a > 0)
+    for L in range(50):
+        sec = _section_poly(mesh, (L + 0.5) * 10)
+        shell_area = sec.difference(sec.buffer(-2 * 30, join_style="mitre"))
+        lines = [LineString(r.points[:, :2]) for r in sl.rings if r.layer == L]
+        cov = unary_union([ln.buffer(15) for ln in lines]).intersection(shell_area)
+        assert cov.area / shell_area.area >= 0.95, L
 
 
-def test_slice_wall_segments_start_with_travel():
-    mesh = wall_mesh()
-    toolpath = slice_wall(
-        np.asarray(mesh.vertices), np.asarray(mesh.faces), "TESTWALL00000000000000", PARAMS
-    )
-    assert toolpath.targets[0].kind == "travel"
-    by_segment: dict[str, list] = {}
-    for t in toolpath.targets:
-        by_segment.setdefault(t.segment_id.removesuffix("_approach"), []).append(t)
-    for targets in by_segment.values():
-        kinds = [t.kind for t in targets]
-        assert kinds[0] == "travel"
-        assert set(kinds[1:]) == {"print"}
-    # Travel-Targets fahren mit Pumpen aus
-    assert all(
-        all(v == 0.0 for v in t.io.values()) for t in toolpath.targets if t.kind == "travel"
-    )
+def test_two_contours_order():
+    a, b = _box(200, 200, 100), _box(200, 200, 100)
+    b.apply_translation([600, 0, 0])
+    sl = slice_part(trimesh.util.concatenate([a, b]), P)
+    rs = [r for r in sl.rings if r.layer == 0]
+    assert [r.shell for r in rs] == [0, 0, 1, 1]
 
 
-def test_slice_wall_layers_ascend():
-    mesh = wall_mesh()
-    toolpath = slice_wall(
-        np.asarray(mesh.vertices), np.asarray(mesh.faces), "TESTWALL00000000000000", PARAMS
-    )
-    zs = [t.frame.pos_mm[2] for t in toolpath.targets]
-    assert zs == sorted(zs)
-    assert max(t.layer for t in toolpath.targets) == 9
+def test_thin_wall_drops_second_shell():
+    sl = slice_part(_box(300, 50, 30), P)
+    assert [r.shell for r in sl.rings if r.layer == 0] == [0]
 
 
-def test_targets_carry_shared_nozzle_down_orientation():
-    """Alle Slicer-Ziele tragen die kanonische Druck-Orientierung (Düse nach
-    unten), und zwar dieselbe Konstante, aus der `fgc.placement` seine
-    Anfluggeometrie ableitet (Issue #51). Ohne diese Kopplung galt eine Wand im
-    Druckplan als erreichbar, in der Simulation aber nicht (Identitäts-Ziele)."""
-    import numpy as np
-
-    from fgc.domain.orientation import NOZZLE_DOWN_QUAT
-    from fgc.kinematics.opw import _quat_to_rot
-    from fgc.placement.evaluate import _R_NOZZLE_DOWN
-
-    mesh = wall_mesh()
-    toolpath = slice_wall(
-        np.asarray(mesh.vertices), np.asarray(mesh.faces), "TESTWALL00000000000000", PARAMS
-    )
-    assert toolpath.targets
-    # Slicer bäckt die Orientierung in jedes Ziel (Travel + Print).
-    assert all(t.frame.quat == NOZZLE_DOWN_QUAT for t in toolpath.targets)
-    # Platzierung leitet ihre Rotationsmatrix aus derselben Konstante ab → kein Drift.
-    np.testing.assert_allclose(_R_NOZZLE_DOWN, _quat_to_rot(NOZZLE_DOWN_QUAT))
-    np.testing.assert_allclose(
-        _R_NOZZLE_DOWN, np.array([[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])
-    )
+def test_toolpath_valid():
+    sl = slice_part(_box(600, 200, 100), P)
+    T = np.eye(4)
+    T[:3, 3] = [1000, 500, 800]
+    tp = to_toolpath(sl, T, "p0")
+    Toolpath.model_validate(tp.model_dump())
+    w = tp.rings[0].waypoints
+    assert w[0][2] == pytest.approx(810) and w[0][3:] == [0.0, 1.0, 0.0, 0.0]
+    assert w[0] == w[-1]
 
 
-def test_slicer_bakes_nozzle_quat_with_real_ring_tangent():
-    """Mit gesetztem Kipp fuellt der Slicer frame.quat je Ziel ueber die geteilte
-    ``nozzle_quat`` mit der echten Bahntangente (aufeinanderfolgende Ringpunkte) —
-    keine konstante Orientierung mehr, aber dieselbe Funktion wie ``placement``
-    (Issue #61, Regressionsschutz #51)."""
-    from fgc.domain.orientation import NOZZLE_DOWN_QUAT, nozzle_quat
-
-    params = SliceParams(
-        strand_width_mm=30.0, layer_height_mm=100.0, n_shells=1,
-        lead_rad=math.radians(10), kipp_rad=math.radians(25),
-    )
-    toolpath = slice_wall(
-        np.asarray(wall_mesh().vertices), np.asarray(wall_mesh().faces),
-        "TESTWALL00000000000000", params,
-    )
-    prints = [t for t in toolpath.targets if t.kind == "print"]
-    assert prints
-    # Angestellt ⇒ keine reine Senkrechte mehr.
-    assert any(t.frame.quat != NOZZLE_DOWN_QUAT for t in prints)
-    # Je Print-Ziel entspricht die Orientierung nozzle_quat der Tangente aus dem
-    # vorangehenden Ringpunkt desselben Segments — exakt die geteilte Funktion.
-    by_seg: dict[str, list] = {}
-    for t in prints:
-        by_seg.setdefault(t.segment_id, []).append(t)
-    checked = 0
-    for seg_targets in by_seg.values():
-        for prev, cur in zip(seg_targets, seg_targets[1:], strict=False):
-            tangent = (
-                cur.frame.pos_mm[0] - prev.frame.pos_mm[0],
-                cur.frame.pos_mm[1] - prev.frame.pos_mm[1],
-            )
-            if math.hypot(*tangent) < 1e-6:
-                continue
-            expected = nozzle_quat(tangent, params.lead_rad, params.kipp_rad)
-            np.testing.assert_allclose(cur.frame.quat, expected, atol=1e-6)
-            checked += 1
-    assert checked > 0
+# --- A4.5: schmale und kleine Querschnitte (Prüfer-Metrik aus verify/oracle/run_geometry.coverage) ---
 
 
-def test_placement_shares_nozzle_quat_with_slicer():
-    """``placement`` leitet seine Anflug-Rotation aus derselben ``nozzle_quat`` ab
-    wie der Slicer — nur mit seiner angenommenen horizontalen Tangente. Gleiche
-    Konvention/Tangentenannahme ⇒ keine Divergenz (Regressionsschutz #51)."""
-    from fgc.domain.orientation import nozzle_quat
-    from fgc.kinematics.opw import _quat_to_rot
-    from fgc.placement.evaluate import _PLACEMENT_TANGENT, nozzle_rotation
+def _oracle_coverage(sec, rings_xy, shells=2, w=30.0):
+    region = sec.difference(sec.buffer(-shells * w, join_style="mitre"))
+    if region.area <= 0:
+        return 1.0
+    beads = [LineString(p).buffer(w / 2.0) for p in rings_xy if len(p) >= 2]
+    if not beads:
+        return 0.0
+    return unary_union(beads).intersection(region).area / region.area
 
-    lead, kipp = math.radians(10), math.radians(25)
-    np.testing.assert_allclose(
-        nozzle_rotation(lead, kipp),
-        _quat_to_rot(nozzle_quat(_PLACEMENT_TANGENT, lead, kipp)),
-        atol=1e-12,
-    )
+
+def _assert_layers_covered(mesh, sl):
+    H = float(mesh.bounds[1][2])
+    for L in range(sl.n_layers):
+        z = (L + 0.5) * 10
+        if z >= H:
+            continue
+        sec = _section_poly(mesh, z)
+        rs = [r.points[:, :2] for r in sl.rings if r.layer == L]
+        assert _oracle_coverage(sec, rs) >= 0.95, L
+        grown = sec.buffer(1.0)  # Selbstprüfung (d): Druckpunkt im Material, Toleranz 1 mm
+        for p in rs:
+            assert all(grown.contains(Point(*q)) for q in p), L
+
+
+def _gable():
+    """Giebelteil wie house_right_front_r9: 600 x 200, Oberkante in y abfallend (Dachneigung)."""
+    prof = Polygon([(-100, 0), (100, 0), (100, 180), (-100, 296)])  # (y, z)
+    m = trimesh.creation.extrude_polygon(prof, 600)  # Profil in xy, extrudiert in z
+    perm = np.array([[0, 0, 1, -300], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1.0]])
+    m.apply_transform(perm)  # (y, z, x) -> (x, y, z)
+    return m
+
+
+def test_gable_top_layers_covered():
+    mesh = _gable()
+    assert np.allclose(mesh.bounds, [[-300, -100, 0], [300, 100, 296]], atol=1e-6)
+    sl = slice_part(mesh, P)
+    _assert_layers_covered(mesh, sl)
+    assert any(r.layer == 29 for r in sl.rings)  # Spitze (2 mm breit) wird gedruckt
+
+
+def test_narrow_wedge_covered():
+    wedge = Polygon([(0, -40), (0, 40), (600, 0)])  # Grundriss läuft spitz zu
+    mesh = trimesh.creation.extrude_polygon(wedge, 40)
+    sl = slice_part(mesh, P)
+    _assert_layers_covered(mesh, sl)
+
+
+def test_small_area_gets_path():
+    mesh = _box(12, 8, 30)
+    sl = slice_part(mesh, P)
+    assert {r.layer for r in sl.rings} == {0, 1, 2}
+    _assert_layers_covered(mesh, sl)

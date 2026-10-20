@@ -1,0 +1,158 @@
+{
+  "$defs": {
+    "SceneParams": {
+      "additionalProperties": false,
+      "properties": {
+        "d_hard_mm": {
+          "type": "number"
+        },
+        "d_target_mm": {
+          "type": "number"
+        },
+        "d_target_printed_mm": {
+          "type": "number"
+        },
+        "layer_height_mm": {
+          "type": "number"
+        },
+        "r_free_mm": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "d_hard_mm",
+        "d_target_mm",
+        "d_target_printed_mm",
+        "r_free_mm",
+        "layer_height_mm"
+      ],
+      "title": "SceneParams",
+      "type": "object"
+    },
+    "SceneRobot": {
+      "additionalProperties": false,
+      "properties": {
+        "urdf": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "urdf"
+      ],
+      "title": "SceneRobot",
+      "type": "object"
+    },
+    "SceneTool": {
+      "additionalProperties": false,
+      "properties": {
+        "T_FT": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "type": "array"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "mesh": {
+          "type": "string"
+        },
+        "mesh_transform": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "type": "array"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        }
+      },
+      "required": [
+        "mesh",
+        "T_FT",
+        "mesh_transform"
+      ],
+      "title": "SceneTool",
+      "type": "object"
+    },
+    "SceneWorkstation": {
+      "additionalProperties": false,
+      "properties": {
+        "T_WB": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "type": "array"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "T_WS": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "type": "array"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "mesh": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mesh",
+        "T_WB",
+        "T_WS"
+      ],
+      "title": "SceneWorkstation",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "params": {
+      "$ref": "#/$defs/SceneParams"
+    },
+    "robot": {
+      "$ref": "#/$defs/SceneRobot"
+    },
+    "schema_version": {
+      "const": "2",
+      "default": "2",
+      "type": "string"
+    },
+    "tool": {
+      "$ref": "#/$defs/SceneTool"
+    },
+    "workstation": {
+      "$ref": "#/$defs/SceneWorkstation"
+    }
+  },
+  "required": [
+    "schema_version",
+    "robot",
+    "workstation",
+    "tool",
+    "params"
+  ],
+  "title": "Scene",
+  "type": "object"
+}

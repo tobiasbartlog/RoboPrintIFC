@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Projekt aus Beispiel-Pfad (der Upload läuft als Multipart und hat kein JSON-Modell).",
+  "properties": {
+    "example_path": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "example_path"
+  ],
+  "title": "ProjectCreate",
+  "type": "object"
+}

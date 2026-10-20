@@ -1,0 +1,98 @@
+{
+  "$defs": {
+    "WallEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "eligible": {
+          "type": "boolean"
+        },
+        "height_mm": {
+          "type": "number"
+        },
+        "length_mm": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "part_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "thickness_mm": {
+          "type": "number"
+        },
+        "volume_mm3": {
+          "type": "number"
+        },
+        "wall_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "wall_id",
+        "name",
+        "eligible",
+        "reason",
+        "length_mm",
+        "thickness_mm",
+        "height_mm",
+        "volume_mm3",
+        "part_ids"
+      ],
+      "title": "WallEntry",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "building_mm": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Ausdehnung (x, y, z) der Hausansicht in mm; None ohne IFC-Gebäude (Quader-Beispiel)"
+    },
+    "name": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "walls": {
+      "items": {
+        "$ref": "#/$defs/WallEntry"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "project_id",
+    "name",
+    "walls",
+    "building_mm"
+  ],
+  "title": "ProjectInfo",
+  "type": "object"
+}

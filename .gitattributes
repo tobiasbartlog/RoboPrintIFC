@@ -6,3 +6,6 @@
 # Windows (core.autocrlf) —, damit der Fingerabdruck plattformunabhängig ist
 # und ein hier gebautes Artefakt in der Linux-CI nicht als „veraltet" fehlschlägt.
 robots/collision/**/*.json text eol=lf
+
+# Shell-Skripte laufen in der Linux-Cloud-Session und in der CI: immer LF.
+*.sh text eol=lf

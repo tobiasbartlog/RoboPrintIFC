@@ -1,0 +1,204 @@
+{
+  "$defs": {
+    "BoxSource": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "box",
+          "type": "string"
+        },
+        "size_mm": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "size_mm"
+      ],
+      "title": "BoxSource",
+      "type": "object"
+    },
+    "IfcSource": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "ifc",
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "walls": {
+          "anyOf": [
+            {
+              "const": "all",
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "path",
+        "walls"
+      ],
+      "title": "IfcSource",
+      "type": "object"
+    },
+    "PlacementOverride": {
+      "additionalProperties": false,
+      "properties": {
+        "x_mm": {
+          "type": "number"
+        },
+        "y_mm": {
+          "type": "number"
+        },
+        "yaw_deg": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x_mm",
+        "y_mm",
+        "yaw_deg"
+      ],
+      "title": "PlacementOverride",
+      "type": "object"
+    },
+    "ScenarioLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "wall_time_s": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "wall_time_s"
+      ],
+      "title": "ScenarioLimits",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "beschreibung": {
+      "type": "string"
+    },
+    "decompose": {
+      "type": "boolean"
+    },
+    "expect": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "id": {
+      "type": "string"
+    },
+    "limits": {
+      "$ref": "#/$defs/ScenarioLimits"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "params": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "boolean"
+          }
+        ]
+      },
+      "type": "object"
+    },
+    "placement_override": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PlacementOverride"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "planner_mode": {
+      "enum": [
+        "collision_aware",
+        "ignore_collision"
+      ],
+      "type": "string"
+    },
+    "robot": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "type": "string"
+    },
+    "source": {
+      "discriminator": {
+        "mapping": {
+          "box": "#/$defs/BoxSource",
+          "ifc": "#/$defs/IfcSource"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BoxSource"
+        },
+        {
+          "$ref": "#/$defs/IfcSource"
+        }
+      ]
+    },
+    "tool": {
+      "type": "string"
+    },
+    "urdf": {
+      "type": "string"
+    },
+    "workstation": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "beschreibung",
+    "mode",
+    "source",
+    "decompose",
+    "robot",
+    "urdf",
+    "tool",
+    "workstation",
+    "params",
+    "planner_mode",
+    "placement_override",
+    "expect",
+    "limits"
+  ],
+  "title": "Scenario",
+  "type": "object"
+}

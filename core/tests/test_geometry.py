@@ -1,101 +1,101 @@
-"""Tests für das neutrale Schnittmodul fgc.geometry.section (ADR-015).
-
-Bekannte Meshes → erwartete Polygon-Anzahl und -Geometrie; Konsistenz mit
-der bisherigen section_layers-Schnittstelle des Slicers.
-"""
-
+import numpy as np
 import pytest
 import trimesh
-from shapely.geometry import Polygon
 
-from fgc.geometry.section import section_at
-
-
-def box_mesh(
-    length: float = 2000.0, thickness: float = 200.0, height: float = 1000.0
-) -> trimesh.Trimesh:
-    """Einfache Quader-Wand, z von 0 bis height."""
-    mesh = trimesh.creation.box(extents=[length, thickness, height])
-    mesh.apply_translation([0, 0, height / 2])
-    return mesh
+from roboprint import geometry as geo
 
 
-# ---------------------------------------------------------------------------
-# Grundlegende section_at-Tests
-# ---------------------------------------------------------------------------
+def _wall_with_window():
+    """Wand 3000 x 200 x 2500 mit Fensterloch x 1000..1800, z 800..1600 (Volumen exakt bekannt)."""
+    wall = geo.make_box((3000, 200, 2500))
+    hole = geo.make_box((800, 400, 800), origin=(1000, -100, 800))
+    res = geo._to_manifold(wall) - geo._to_manifold(hole)
+    return geo._from_manifold(res), 3000 * 200 * 2500 - 800 * 200 * 800
 
 
-def test_section_at_box_returns_one_polygon():
-    """Schnitt durch eine Quader-Wand ergibt genau ein Polygon."""
-    polys = section_at(box_mesh(), 500.0)
-    assert len(polys) == 1
-    assert isinstance(polys[0], Polygon)
+def test_make_box():
+    b = geo.make_box((10, 20, 30), origin=(1, 2, 3))
+    assert b.is_watertight
+    assert b.bounds.tolist() == [[1, 2, 3], [11, 22, 33]]
+    assert geo.volume(b) == pytest.approx(6000)
+    with pytest.raises(ValueError):
+        geo.make_box((0, 1, 1))
 
 
-def test_section_at_box_approximate_area():
-    """Fläche des Schnittpolygons stimmt ungefähr mit Länge × Dicke überein."""
-    length, thickness = 2000.0, 200.0
-    polys = section_at(box_mesh(length=length, thickness=thickness), 500.0)
-    assert polys[0].area == pytest.approx(length * thickness, rel=1e-3)
+def test_cut_box_volume_and_bounds():
+    wall, vol = _wall_with_window()
+    assert wall.is_watertight and geo.volume(wall) == pytest.approx(vol, rel=1e-6)
+    part = geo.cut_box(wall, (500, -10, 0), (1500, 300, 1000))
+    assert part.is_watertight
+    assert part.bounds[0] == pytest.approx([500, 0, 0], abs=1e-3)
+    assert part.bounds[1] == pytest.approx([1500, 200, 1000], abs=1e-3)
+    # Quader 1000 x 200 x 1000 minus Fensteranteil x 1000..1500, z 800..1000
+    assert geo.volume(part) == pytest.approx(1000 * 200 * 1000 - 500 * 200 * 200, rel=1e-6)
+    assert geo.is_empty(geo.cut_box(wall, (5000, 0, 0), (6000, 100, 100)))
 
 
-def test_section_at_above_mesh_returns_empty():
-    """Schnitt oberhalb des Meshs liefert eine leere Liste."""
-    polys = section_at(box_mesh(height=1000.0), 1500.0)
-    assert polys == []
+def test_raster_blocks_conserve_volume():
+    wall, vol = _wall_with_window()
+    xs = [0, 750, 1500, 2250, 3000]
+    zs = [0, 800, 1600, 2500]  # Schnittebenen auf Fensterober- und -unterkante
+    total = 0.0
+    for x0, x1 in zip(xs[:-1], xs[1:], strict=True):
+        for z0, z1 in zip(zs[:-1], zs[1:], strict=True):
+            blk = geo.cut_box(wall, (x0, -1, z0), (x1, 201, z1))
+            if not geo.is_empty(blk):
+                assert blk.is_watertight
+            total += geo.volume(blk)
+    assert total == pytest.approx(vol, rel=1e-3)
+    assert total == pytest.approx(geo.volume(wall), rel=1e-3)
 
 
-def test_section_at_below_mesh_returns_empty():
-    """Schnitt unterhalb des Meshs liefert eine leere Liste."""
-    polys = section_at(box_mesh(height=1000.0), -100.0)
-    assert polys == []
+def test_clip_below():
+    wall, _ = _wall_with_window()
+    c = geo.clip_below(wall, 1200)
+    assert c.is_watertight
+    assert c.bounds[1][2] == pytest.approx(1200, abs=1e-3)
+    assert geo.volume(c) == pytest.approx(3000 * 200 * 1200 - 800 * 200 * 400, rel=1e-6)
+    assert geo.is_empty(geo.clip_below(wall, -5))
+    assert geo.volume(geo.clip_below(wall, 1e6)) == pytest.approx(geo.volume(wall), rel=1e-9)
 
 
-def test_section_at_two_disjoint_boxes_gives_two_polygons():
-    """S2-Befund: zwei getrennte Wandabschnitte ergeben zwei Polygone (sortiert)."""
-    a = box_mesh(length=500.0)
-    b = box_mesh(length=500.0)
-    b.apply_translation([1000.0, 0.0, 0.0])
-    combined = trimesh.util.concatenate([a, b])
-    polys = section_at(combined, 500.0)
-    assert len(polys) == 2
-    # Sortierung: erster Schwerpunkt hat kleinere x-Koordinate
-    assert polys[0].centroid.x < polys[1].centroid.x
+def test_slice_section_with_hole_and_window():
+    wall, _ = _wall_with_window()
+    s = geo.slice_section(wall, 1200)  # durch das Fenster: zwei getrennte Pfeiler
+    assert s.geom_type == "MultiPolygon" and len(s.geoms) == 2
+    assert s.area == pytest.approx((3000 - 800) * 200, rel=1e-6)
+    s2 = geo.slice_section(wall, 400)
+    assert s2.geom_type == "Polygon" and s2.area == pytest.approx(3000 * 200, rel=1e-6)
+    assert geo.slice_section(wall, 3000).is_empty
 
 
-def test_section_at_polygon_is_exterior_ccw():
-    """Außenring ist gegen den Uhrzeigersinn orientiert (shapely-Konvention)."""
-    polys = section_at(box_mesh(), 500.0)
-    # shapely: exterior.is_ccw == True ⟺ CCW
-    assert polys[0].exterior.is_ccw
+def test_slice_section_polygon_with_hole():
+    outer = geo.make_box((100, 100, 50))
+    inner = geo.make_box((40, 40, 60), origin=(30, 30, -5))
+    ring = geo._from_manifold(geo._to_manifold(outer) - geo._to_manifold(inner))
+    s = geo.slice_section(ring, 25)
+    assert s.geom_type == "Polygon" and len(s.interiors) == 1
+    assert s.area == pytest.approx(100 * 100 - 40 * 40, rel=1e-9)
 
 
-# ---------------------------------------------------------------------------
-# Konsistenz mit dem Slicer
-# ---------------------------------------------------------------------------
+def test_overlap_and_intersection_volume():
+    a = geo.make_box((10, 10, 10))
+    b = geo.make_box((10, 10, 10), origin=(5, 0, 0))
+    c = geo.make_box((10, 10, 10), origin=(10, 0, 0))  # beruehrt nur
+    assert geo.intersection_volume(a, b) == pytest.approx(500)
+    assert geo.overlaps(a, b) and not geo.overlaps(a, c)
 
 
-def test_section_at_consistent_with_section_layers():
-    """section_at und section_layers liefern für dieselbe Höhe dasselbe Polygon.
-
-    Stellt sicher, dass die Extraktion des Schnitts in das neutrale Modul das
-    Slicer-Verhalten nicht verändert (Regressionstest).
-    """
-    from fgc.slicer.sections import section_layers
-
-    mesh = box_mesh(height=1000.0)
-    layer_height = 100.0
-    layers = section_layers(mesh, layer_height_mm=layer_height)
-
-    # Erste Schicht bei z = 0 + 0.5 * 100 = 50 mm
-    direct = section_at(mesh, 50.0)
-    assert len(direct) == 1
-    assert len(layers[0].polygons) == 1
-    assert direct[0].area == pytest.approx(layers[0].polygons[0].area, rel=1e-6)
-
-    # Alle Schichten konsistent
-    for layer in layers:
-        via_module = section_at(mesh, layer.z_mm)
-        assert len(via_module) == len(layer.polygons)
-        for p_module, p_layer in zip(via_module, layer.polygons, strict=True):
-            assert p_module.area == pytest.approx(p_layer.area, rel=1e-6)
+def test_ensure_watertight_repairs_open_and_unwelded_mesh():
+    box = trimesh.creation.box(extents=(10, 10, 10))
+    # unverschweisst: jedes Dreieck mit eigenen Vertices
+    tri = box.vertices[box.faces].reshape(-1, 3)
+    soup = trimesh.Trimesh(tri, np.arange(len(tri)).reshape(-1, 3), process=False)
+    assert not soup.is_watertight
+    fixed = geo.ensure_watertight(soup)
+    assert fixed.is_watertight and geo.volume(fixed) == pytest.approx(1000)
+    # ein Dreieck fehlt (Loch)
+    holey = trimesh.Trimesh(box.vertices, box.faces[1:], process=False)
+    assert not holey.is_watertight
+    fixed = geo.ensure_watertight(holey)
+    assert fixed.is_watertight and geo.volume(fixed) == pytest.approx(1000, rel=1e-6)
