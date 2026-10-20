@@ -13,15 +13,15 @@ DRL-Kopf sind provisorisch.
 | 1 | [schalen_alternate](schalen_alternate/README.md) | 600 × 200 × 100 | machbar, geprüft | 4,4 min | 7,7 l | 1 | 100 % | 10,8 mm | 94,4 % |
 | 2 | [fugenwand_raute](fugenwand_raute/README.md) | 600 × 200 × 100 | machbar, geprüft | 4,2 min | 7,3 l | 1 | 100 % | 10,8 mm | 64,6 % |
 | 3 | [sinus](sinus/README.md) | 600 × 200 × 100 | machbar, geprüft | 5,3 min | 9,3 l | 1 | 100 % | 10,8 mm | 94,6 % |
-| 4 | [fugenwand_versetzt](fugenwand_versetzt/README.md) | 600 × 200 × 100 | machbar, geprüft | 6,0 min | 10,6 l | 1 | 100 % | 10,8 mm | 88,1 % |
-| 5 | [fugenwand_gurt](fugenwand_gurt/README.md) | 600 × 200 × 100 | machbar, geprüft | 6,0 min | 10,7 l | 1 | 100 % | 10,8 mm | 88,6 % |
+| 4 | [fugenwand_versetzt](fugenwand_versetzt/README.md) | 600 × 200 × 100 | machbar, geprüft | 6,1 min | 10,6 l | 1 | 100 % | 10,8 mm | 88,1 % |
+| 5 | [fugenwand_gurt](fugenwand_gurt/README.md) | 600 × 200 × 100 | machbar, geprüft | 6,1 min | 10,7 l | 1 | 100 % | 10,8 mm | 88,6 % |
 | 6 | [zickzack](zickzack/README.md) | 600 × 200 × 100 | machbar, geprüft | 5,3 min | 9,3 l | 1 | 100 % | 10,8 mm | 94,6 % |
-| 7 | [trapez](trapez/README.md) | 600 × 200 × 100 | machbar, geprüft | 5,3 min | 9,4 l | 1 | 100 % | 10,8 mm | 94,6 % |
+| 7 | [trapez](trapez/README.md) | 600 × 200 × 100 | machbar, geprüft | 5,4 min | 9,4 l | 1 | 100 % | 10,8 mm | 94,6 % |
 | 8 | [maeander](maeander/README.md) | 600 × 200 × 100 | machbar, geprüft | 5,4 min | 9,5 l | 1 | 100 % | 10,8 mm | 94,6 % |
-| 9 | [fugenwand_gurt_300](fugenwand_gurt_300/README.md) | 600 × 300 × 100 | machbar, geprüft | 6,5 min | 11,5 l | 1 | 100 % | 10,8 mm | 62,7 % |
-| 10 | [doppelwelle_300](doppelwelle_300/README.md) | 600 × 300 × 100 | machbar, geprüft | 6,8 min | 12,1 l | 1 | 100 % | 10,8 mm | 95,3 % |
-| 11 | [waben_300](waben_300/README.md) | 600 × 300 × 100 | machbar, geprüft | 7,1 min | 12,6 l | 1 | 100 % | 10,8 mm | 95,3 % |
-| 12 | [fermat](fermat/README.md) | 300 × 200 × 100 | machbar, geprüft | 3,0 min | 5,2 l | 1 | 100 % | 10,8 mm | 92,0 % |
+| 9 | [fugenwand_gurt_300](fugenwand_gurt_300/README.md) | 600 × 300 × 100 | machbar, geprüft | 6,6 min | 11,5 l | 1 | 100 % | 10,8 mm | 62,7 % |
+| 10 | [doppelwelle_300](doppelwelle_300/README.md) | 600 × 300 × 100 | machbar, geprüft | 6,9 min | 12,1 l | 1 | 100 % | 10,8 mm | 95,3 % |
+| 11 | [waben_300](waben_300/README.md) | 600 × 300 × 100 | machbar, geprüft | 7,2 min | 12,6 l | 1 | 100 % | 10,8 mm | 95,3 % |
+| 12 | [fermat](fermat/README.md) | 300 × 200 × 100 | machbar, geprüft | 3,1 min | 5,2 l | 1 | 100 % | 10,8 mm | 92,0 % |
 
 Prüfung je Testkörper: `python -m verify.check_run` (G3-Regeln; die Abdeckung < 95 % ist bei
 Mustern gewollt und als Gate-Einwand 1 in MUSTER-PROGRESS.md geführt), `python -m verify.fake_drcf`

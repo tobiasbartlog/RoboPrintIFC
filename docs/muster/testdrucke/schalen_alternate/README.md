@@ -13,15 +13,15 @@ Bild: Vorschau des Musterkerns für diesen Querschnitt (Schicht 0, Schicht 1 bla
 | Kennzahl | Wert |
 |---|---|
 | Programme | `program.v2.drl` (Firmware 2.x), `program.v3.drl` |
-| Druckzeit gesamt | 4,4 min (263 s, mit Anfahrt) |
-| davon Pumpe an | 259 s (+ 3 s Vorlauf je Strang) |
-| Pfadlänge | 25,52 m (alle Schichten, mit Verbindern) |
+| Druckzeit gesamt | 4,4 min (266 s: Zeitmodell des Planers ab Home mit Anfahrt und Abheben, plus 3 s Pumpen-Vorlauf je Strang) |
+| davon Pumpe an | 259 s (Drucken und Verbinder, ohne Vorlauf) |
+| Pfadlänge | 25,61 m (alle Schichten, mit Verbindern) |
 | Material | 7,7 l (Annahme, siehe unten) |
 | Stränge je Schicht | 1 (gesamt 1) |
 | senkrechte Schichtwechsel | 9 von 9 (100 %) |
 | d_min | 10,8 mm (d_hard = 10 mm) |
 | Ringe / Samples | 20 / 10777 |
-| Planerlaufzeit | 23,7 s |
+| Planerlaufzeit | 29,7 s |
 
 Materialannahme (A): Raupenquerschnitt rechteckig w × h = 30 × 10 mm, mal Pfadlänge der Mittellinie (Ringe plus Verbinder). Überlappung an Kontakten, Ecken und Schwinden sind nicht abgezogen; Vorlauf t_tot und Anfahrmaterial nicht eingerechnet.
 
@@ -58,6 +58,6 @@ Raupe 30 mm breit und 10 mm hoch? Naht im Eckbogen ohne Klecks; S-Kurve zwischen
 Stand 2026-10-20, Lauf `runs/muster_testdrucke/testdruck_schalen_alternate`:
 
 - Planer: machbar (box_01 machbar), 0 collision, 0 unreachable
-- G3 `python -m verify.check_run`: grün außer Abdeckung (Einwand, min. 94,4 %; Gate-Einwand 1 in MUSTER-PROGRESS.md)
+- G3 `python -m verify.check_run`: grün außer Abdeckung (min. 94,4 % < 95 %; Gate-Einwand 1 in MUSTER-PROGRESS.md)
 - G5 `python -m verify.fake_drcf`: v2 und v3 akzeptiert
 - M1–M7 `python -m verify_muster.check`: grün (Warnungen: M6 10)

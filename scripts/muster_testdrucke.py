@@ -218,7 +218,13 @@ def _poly_len(pts: list[list[float]]) -> float:
 
 
 def run_extras(run: Path) -> dict[str, Any]:
-    """Pfadlänge, Material, Druckzeiten und DRL-Kopf eines (einteiligen) Laufs."""
+    """Pfadlänge, Material, Druckzeiten und DRL-Kopf eines (einteiligen) Laufs.
+
+    Pfadlänge: Ringe plus Verbinder in 3D (der senkrechte Schichtwechsel ist ein Z-Hub um h mit
+    laufender Pumpe und fördert Material). Druckzeit gesamt: Zeitparametrierung des Planers
+    (`trajectory.json`, ab Home bis Abheben) plus `wait(t_tot)` je Strang, das im DRL vor jedem
+    Strang steht und in der Trajektorie nicht vorkommt.
+    """
     summary = _load(run / "summary.json") or {}
     params = summary.get("params", {})
     w = float(params.get("bead_width_mm", 30.0))
@@ -226,18 +232,20 @@ def run_extras(run: Path) -> dict[str, Any]:
     parts = summary.get("parts", [])
     path_mm = link_mm = 0.0
     print_s = total_s = 0.0
+    strands = 0
     layers: set[int] = set()
     drl_head: list[str] = []
     for p in parts:
         pdir = run / "parts" / p["part_id"]
         tp = _load(pdir / "toolpath.json") or {}
         rings = tp.get("rings", [])
+        strands += sum(1 for i in range(len(rings)) if i == 0 or not rings[i - 1].get("link_next"))
         for i, r in enumerate(rings):
             layers.add(int(r["layer"]))
             path_mm += _poly_len(r["waypoints"])
             if r.get("link_next") and i + 1 < len(rings):
                 a, b = r["waypoints"][-1], rings[i + 1]["waypoints"][0]
-                link_mm += math.dist(a[:2], b[:2])
+                link_mm += math.dist(a[:3], b[:3])
         tr = _load(pdir / "trajectory.json") or {}
         ts, kinds = tr.get("t_s", []), tr.get("kind", [])
         for i in range(1, len(ts)):
@@ -247,6 +255,7 @@ def run_extras(run: Path) -> dict[str, Any]:
         if not drl_head:
             drl_head = drl_assumptions(pdir / "program.v2.drl")
     length = path_mm + link_mm
+    t_tot = float(params.get("t_tot_s", 0.0))
     return {
         "n_collision": sum(int(p.get("n_collision") or 0) for p in parts),
         "n_unreachable": sum(int(p.get("n_unreachable") or 0) for p in parts),
@@ -256,8 +265,10 @@ def run_extras(run: Path) -> dict[str, Any]:
         "path_length_m": round(length / 1000.0, 3),
         "material_l": round(w * h * length / 1e6, 2),
         "print_time_pump_s": round(print_s, 1),
-        "total_time_s": round(total_s, 1),
-        "t_tot_s": float(params.get("t_tot_s", 0.0)),
+        "total_time_s": round(total_s + strands * t_tot, 1),
+        "trajectory_time_s": round(total_s, 1),
+        "strands": strands,
+        "t_tot_s": t_tot,
         "drl_assumptions": drl_head,
     }
 
@@ -312,7 +323,7 @@ def part_readme(
         t["why"],
         "",
     ]
-    if not e.get("feasible") or x is None:
+    if not published(e, x):
         lines += [
             "**Kein Programm:** Der Testkörper ist nicht machbar oder eine Prüfung ist rot.",
             "",
@@ -338,9 +349,9 @@ def part_readme(
         "|---|---|",
         "| Programme | `program.v2.drl` (Firmware 2.x), `program.v3.drl` |",
         f"| Druckzeit gesamt | {de(x['total_time_s'] / 60, 1)} min "
-        f"({de(x['total_time_s'], 0)} s, mit Anfahrt) |",
-        f"| davon Pumpe an | {de(x['print_time_pump_s'], 0)} s "
-        f"(+ {de(x['t_tot_s'], 0)} s Vorlauf je Strang) |",
+        f"({de(x['total_time_s'], 0)} s: Zeitmodell des Planers ab Home mit Anfahrt und Abheben, "
+        f"plus {de(x['t_tot_s'], 0)} s Pumpen-Vorlauf je Strang) |",
+        f"| davon Pumpe an | {de(x['print_time_pump_s'], 0)} s (Drucken und Verbinder, ohne Vorlauf) |",
         f"| Pfadlänge | {de(x['path_length_m'], 2)} m (alle Schichten, mit Verbindern) |",
         f"| Material | {de(x['material_l'], 1)} l (Annahme, siehe unten) |",
         f"| Stränge je Schicht | {m.get('strands_per_layer')} (gesamt {m.get('strands_total')}) |",
@@ -372,10 +383,7 @@ def part_readme(
         "",
         f"- Planer: machbar ({', '.join(f'{k} {v}' for k, v in (m.get('part_status') or {}).items())}), "
         f"{x['n_collision']} collision, {x['n_unreachable']} unreachable",
-        f"- G3 `python -m verify.check_run`: grün außer Abdeckung "
-        f"({'Einwand' if g3.get('abdeckung') == 'einwand' else 'grün'}, min. "
-        f"{de(100 * g3['abdeckung_min'], 1) if g3.get('abdeckung_min') is not None else '–'} %; "
-        "Gate-Einwand 1 in MUSTER-PROGRESS.md)",
+        g3_line(g3),
         "- G5 `python -m verify.fake_drcf`: v2 und v3 akzeptiert",
         "- M1–M7 `python -m verify_muster.check`: grün"
         + (
@@ -386,6 +394,16 @@ def part_readme(
         "",
     ]
     return "\n".join(lines)
+
+
+def g3_line(g3: dict[str, Any]) -> str:
+    cov = de(100 * g3["abdeckung_min"], 1) if g3.get("abdeckung_min") is not None else "–"
+    if g3.get("abdeckung") == "einwand":
+        return (
+            f"- G3 `python -m verify.check_run`: grün außer Abdeckung (min. {cov} % < 95 %; "
+            "Gate-Einwand 1 in MUSTER-PROGRESS.md)"
+        )
+    return f"- G3 `python -m verify.check_run`: grün, auch die Abdeckung (min. {cov} %)"
 
 
 PLAN_TEXT = """## Testdruckplan
@@ -436,7 +454,7 @@ def overview(results: list[dict[str, Any]], day: str) -> str:
         m = e.get("metrics") or {}
         g3 = (e.get("checks") or {}).get("check_run") or {}
         size = f"{t['size'][0]} × {t['size'][1]} × {int(HEIGHT_MM)}"
-        ok = bool(e.get("feasible") and x)
+        ok = published(e, x)
         link = f"[{t['name']}]({t['name']}/README.md)"
         share = m.get("vertical_layer_change_share")
         rows.append(
@@ -470,6 +488,11 @@ def overview(results: list[dict[str, Any]], day: str) -> str:
 
 
 # --------------------------------------------------------------------------- Ablauf
+
+
+def published(entry: dict[str, Any], extras: dict[str, Any] | None) -> bool:
+    """Programme liegen ab: machbar und alle Prüfungen grün (`feasible`) und ein Teil."""
+    return bool(entry.get("feasible") and extras)
 
 
 def process(vm: Any, t: dict[str, Any], jobs: int, no_run: bool, day: str) -> dict[str, Any]:
@@ -542,7 +565,7 @@ def main(argv: list[str] | None = None) -> int:
     (DOCS / "testdrucke.json").write_text(
         json.dumps(dump, indent=2, ensure_ascii=False, default=str) + "\n", encoding="utf-8"
     )
-    ok = [r for r in results if r["entry"].get("feasible")]
+    ok = [r for r in results if published(r["entry"], r.get("extras"))]
     print(f"\nTestdrucke: {len(ok)} von {len(results)} machbar und geprüft -> {rel(DOCS / 'README.md')}")
     return 0 if len(ok) == len(results) else 1
 

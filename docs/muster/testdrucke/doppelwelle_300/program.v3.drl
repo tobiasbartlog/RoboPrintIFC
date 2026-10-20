@@ -2,7 +2,7 @@
 # Dialekt: v3 (Befehle ab V3 erlaubt), Druck als movel mit Blending
 # Szenario: testdruck_doppelwelle_300
 # Teil: box_01 (Wand box), Status: machbar, 30 Ringe in 1 Straengen (29 Verbinder), 15189 Samples, 2394 Bewegungsbefehle
-# Provenienz: git 4fb2bb87a13eb4a2ae55d711dfc0d4472f404a15, erstellt 2026-10-20T22:18:57+00:00, Kommando: /home/user/RoboPrintIFC/.claude/worktrees/wf_77155298-1fb-1/core/src/roboprint/__main__.py run-scenario docs/muster/testdrucke/doppelwelle_300/scenario.json --out runs/muster_testdrucke/testdruck_doppelwelle_300 --jobs 2
+# Provenienz: git 08f0585dcad38b058c95c31438aacbd6f659f245, erstellt 2026-10-20T22:38:55+00:00, Kommando: /home/user/RoboPrintIFC/.claude/worktrees/wf_77155298-1fb-3/core/src/roboprint/__main__.py run-scenario docs/muster/testdrucke/doppelwelle_300/scenario.json --out runs/muster_testdrucke/testdruck_doppelwelle_300 --jobs 2
 # Posen: posx = T_BT (TCP in Roboterbasis B) in mm und Grad, Euler ZYZ, ref=DR_BASE;
 #        posj in Grad, Doosan-Konvention. Alle Ziele stammen aus trajectory.json.
 # Strang: Ringe und Verbinder ohne Halt, die Pumpe laeuft durch. Pumpe an + wait(t_tot) nur am

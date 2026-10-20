@@ -13,15 +13,15 @@ Bild: Vorschau des Musterkerns für diesen Querschnitt (Schicht 0, Schicht 1 bla
 | Kennzahl | Wert |
 |---|---|
 | Programme | `program.v2.drl` (Firmware 2.x), `program.v3.drl` |
-| Druckzeit gesamt | 7,1 min (428 s, mit Anfahrt) |
-| davon Pumpe an | 425 s (+ 3 s Vorlauf je Strang) |
-| Pfadlänge | 42,05 m (alle Schichten, mit Verbindern) |
+| Druckzeit gesamt | 7,2 min (431 s: Zeitmodell des Planers ab Home mit Anfahrt und Abheben, plus 3 s Pumpen-Vorlauf je Strang) |
+| davon Pumpe an | 425 s (Drucken und Verbinder, ohne Vorlauf) |
+| Pfadlänge | 42,14 m (alle Schichten, mit Verbindern) |
 | Material | 12,6 l (Annahme, siehe unten) |
 | Stränge je Schicht | 1 (gesamt 1) |
 | senkrechte Schichtwechsel | 9 von 9 (100 %) |
 | d_min | 10,8 mm (d_hard = 10 mm) |
 | Ringe / Samples | 30 / 16363 |
-| Planerlaufzeit | 48,0 s |
+| Planerlaufzeit | 46,8 s |
 
 Materialannahme (A): Raupenquerschnitt rechteckig w × h = 30 × 10 mm, mal Pfadlänge der Mittellinie (Ringe plus Verbinder). Überlappung an Kontakten, Ecken und Schwinden sind nicht abgezogen; Vorlauf t_tot und Anfahrmaterial nicht eingerechnet.
 
@@ -58,6 +58,6 @@ Gerade Kontaktstrecken zwischen den Trapezwellen haften, keine Lücke; Zellen zu
 Stand 2026-10-20, Lauf `runs/muster_testdrucke/testdruck_waben_300`:
 
 - Planer: machbar (box_01 machbar), 0 collision, 0 unreachable
-- G3 `python -m verify.check_run`: grün außer Abdeckung (grün, min. 95,3 %; Gate-Einwand 1 in MUSTER-PROGRESS.md)
+- G3 `python -m verify.check_run`: grün, auch die Abdeckung (min. 95,3 %)
 - G5 `python -m verify.fake_drcf`: v2 und v3 akzeptiert
 - M1–M7 `python -m verify_muster.check`: grün (Warnungen: M6 10)
