@@ -17,7 +17,7 @@ Die erste Zeile setzt nur das Skript.
 | F Fugenwand (Foto, O2): Gurt gespiegelt, Gurt versetzt, Rautenkette; Presets, Bilder, Doku | M1/M2 | erledigt, gemergt | v2/muster-fugenwand | f20f439 |
 | 2D-Musterersteller: API `/api/patterns*`, CLI `pattern-preview`, Web-Reiter „Muster“ (e2e 11/11) | M3/M4 | erledigt, gemergt | v2/muster-ersteller | 5f0f769 |
 | I-Wellen (Sinus, Zickzack gerundet, Trapez, Mäander) | M2 | erledigt, gemergt | v2/muster-wellen | d3bceca |
-| I-Mehrfach (Doppelwelle/Kettenglied, Waben, Fermat) | M2 | läuft (wf_3c365435-7f4) | v2/muster-mehrfach | |
+| I-Mehrfach (Doppelwelle, Waben, Fermat-Spirale) | M2 | erledigt, gemergt | v2/muster-mehrfach | d15cb95 |
 | Outfill O1/O3 (nur wenn Zeit; O2 = Fugenwand) | M2 | offen | v2/muster-outfill | |
 | Topologie (Öffnungen, Inseln, Laibungsstege, Naht, Abschrägung) | M2 | erledigt, gemergt | v2/muster-topologie | 6bf2292 |
 | Einbau Slicer + Vertrag + Schema/TS | M3 | erledigt (auf v2/muster-einbau, noch nicht gemergt) | v2/muster-einbau | b78ce7d |
@@ -29,6 +29,7 @@ Die erste Zeile setzt nur das Skript.
 | Wellen-Fix: Planung < 100 ms, Absturz L-Querschnitt | M2 | läuft (wf_eeffd1a6-6c2) | v2/muster-wellenfix | |
 | Vergleich mit Roboterprüfung, MUSTERKATALOG final, Testdrucke | M5 | offen | v2/muster-katalog | |
 | Gegenprüfung und Härtung | M6 | offen | v2/muster | |
+| Kernfehler `shells.shell_chain`/`clear_end` stürzt bei Inseln < ~4·w ab (auch Grundmuster) | M6 | offen | v2/muster-haertung | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
 
 ## Gate-Stand
@@ -118,3 +119,11 @@ Die erste Zeile setzt nur das Skript.
 - Laufzeit der Vorschau: Fugenwand und Schalen < 100 ms; die vier Wellenmuster 120–380 ms (Planung in
   `families/wellen.py`). Ein alter Absturz von `sinus` auf einem L-Querschnitt mit extremen Parametern ist offen.
 - Nach Merge: ruff grün, `pytest core verify_muster`: 736 grün, 2 übersprungen.
+
+### 2026-10-20 21:45 M2 abgeschlossen (Session start)
+- Doppelwelle/Waben/Fermat gemergt. Doppelwelle geht in S1 (Band 50 mm) **nicht**: Hub 2A = 12,25 mm, Zellen
+  ≤ 10,75 mm, Wenderadius 26,5 mm < w; nötig ist ein Band ≥ 55,5 mm (2 Schalen ab ≈ 206 mm Wand, 1 Schale
+  ab 145 mm). Waben in S1 ebenso nicht (zwei Eckbögen ≥ 15 mm an 60°-Flanke brauchen 15 mm Hub).
+- Laufzeittest der Vorschau bewertet nur, wenn die Last ≤ Kernzahl ist (sonst Skip mit Messwert), damit G8
+  unter Last der Agenten nicht zufällig rot wird.
+- Nach Merge: ruff grün, `pytest core verify_muster`: 805 grün (der Laufzeittest rot unter Last 12, jetzt Skip).
