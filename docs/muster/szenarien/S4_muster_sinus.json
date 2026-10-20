@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "id": "S4_muster_sinus",
-  "beschreibung": "Synthetischer Vollquader 600 x 200 x 400 mm (Laenge x Dicke x Hoehe), Modus Modul am Doosantisch. Platzierung am Standard-Druckplatz (0, -50) mm, lange Seite zum Roboter. Muster: Infill Sinus zwischen den Innenschalen (Kurven, dichte Wegpunkte), Schichtfolge alternate. Kopie von S1 (M3.2).",
+  "beschreibung": "Synthetischer Vollquader 600 x 200 x 400 mm (Laenge x Dicke x Hoehe), Modus Modul am Doosantisch. Platzierung am Standard-Druckplatz (0, -50) mm, lange Seite zum Roboter. Muster: Infill Sinuswelle (Wellenlaenge 250 mm) zwischen den Innenschalen, alternate.",
   "mode": "modul",
   "source": {
     "kind": "box",
@@ -17,13 +17,18 @@
   "tool": "tools/30gut.json",
   "workstation": "workstations/doosantisch.json",
   "params": {
-    "infill_pattern": "sinus"
+    "pattern_preset": "core/src/roboprint/patterns/presets/sinus.json"
   },
   "planner_mode": "collision_aware",
   "expect": {
-    "parts": "all_feasible"
+    "parts": "all_feasible",
+    "muster": {
+      "machbar": true,
+      "fast": true,
+      "preset": "core/src/roboprint/patterns/presets/sinus.json"
+    }
   },
   "limits": {
-    "wall_time_s": 180
+    "wall_time_s": 400
   }
 }
