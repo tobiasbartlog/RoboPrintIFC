@@ -219,10 +219,8 @@ def check_run_result(run: Path, step: dict[str, Any]) -> dict[str, Any]:
         code == 1 and rep.get("passed") is False and bool(cov) and not hard
     )
     if not consistent and not hard:
-        hard = [
-            f"check_run: Exitcode {code} passt nicht zum Bericht (passed={rep.get('passed')!r}, "
-            f"{len(errors)} Fehler)"
-        ]
+        msg = f"check_run: Exitcode {code} passt nicht zum Bericht (passed={rep.get('passed')!r}, "
+        hard = [msg + f"{len(errors)} Fehler)"]
     cov_min = [
         m.get("coverage_min")
         for m in (rep.get("parts") or {}).values()
