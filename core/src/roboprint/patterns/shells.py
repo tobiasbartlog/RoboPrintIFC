@@ -34,8 +34,10 @@ Schalenwechsel (Begründung). Ein Strang muss von Ring k auf Ring k + 1 wechseln
 Schichtwechsel: Gerade Schichten beginnen an der Naht auf Schale 0 und enden innen; ungerade sind
 die exakte Umkehrung (plan.py). Ende L = Anfang L + 1, der Wechsel ist ein reiner Z-Hub.
 
+Zu schmale oder an Kerben zerfallende innere Schalen: `shell_chain` misst den Strang (M1, M2,
+M5, M6) und fällt auf die größte fehlerfreie Schalenzahl zurück (`meta.shells_dropped`).
 Löcher in einer Insel (Schacht im Querschnitt) und zerfallende Schalen (Hals schmaler als w)
-werden hier nur angehängt (gerader Verbinder zum nächsten Punkt); M1/M2/M5 melden das. Die
+werden hier sonst nur angehängt (gerader Verbinder zum nächsten Punkt); M1/M2/M5 melden das. Die
 richtige Behandlung ist Aufgabe der Familie „Topologie“.
 """
 
@@ -270,7 +272,59 @@ def close_single(
 def shell_chain(
     ctx: IslandContext, ring0: np.ndarray | None = None, ring0_kind: str = "outer", open_end: bool = False
 ) -> IslandPlan:
-    """Alle Schalen der Insel als ein Strang (Richtung außen → innen).
+    """Alle Schalen der Insel als ein Strang (Richtung außen → innen), mit Rückfall auf weniger
+    Schalen.
+
+    Gebaut wird zuerst mit allen Schalen (`_chain`). Hat der Strang dann harte Fehler (M1, M2, M5,
+    M6 nach `metrics.measure_path`), weil eine innere Schale zu schmal ist (z. B. 600 × 120 bei
+    w = 30: der Innenring ist ein Stadion von w Breite mit Radius < w/2) oder an einer Kerbe
+    zerfällt, wird die Schalenzahl schrittweise verringert. Gewählt wird die größte fehlerfreie
+    Schalenzahl; ist keine fehlerfrei (z. B. scharfe Ecken mit `corner_radius_mm = 0`, die jede
+    Schalenzahl hat), bleibt es bei allen Schalen, und die Prüfung meldet die Fehler. Entfallen
+    Schalen, steht das in `meta.shells_dropped` (Grund `regelfehler`, wie Restring und leerer
+    Ring). Ein Strang mit nur einer Schale wird nicht gemessen (kein Rückfall möglich)."""
+    plan = _chain(ctx, ring0, ring0_kind, open_end, ctx.params.shells)
+    n = int(plan.meta.get("shells", 0))
+    if n <= 1:
+        return plan
+    errors = _chain_errors(ctx, plan)
+    if not errors:
+        return plan
+    for k in range(n - 1, 0, -1):
+        cand = _chain(ctx, ring0, ring0_kind, open_end, k)
+        if not cand.segments or _chain_errors(ctx, cand):
+            continue
+        cand.meta["shells_dropped"] = {
+            "from_shell": k,
+            "count": ctx.params.shells - k,
+            "reason": "regelfehler",
+            "errors_before": errors,
+            "hint": f"Mit {n} Schalen hat der Strang {errors} Regelfehler (M2/M5/M6, Schale zu schmal "
+            f"oder zerfallend); gedruckt werden {k} Schale(n)",
+        }
+        return cand
+    return plan
+
+
+#: Regeln, deren Fehler einen Rückfall auf weniger Schalen auslösen
+_FALLBACK_RULES = frozenset({"M1", "M2", "M5", "M6"})
+
+
+def _chain_errors(ctx: IslandContext, plan: IslandPlan) -> int:
+    """Anzahl harter Fehler (M1, M2, M5, M6) des Strangs, gemessen wie in `metrics.measure`."""
+    from roboprint.patterns.metrics import measure_path  # metrics importiert plan → shells
+    from roboprint.patterns.types import LayerPath
+
+    if not plan.segments:
+        return 0
+    _, viol = measure_path(LayerPath(ctx.layer, 0, plan.segments), ctx.region, ctx.params, ctx.part_bounds)
+    return sum(v.severity == "error" and v.rule in _FALLBACK_RULES for v in viol)
+
+
+def _chain(
+    ctx: IslandContext, ring0: np.ndarray | None, ring0_kind: str, open_end: bool, shells: int
+) -> IslandPlan:
+    """Schalenkette mit höchstens `shells` Schalen (Richtung außen → innen).
 
     `ring0` ersetzt den Außenring der Schale 0 (Outfill-Rolle), `ring0_kind` ist dann `outfill`.
     `open_end` (ein Infill folgt): Die innerste Schale endet vor ihrem Start, wie vor einem
@@ -288,7 +342,7 @@ def shell_chain(
     mains: list[np.ndarray] = []
     extras: list[tuple[int, str, np.ndarray]] = []
     dropped: dict[str, Any] | None = None
-    for s in range(p.shells):
+    for s in range(shells):
         m, rest = _main_exterior(ctx.lanes, s)
         if s == 0 and ring0 is not None:
             m = np.asarray(ring0, float)
@@ -351,7 +405,7 @@ def shell_chain(
         segs.append(Segment(kind, k, _fine(pts, p), label=f"Schale {k}"))
         head, start = trans, tb
     # Ausweichfall: weitere Teile und Löcher anhängen (siehe Modul-Docstring)
-    holes = [(ln.shell, "hole", ln.ring) for ln in ctx.lanes if ln.kind == "hole"]
+    holes = [(ln.shell, "hole", ln.ring) for ln in ctx.lanes if ln.kind == "hole" and ln.shell < len(loops)]
     for s, kind, r in extras + holes:
         lp = Loop(r)
         t = lp.project(segs[-1].end)
