@@ -1,0 +1,154 @@
+{
+  "$defs": {
+    "PatternOutlineBox": {
+      "additionalProperties": false,
+      "description": "Rechteckiger Querschnitt, Ursprung in der Mitte (x ∈ [−L/2, L/2], y ∈ [−d/2, d/2]).",
+      "properties": {
+        "length_mm": {
+          "exclusiveMinimum": 0,
+          "maximum": 20000,
+          "type": "number"
+        },
+        "thickness_mm": {
+          "exclusiveMinimum": 0,
+          "maximum": 2000,
+          "type": "number"
+        }
+      },
+      "required": [
+        "length_mm",
+        "thickness_mm"
+      ],
+      "title": "PatternOutlineBox",
+      "type": "object"
+    },
+    "PatternOutlinePolygon": {
+      "additionalProperties": false,
+      "description": "Beliebiger Querschnitt als Polygon (Frame P, mm) mit optionalen Löchern.",
+      "properties": {
+        "holes": {
+          "items": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "polygon": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "polygon",
+        "holes"
+      ],
+      "title": "PatternOutlinePolygon",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Body von `POST /api/patterns/preview`.\n\n`pattern`: registrierter Mustername oder `schalen`/`none`; ist es keins von beiden, gilt es als\nPreset-id. `preset`: Preset-id als Grundlage (Muster, Parameter, Querschnitt); `pattern`,\n`params` und `outline` überschreiben es. `params` ist flach: Kern- und Musterparameter\nnebeneinander. Ohne `outline` gilt das Preset-`outline`, sonst 600 × 200 mm.",
+  "properties": {
+    "layer": {
+      "default": 0,
+      "maximum": 10000,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "outline": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PatternOutlineBox"
+        },
+        {
+          "$ref": "#/$defs/PatternOutlinePolygon"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "params": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "type": "object"
+    },
+    "pattern": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "preset": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "pattern",
+    "preset",
+    "params",
+    "outline",
+    "layer"
+  ],
+  "title": "PatternPreviewRequest",
+  "type": "object"
+}
