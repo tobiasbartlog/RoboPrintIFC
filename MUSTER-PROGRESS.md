@@ -28,7 +28,7 @@ Die erste Zeile setzt nur das Skript.
 | Vorschau-Laufzeit (metrics): Fugenwand 1200×200 146 → 70 ms; Wellen noch 120–380 ms | M4 | erledigt, gemergt; Wellen offen | v2/muster-perf | 81a874f |
 | Wellen-Fix: Planung ≈ 2× schneller (Bestwert < 100 ms), Rückfall statt Absturz | M2 | erledigt, gemergt | v2/muster-wellenfix | 5b10474 |
 | Testdrucke je Muster: 12 Testkörper, alle machbar, v2+v3 von fake_drcf akzeptiert (`docs/muster/testdrucke/`) | M5 | erledigt, gemergt | v2/muster-testdrucke | bf48e16 |
-| Katalog final mit Roboterkennzahlen | M5 | läuft (wf_77155298-1fb) | v2/muster-katalog | |
+| Katalog final mit Roboterkennzahlen (`docs/muster/MUSTERKATALOG.md`, 17 Muster × 4 Querschnitte) | M5 | erledigt, gemergt | v2/muster-katalog | a714579 |
 | Gegenprüfung und Härtung (Finder → Verifikation → Fixes) | M6 | läuft | v2/muster-haertung | |
 | Kernfehler `shells.shell_chain`/`clear_end` stürzt bei Inseln < ~4·w ab (auch Grundmuster) | M6 | offen | v2/muster-haertung | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
@@ -176,3 +176,9 @@ Die erste Zeile setzt nur das Skript.
 - O1 `aussenwelle`: Bei 2 Schalen passt nur 2 mm Amplitude (Längenzuwachs 0,15 %), mit 1 Schale ohne Infill
   8 mm (2,2–2,7 %). Für Sollbruchstellen bleibt O2 (Fugenwand) die Empfehlung.
 - ruff grün, `pytest core verify_muster`: 985 grün.
+
+### 2026-10-21 01:50 M5 abgeschlossen (Session start)
+- Musterkatalog gemergt: 17 Muster (Presets) × 4 Querschnitte mit Bild, Vorschau- und Roboterkennzahlen
+  (Runner: 15 Szenarien GRÜN), Vor- und Nachteile, Empfehlungsentwurf `fugenwand_raute`.
+- M6 läuft (wf_ec0731df-a69): vier Finder (Geometrie, Prüfer, Robustheit, Integration), Verifikation, Fixes.
+- Offen notiert: Provenienzzeile im DRL enthält den absoluten Pfad des Worktrees (Emitter in core).
