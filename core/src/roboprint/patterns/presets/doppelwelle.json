@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "name": "Doppelwelle (Kettenglied)",
+  "pattern": "doppelwelle",
+  "params": {
+    "bead_width_mm": 30.0,
+    "layer_height_mm": 10.0,
+    "shells": 2,
+    "layer_order": "alternate",
+    "wavelength_mm": 250.0,
+    "contact_overlap_pct": 5.0,
+    "min_stroke_mm": 15.0
+  },
+  "outline": {
+    "length_mm": 600.0,
+    "thickness_mm": 300.0
+  },
+  "description": "Zwei gegenphasige Sinuswellen, die sich in der Bandmitte berühren; hin, Wende, zurück als ein Strang. Für Wände ≥ 300 mm oder eine Schale je Seite."
+}

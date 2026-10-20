@@ -31,6 +31,15 @@ bei v_print, Material (Liter je m Wand und Schicht, Liter je m² Wandansicht), Z
 des Querschnitts, Fläche ≥ w²/2, mit Spannweite), Kontaktlängen,
 Fugenlagen und Fugenabstand, längste gerade ungestützte Außenstrecke (gerade Läufe der Segmente
 `outer`/`outfill`, geteilt an Punkten mit Kontakt zu `web`/`infill`), kleinster Radius.
+
+Laufzeit (Vorschau live beim Ziehen der Regler, Ziel < 100 ms je Anfrage): Abtastung in einem Zug,
+Paare über einen KD-Baum, ungestützte Strecken je Segment mit einer Baumabfrage (nur Läufe nahe am
+Maximum werden je Lauf exakt nachgerechnet), Querschnittspuffer (⊕ 1 mm, Schalenbereich) je
+Querschnitt nur einmal, Raupenfläche und Flächengrößen je gleicher Mittellinie nur einmal. Hat
+Schicht L + 1 dieselben oder exakt umgekehrte Mittellinien im selben Querschnitt wie L
+(`layer_order = alternate`), ist die Raupenfläche gleich und M3 wird ohne Differenz als erfüllt
+gewertet (Restfläche 0). Alle Ergebnisse sind gleich der Rechnung vor der Optimierung (Test
+`test_patterns_perf.py` gegen eine eingefrorene Referenz).
 """
 
 from __future__ import annotations
@@ -199,20 +208,27 @@ class PatternReport:
 
 def sample_path(path: LayerPath, spacing: float = DENSE_MM) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Dichte Punkte (n, 2), Bogenlänge (n,) und Segmentindex (n,) inkl. Verbinder
-    (Verbinderpunkte gehören zum folgenden Segment)."""
-    pts: list[np.ndarray] = []
-    idx: list[np.ndarray] = []
-    prev = None
-    for k, s in enumerate(path.segments):
-        poly = s.points if prev is None else np.vstack([prev, s.points])
-        d = densify(poly, spacing)
-        if prev is not None:
-            d = d[1:]
-        pts.append(d)
-        idx.append(np.full(len(d), k))
-        prev = s.points[-1]
-    p = np.vstack(pts)
-    seg = np.concatenate(idx)
+    (Verbinderpunkte gehören zum folgenden Segment).
+
+    In einem Zug verdichtet: Segment k samt Verbinder ist die Kette [Ende von k − 1, Punkte von k];
+    jedes Stück wird wie in `densify` für sich unterteilt und gehört zum Segment seines Endpunkts.
+    Doppelte Folgepunkte fallen weg, der Kettenanfang bleibt aber Stückanfang (wie bei der
+    Verdichtung je Segment)."""
+    segs = path.segments
+    P = np.vstack([s.points for s in segs]).astype(float, copy=False)
+    lab = np.repeat(np.arange(len(segs)), [len(s.points) for s in segs])
+    keep = np.ones(len(P), bool)
+    keep[1:] = np.linalg.norm(np.diff(P, axis=0), axis=1) > 1e-9
+    ends = np.cumsum([len(s.points) for s in segs])[:-1] - 1  # Kettenanfänge (Ende von k − 1)
+    keep[ends[ends >= 0]] = True
+    q, ql = P[keep], lab[keep]
+    v = np.diff(q, axis=0)
+    n = np.maximum(1, np.ceil(np.linalg.norm(v, axis=1) / spacing - 1e-9).astype(int))
+    idx = np.repeat(np.arange(len(v)), n)
+    k = np.arange(int(n.sum())) - np.repeat(np.cumsum(n) - n, n) + 1
+    t = (k / n[idx])[:, None]
+    p = np.vstack([q[:1], q[idx] + v[idx] * t])
+    seg = np.concatenate([ql[:1], ql[idx + 1]])
     keep = np.ones(len(p), bool)
     keep[1:] = np.linalg.norm(np.diff(p, axis=0), axis=1) > 1e-9
     p, seg = p[keep], seg[keep]
@@ -222,7 +238,10 @@ def sample_path(path: LayerPath, spacing: float = DENSE_MM) -> tuple[np.ndarray,
 
 def bead_area(path: LayerPath, w: float) -> Any:
     """Raupenfläche: Mittellinie ⊕ w/2 (runde Enden)."""
-    pl = path.polyline()
+    return _bead_area(path.polyline(), w)
+
+
+def _bead_area(pl: np.ndarray, w: float) -> Any:
     if len(pl) < 2:
         return Point(pl[0]).buffer(w / 2.0)
     g = LineString(pl).buffer(w / 2.0, quad_segs=8)
@@ -250,6 +269,57 @@ def _contact_kind(ka: str, kb: str) -> str:
 # --------------------------------------------------------------------------- je Pfad
 
 
+@dataclass
+class _AreaMetrics:
+    """Flächengrößen einer Raupenfläche in einem Querschnitt (richtungsunabhängig)."""
+
+    out_area: float
+    out_at: tuple[float, float] | None
+    cells: list[dict[str, Any]]
+    coverage: float
+
+
+def _section_parts(section: Any, island: int, params: PatternParams, cache: dict | None) -> tuple[Any, Any]:
+    """(Querschnitt ⊕ 1 mm, Schalenbereich der Insel); je Querschnitt nur einmal gepuffert."""
+    key = (id(section), island, params.shells, params.w)
+    if cache is not None and key in cache:
+        return cache[key][1:]
+    grown = section.buffer(1.0)
+    isl_polys = polygons(section)
+    region = isl_polys[island] if 0 <= island < len(isl_polys) else section
+    shell_reg = region.difference(region.buffer(-params.shells * params.w, join_style="mitre"))
+    if cache is not None:
+        cache[key] = (section, grown, shell_reg)  # `section` hält die id gültig
+    return grown, shell_reg
+
+
+def _area_metrics(
+    beads: Any, section: Any, island: int, params: PatternParams, cache: dict | None = None
+) -> _AreaMetrics:
+    """M5-Restfläche, Zellen und Schalenabdeckung; hängt nur von Raupenfläche und Querschnitt ab."""
+    w = params.w
+    grown, shell_reg = _section_parts(section, island, params, cache)
+    out = beads.difference(grown)
+    out_at = None
+    if out.area > AREA_TOL_MM2:
+        big = max(polygons(out), key=lambda g: g.area, default=out)
+        out_at = tuple(big.centroid.coords[0])
+    cells = []
+    for g in polygons(section.difference(beads)):
+        if g.area >= w * w / 2.0:
+            mrr = np.asarray(g.minimum_rotated_rectangle.exterior.coords)
+            sides = np.linalg.norm(np.diff(mrr, axis=0), axis=1)
+            cells.append(
+                {
+                    "area_mm2": round(float(g.area), 1),
+                    "span_mm": round(float(sides.max()), 1),
+                    "at": [round(float(g.centroid.x), 1), round(float(g.centroid.y), 1)],
+                }
+            )
+    coverage = float(beads.intersection(shell_reg).area / shell_reg.area) if shell_reg.area > 0 else 1.0
+    return _AreaMetrics(float(out.area), out_at, cells, coverage)
+
+
 def measure_path(
     path: LayerPath,
     section: Any,
@@ -257,6 +327,18 @@ def measure_path(
     bounds: tuple[float, float, float, float] | None = None,
 ) -> tuple[PathMetrics, list[Violation]]:
     """M1 (Verbinder), M2, M4 (Nahtlage), M5, M6, M7 und Kennzahlen für einen Schichtpfad."""
+    beads = bead_area(path, params.w)
+    area = _area_metrics(beads, section, path.island, params)
+    return _measure_path(path, section, params, bounds, area)
+
+
+def _measure_path(
+    path: LayerPath,
+    section: Any,
+    params: PatternParams,
+    bounds: tuple[float, float, float, float] | None,
+    area: _AreaMetrics,
+) -> tuple[PathMetrics, list[Violation]]:
     p = params
     w, eps = p.w, p.eps
     bounds = bounds or tuple(section.bounds)
@@ -291,7 +373,8 @@ def measure_path(
     contacts: list[Contact] = []
     contact_mid = np.zeros((0, 2))
     if len(pairs):
-        i, j = pairs.min(axis=1), pairs.max(axis=1)
+        # elementweise statt Reduktion über Achse 1 (gleiches Ergebnis, ein Vielfaches schneller)
+        i, j = np.minimum(pairs[:, 0], pairs[:, 1]), np.maximum(pairs[:, 0], pairs[:, 1])
         sep = np.abs(arc[j] - arc[i])
         if closed:
             sep = np.minimum(sep, total - sep)
@@ -359,18 +442,15 @@ def measure_path(
             )
 
     # M5: im Teil
-    beads = bead_area(path, w)
-    out = beads.difference(section.buffer(1.0))
-    if out.area > AREA_TOL_MM2:
-        big = max(polygons(out), key=lambda g: g.area, default=out)
+    if area.out_area > AREA_TOL_MM2:
         viol.append(
             Violation(
                 "M5",
                 "error",
                 L,
                 isl,
-                tuple(big.centroid.coords[0]),
-                float(out.area),
+                area.out_at,
+                area.out_area,
                 AREA_TOL_MM2,
                 "Raupe außerhalb des Querschnitts ⊕ 1 mm (Fläche in mm²)",
             )
@@ -418,23 +498,9 @@ def measure_path(
     for side in (-1, 1):
         xs = sorted(c.at[0] for c in contacts if c.kind == "joint" and (c.at[1] - ymid) * side > 0)
         spacing.extend(float(b - a) for a, b in zip(xs[:-1], xs[1:], strict=True))
-    cells = []
-    for g in polygons(section.difference(beads)):
-        if g.area >= w * w / 2.0:
-            mrr = np.asarray(g.minimum_rotated_rectangle.exterior.coords)
-            sides = np.linalg.norm(np.diff(mrr, axis=0), axis=1)
-            cells.append(
-                {
-                    "area_mm2": round(float(g.area), 1),
-                    "span_mm": round(float(sides.max()), 1),
-                    "at": [round(float(g.centroid.x), 1), round(float(g.centroid.y), 1)],
-                }
-            )
+    cells = [dict(c, at=list(c["at"])) for c in area.cells]
     vol = total * w * p.layer_height_mm
-    isl_polys = polygons(section)
-    region = isl_polys[isl] if 0 <= isl < len(isl_polys) else section
-    shell_reg = region.difference(region.buffer(-p.shells * w, join_style="mitre"))
-    coverage = float(beads.intersection(shell_reg).area / shell_reg.area) if shell_reg.area > 0 else 1.0
+    coverage = area.coverage
     met = PathMetrics(
         layer=L,
         island=isl,
@@ -483,6 +549,8 @@ def _contact_zones(
         a, b = path.segments[seg[q]], path.segments[seg[q + 1]]
         if np.linalg.norm(a.end - b.start) < 1e-6:
             alt[q] = seg[q + 1]
+    is_out = np.array([k == "outfill" for k in kinds], bool)
+    is_cross = np.array([k in CROSS_KINDS for k in kinds], bool)
     key = seg[i] * 100000 + seg[j]
     for kv in np.unique(key):
         sel = np.flatnonzero(key == kv)
@@ -494,13 +562,14 @@ def _contact_zones(
             mid = run[len(run) // 2]
             at = (pts[i[mid]] + pts[j[mid]]) / 2
             length = float(arc[i[run]].max() - arc[i[run]].min()) + DENSE_MM
-            combos = {
-                _contact_kind(kinds[a], kinds[b])
-                for x, y in zip(i[run], j[run], strict=True)
-                for a in {seg[x], alt[x]}
-                for b in {seg[y], alt[y]}
-            }
-            kind = next(k for k in ("joint", "node", "shell") if k in combos)
+            # Art wie `_contact_kind` über alle Zuordnungen {seg, alt} beider Enden aller Paare
+            xi, yj = i[run], j[run]
+            if np.any((is_out[seg[xi]] | is_out[alt[xi]]) & (is_out[seg[yj]] | is_out[alt[yj]])):
+                kind = "joint"
+            elif np.any((is_cross[seg[xi]] | is_cross[alt[xi]]) & (is_cross[seg[yj]] | is_cross[alt[yj]])):
+                kind = "node"
+            else:
+                kind = "shell"
             for c in path.contacts:
                 if np.hypot(c.at[0] - at[0], c.at[1] - at[1]) <= w:
                     kind = c.kind
@@ -510,39 +579,122 @@ def _contact_zones(
     return zones
 
 
+def _straight_runs(p: np.ndarray) -> list[tuple[int, int]]:
+    """Gerade Läufe (a, b) einer Polylinie: Grenzen an Knicken > 1°."""
+    v = np.diff(p, axis=0)
+    ang = np.arctan2(v[:, 1], v[:, 0])
+    turn = np.abs((np.diff(ang) + np.pi) % (2 * np.pi) - np.pi)
+    breaks = np.flatnonzero(np.degrees(turn) > 1.0) + 1
+    return [(int(a), int(b)) for a, b in zip(np.r_[0, breaks], np.r_[breaks, len(p) - 1], strict=True)]
+
+
+def _run_gap(
+    p: np.ndarray, a: int, b: int, tree: Any, reach: float
+) -> tuple[float, tuple[float, float] | None]:
+    """Größte ungestützte Lücke eines geraden Laufs p[a..b] (Referenzrechnung, exakt)."""
+    dense = densify(p[a : b + 1], DENSE_MM)
+    sup = np.zeros(len(dense), bool)
+    sup[0] = sup[-1] = True
+    if tree is not None:
+        sup |= np.isfinite(tree.query(dense, distance_upper_bound=reach)[0])
+    s_arc = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(dense, axis=0), axis=1))])
+    idx = np.flatnonzero(sup)
+    gaps = np.diff(s_arc[idx])
+    if not len(gaps):
+        return -math.inf, None
+    k = int(np.argmax(gaps))
+    return float(gaps[k]), tuple(map(float, (dense[idx[k]] + dense[idx[k + 1]]) / 2))
+
+
 def _longest_unsupported(
     path: LayerPath, pts: np.ndarray, seg: np.ndarray, reach: float
 ) -> tuple[float, tuple[float, float] | None]:
+    """Längste gerade, ungestützte Strecke der Außensegmente (`outer`/`outfill`).
+
+    Gerade Läufe enden an Knicken > 1°; gestützt ist ein Punkt im Abstand < `reach` von einem
+    Steg/Infill-Punkt, dazu Anfang und Ende jedes Laufs. Schnell: Jedes Segment wird als Ganzes
+    verdichtet (dieselben Punkte wie je Lauf, weil die Verdichtung jedes Stück für sich teilt) und
+    mit einer KD-Baum-Abfrage geprüft; jede Laufgrenze ist gestützt, also überspannt keine Lücke zwei
+    Läufe. Nur die Läufe, deren Lücke bis 1e-6 an das Maximum heranreicht, werden danach exakt wie
+    in der Einzellauf-Rechnung nachgerechnet (gleiche Summationsreihenfolge, gleicher Gleichstand:
+    der erste Lauf mit dem größten Wert gewinnt)."""
     cross = np.isin(seg, [k for k, s in enumerate(path.segments) if s.kind in CROSS_KINDS])
     tree = cKDTree(pts[cross]) if np.any(cross) else None
-    best, best_at = 0.0, None
+    cand: list[tuple[float, np.ndarray, int, int]] = []
     for s in path.segments:
         if s.kind not in OUTER_KINDS:
             continue
-        p = s.points
+        p = np.asarray(s.points, float)
+        if len(p) < 2:
+            continue
+        runs = _straight_runs(p)
         v = np.diff(p, axis=0)
-        ang = np.arctan2(v[:, 1], v[:, 0])
-        turn = np.abs((np.diff(ang) + np.pi) % (2 * np.pi) - np.pi)
-        breaks = np.flatnonzero(np.degrees(turn) > 1.0) + 1
-        for a, b in zip(np.r_[0, breaks], np.r_[breaks, len(p) - 1], strict=True):
-            if b <= a:
-                continue
-            dense = densify(p[a : b + 1], DENSE_MM)
-            sup = np.zeros(len(dense), bool)
-            sup[0] = sup[-1] = True
-            if tree is not None:
-                sup |= np.isfinite(tree.query(dense, distance_upper_bound=reach)[0])
-            s_arc = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(dense, axis=0), axis=1))])
-            idx = np.flatnonzero(sup)
-            gaps = np.diff(s_arc[idx])
-            if len(gaps) and gaps.max() > best:
-                k = int(np.argmax(gaps))
-                best = float(gaps[k])
-                best_at = tuple(map(float, (dense[idx[k]] + dense[idx[k + 1]]) / 2))
+        ln = np.linalg.norm(v, axis=1)
+        n = np.where(ln > 1e-9, np.maximum(1, np.ceil(ln / DENSE_MM - 1e-9).astype(int)), 0)
+        pos = np.concatenate([[0], np.cumsum(n)])  # dichter Index jedes Originalpunkts
+        idx = np.repeat(np.arange(len(v)), n)
+        k = np.arange(int(n.sum())) - np.repeat(pos[:-1], n) + 1
+        t = (k / np.maximum(n, 1)[idx])[:, None]
+        dense = np.vstack([p[:1], p[idx] + v[idx] * t])
+        starts = pos[[a for a, _ in runs]]
+        sup = np.zeros(len(dense), bool)
+        sup[starts] = True
+        sup[-1] = True
+        if tree is not None:
+            sup |= np.isfinite(tree.query(dense, distance_upper_bound=reach)[0])
+        s_arc = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(dense, axis=0), axis=1))])
+        sidx = np.flatnonzero(sup)
+        if len(sidx) < 2:
+            continue
+        gaps = np.diff(s_arc[sidx])
+        run_of = np.searchsorted(starts, sidx[:-1], side="right") - 1
+        rmax = np.full(len(runs), -math.inf)
+        np.maximum.at(rmax, run_of, gaps)
+        cand.extend((float(rmax[r]), p, runs[r][0], runs[r][1]) for r in range(len(runs)))
+    if not cand:
+        return 0.0, None
+    top = max(c[0] for c in cand)
+    best, best_at = 0.0, None
+    for approx, p, a, b in cand:
+        if b <= a or approx < top - 1e-6:
+            continue
+        g, at = _run_gap(p, a, b, tree, reach)
+        if g > best:
+            best, best_at = g, at
     return best, best_at
 
 
 # --------------------------------------------------------------------------- ganzes Teil
+
+
+def _bead_group(
+    lp: LayerPath,
+    section: Any,
+    params: PatternParams,
+    groups: list[tuple[np.ndarray, Any, int, Any, _AreaMetrics]],
+    sec_cache: dict,
+) -> tuple[Any, _AreaMetrics, int]:
+    """Raupenfläche, Flächengrößen und Geometriegruppe eines Pfads.
+
+    Gleiche Mittellinie im gleichen Querschnitt (gleiche Insel) rechnet nur einmal. Eine exakt
+    umgekehrte Mittellinie (`layer_order = alternate`) bekommt dieselbe Gruppe (dieselbe Fläche, für
+    M3), ihre Flächengrößen werden aber neu gerechnet: GEOS puffert die Umkehrung mit anderer
+    Punktfolge, und Reihenfolge und Rundung der Zellen sollen exakt bleiben."""
+    pl = lp.polyline()
+    gid = None
+    for k, (pl0, sec0, isl0, g0, a0) in enumerate(groups):
+        if isl0 != lp.island or len(pl0) != len(pl):
+            continue
+        if not (sec0 is section or shapely.equals_exact(sec0, section, 0.0)):
+            continue
+        if np.array_equal(pl0, pl):
+            return g0, a0, k
+        if gid is None and np.array_equal(pl0[::-1], pl):
+            gid = k
+    g = _bead_area(pl, params.w)
+    area = _area_metrics(g, section, lp.island, params, sec_cache)
+    groups.append((pl, section, lp.island, g, area))
+    return g, area, len(groups) - 1 if gid is None else gid
 
 
 def measure(
@@ -554,7 +706,6 @@ def measure(
     """M1–M7 für alle Schichtpfade (`layers` schränkt die je Pfad gemessenen Schichten ein; M3/M4
     werden dann nur für Übergänge innerhalb dieser Schichten geprüft)."""
     p = params or PatternParams()
-    w = p.w
     bounds = part_bounds(sections)
     sel = None if layers is None else set(layers)
     metrics: list[PathMetrics] = []
@@ -563,6 +714,9 @@ def measure(
     for lp in paths:
         by_layer.setdefault(lp.layer, []).append(lp)
     beads: dict[int, Any] = {}
+    groups: list[tuple[np.ndarray, Any, int, Any, _AreaMetrics]] = []
+    gids: dict[int, list[int]] = {}
+    sec_cache: dict = {}
     for L in sorted(by_layer):
         if sel is not None and L not in sel:
             continue
@@ -584,18 +738,27 @@ def measure(
                     "mehr Stränge als Inseln in der Schicht",
                 )
             )
+        layer_beads = []
+        layer_gids = []
         for lp in lps:
-            m, v = measure_path(lp, sections[L], p, bounds)
+            g, area, gid = _bead_group(lp, sections[L], p, groups, sec_cache)
+            m, v = _measure_path(lp, sections[L], p, bounds, area)
             metrics.append(m)
             viol.extend(v)
-        beads[L] = shapely.union_all([bead_area(lp, w) for lp in lps])
+            layer_beads.append(g)
+            layer_gids.append(gid)
+        beads[L] = layer_beads[0] if len(layer_beads) == 1 else shapely.union_all(layer_beads)
+        gids[L] = sorted(layer_gids)
     changes: list[dict[str, Any]] = []
     order = sorted(beads)
     for La, Lb in zip(order[:-1], order[1:], strict=True):
         if Lb != La + 1:
             continue
-        diff = beads[Lb].difference(beads[La].buffer(p.delta_mm))
-        if diff.area > AREA_TOL_MM2:
+        # Gleiche Mittellinien (gleich oder umgekehrt) im gleichen Querschnitt: gleiche Raupenfläche,
+        # also kein Überhang (Restfläche 0); die Differenz wird dann nicht gerechnet.
+        same = gids[Lb] == gids[La]
+        diff = None if same else beads[Lb].difference(beads[La].buffer(p.delta_mm))
+        if diff is not None and diff.area > AREA_TOL_MM2:
             big = max(polygons(diff), key=lambda g: g.area, default=diff)
             viol.append(
                 Violation(
