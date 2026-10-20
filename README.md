@@ -63,9 +63,29 @@ Gemessen auf der Cloud-VM (4 vCPU) am 2026-10-19, Stand Commit 834efe0:
 Dass alle Samples `warn` tragen, ist bekannt: Das Paar `base_link` ↔ `link_2` bleibt auf den Roh-Meshes
 konstant bei 33,2 mm und liegt damit unter d_target (50 mm). Siehe „Gate-Einwände“ in `PROGRESS.md`.
 
+Die Tabelle stammt vom Stand vor dem durchgehenden Strang. Seit dem 20.10.2026 druckt S1 alle 80 Ringe in
+einem Strang mit 79 Verbindern. Lokal unter Windows gemessen: Druckdauer 1128,7 s (18:48,7 min) statt
+1459,9 s mit `link_max_mm` = 0, d_min 10,83 mm, Zweigwechsel 0. Die Messung auf der Cloud-VM steht aus.
+
 Der Lauf schreibt unter `runs/readme/S1/` die Artefakte nach SPEC §6: `summary.json`, `scene.json` und je
 Teil `part.stl`, `toolpath.json`, `trajectory.json`, `program.v2.drl`, `program.v3.drl`. `runs/` wird
 nicht versioniert.
+
+## Druckablauf: Strang mit Verbindern
+
+Jede Schicht besteht aus Ringen, je Schale ein geschlossener Ring. Die Ringe werden über gedruckte
+**Verbinder** zu einem **Strang** verbunden (Nutzerentscheidung 20.10.2026, SPEC §5.3):
+
+- Ein Verbinder ist die Gerade vom Ende eines Rings zum Start des nächsten. Er liegt über Material, ist
+  höchstens `link_max_mm` lang (Standard 60 mm) und steigt beim Schichtwechsel um die Schichthöhe h.
+- Im Strang läuft die Pumpe durch, und der Roboter hält nicht an. Alle `movel` sind geblendet, auch an den
+  Ringgrenzen; nur das letzte `movel` des Strangs hat `radius = 0`.
+- Der Pumpen-Vorlauf `t_tot` fällt einmal am Strangbeginn an: Stillstand, Pumpe an, `wait(t_tot)`.
+- Abfahren und Abheben um `z_lift`, Transfer, Absenken und Anfahren (`approach_mm`) gibt es nur zwischen
+  Strängen. Ein Strang endet, wo kein Verbinder geht: Öffnung im Querschnitt, Abstand über `link_max_mm`,
+  anderer IK-Zweig, unerreichbar oder Abstand unter d_hard.
+- `link_max_mm` = 0 schaltet die Verbinder ab. Dann ist jeder Ring ein eigener Strang wie vor dem
+  20.10.2026: Halt am Ringende, Pumpe aus, Abheben, Transfer, Pumpe an und `wait(t_tot)` je Ring.
 
 ## Viewer
 
@@ -117,10 +137,13 @@ scripts/      verify.py, dev.sh
 ## Offene Annahmen
 
 Mehrere Prozessparameter sind Annahmen (in SPEC §10 mit „A“ markiert, auch im Kopf jedes DRL-Programms
-und in `summary.json` aufgeführt): Schichthöhe, Strangbreite, Druck- und Fahrgeschwindigkeit, Pumpenwert,
-Pumpen-Vorlauf t_tot (einmal je Strang), d_hard und τ_max. Hinzu kommen die Firmware-Version des Controllers, die Rotationssymmetrie der
-Düse und der am Teach Pendant anzulegende TCP `FGC_30GUT`. Die vollständige Liste steht in SPEC §13 und
-muss vom Nutzer bestätigt werden. Kein DRL-Programm ist bisher an einem realen Controller gelaufen.
+und in `summary.json` mit den tatsächlich genutzten Werten aufgeführt): Schichthöhe, Strangbreite, Druck- und
+Fahrgeschwindigkeit (v_print gilt auch in Verbindern), Abhebehöhe z_lift und An-/Abfahrt (beide nur zwischen
+Strängen), Pumpenwert, Pumpen-Vorlauf t_tot (einmal je Strang, provisorisch), r_blend, d_hard und τ_max.
+`link_max_mm` (60 mm) ist eine Nutzervorgabe vom 20.10.2026. Hinzu kommen die Firmware-Version des Controllers,
+die Rotationssymmetrie der Düse und der am Teach Pendant anzulegende TCP `FGC_30GUT`. Die vollständige Liste
+steht in SPEC §13 und muss vom Nutzer bestätigt werden. Kein DRL-Programm ist bisher an einem realen Controller
+gelaufen.
 
 ## Lizenz, Attribution, Zitation
 
