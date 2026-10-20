@@ -75,12 +75,12 @@ def densify(pts: np.ndarray, step: float) -> np.ndarray:
     pts = np.asarray(pts, float)
     if len(pts) < 2:
         return pts.copy()
-    out = [pts[:1]]
-    for a, b in zip(pts[:-1], pts[1:], strict=True):
-        n = max(1, int(np.ceil(np.linalg.norm(b - a) / step)))
-        t = (np.arange(1, n + 1) / n)[:, None]
-        out.append(a + t * (b - a))
-    return np.vstack(out)
+    seg = np.diff(pts, axis=0)
+    n = np.maximum(1, np.ceil(np.linalg.norm(seg, axis=1) / step).astype(int))
+    si = np.repeat(np.arange(len(seg)), n)  # Segment je neuem Punkt
+    k = np.arange(len(si)) - np.repeat(np.cumsum(n) - n, n) + 1  # 1..n je Segment
+    t = (k / n[si])[:, None]
+    return np.vstack([pts[:1], pts[:-1][si] + t * seg[si]])
 
 
 def resample(pts: np.ndarray, step: float) -> tuple[np.ndarray, np.ndarray]:

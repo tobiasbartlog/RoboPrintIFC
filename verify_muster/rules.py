@@ -439,6 +439,17 @@ def _print_gaps(ring_xy: np.ndarray, closed: bool, tcp_xy: np.ndarray) -> tuple[
     return max(cands, key=lambda t: t[0])
 
 
+def _indices_by_ring(ring: np.ndarray, mask: np.ndarray) -> dict[int, np.ndarray]:
+    """Sample-Indizes mit mask je Ring (aufsteigend), in einem Durchgang statt einer Suche je Ring."""
+    idx = np.flatnonzero(mask)
+    if len(idx) == 0:
+        return {}
+    order = np.argsort(ring[idx], kind="stable")
+    idx = idx[order]
+    keys, starts = np.unique(ring[idx], return_index=True)
+    return {int(k): a for k, a in zip(keys, np.split(idx, starts[1:]), strict=True)}
+
+
 def check_m6b(C: Ctx) -> Rule:
     """Trajektorie folgt dem toolpath: Lage (print/link <= 0,5 mm neben Ring bzw. Verbindergerade) und
     Abdeckung (jeder Ring luecken- und ruecksprungfrei bis auf GAP_TOL_MM, `_print_gaps`)."""
@@ -449,10 +460,12 @@ def check_m6b(C: Ctx) -> Rule:
         return R
     rings = C.part.rings
     kind = np.array(tr.kind)
+    by_ring = {k: _indices_by_ring(tr.ring, kind == k) for k in ("print", "link")}
+    empty = np.zeros(0, int)
     worst = 0.0
     for r in rings:
         for k, ref in (("print", r.pts), ("link", None)):
-            idx = np.flatnonzero((kind == k) & (tr.ring == r.index))
+            idx = by_ring[k].get(r.index, empty)
             if len(idx) == 0:
                 continue
             if k == "link":
@@ -472,7 +485,7 @@ def check_m6b(C: Ctx) -> Rule:
                        f"{k}-Sample {idx[m]} liegt {d[m]:.2f} mm neben dem toolpath", sample=int(idx[m]))
     worst_gap = 0.0
     for r in rings:
-        idx = np.flatnonzero((kind == "print") & (tr.ring == r.index))
+        idx = by_ring["print"].get(r.index, empty)
         if len(idx) == 0 or len(r.pts) < 2:
             continue
         closed = len(r.pts) >= 3 and np.linalg.norm(r.pts[0, :2] - r.pts[-1, :2]) <= g.CLOSE_TOL

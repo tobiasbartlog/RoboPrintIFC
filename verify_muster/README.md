@@ -55,14 +55,14 @@ Konstanten mit (A) sind Annahmen und gehören in den SPEC-Nachtrag (`docs/muster
 
 | Regel | hart | Prüfung |
 |---|---|---|
-| M1 Durchgehend | ja | Je Schicht und Insel genau ein Schichtpfad (Inselzahl aus `part.stl`); ein Pfad über mehrere Inseln (über eine Öffnung) oder außerhalb jeder Insel ist ein Fehler. In der Trajektorie liegen zwischen dem ersten und dem letzten `print`-Sample der Ringe einer (Schicht, Insel) nur `print`/`link` dieser Ringe, also kein `retract`/`lift`/`transfer`/`lower`/`approach`. Pumpe = an genau in `print` und `link` (aus der Bewegungsart abgeleitet; DRL-Pumpenbefehle prüft G5). Jeder Ring hat `print`-Samples. |
+| M1 Durchgehend | ja | Je Schicht und Insel genau ein Schichtpfad (Inselzahl aus `part.stl`; Schichten aus dem toolpath und aus der Teilhoehe ceil(H/h) wie G3, eine fehlende Schicht hat also 0 Schichtpfade); ein Pfad über mehrere Inseln (über eine Öffnung) oder außerhalb jeder Insel ist ein Fehler. In der Trajektorie liegen zwischen dem ersten und dem letzten `print`-Sample der Ringe einer (Schicht, Insel) nur `print`/`link` dieser Ringe, also kein `retract`/`lift`/`transfer`/`lower`/`approach`. Pumpe = an genau in `print` und `link` (aus der Bewegungsart abgeleitet; DRL-Pumpenbefehle prüft G5). Jeder Ring hat `print`-Samples. |
 | M2 Kreuzungsfrei | ja | Alle Punktpaare mit Bogenabstand > 2·w und Abstand < (1 − ε)·w, ε = 0,15 (A), sind Fehler: Abstand < 1,5 Abtastschritte = `crossing`, sonst `too_deep` (zu tiefer Kontakt bzw. Überfahren einer gelegten Raupe derselben Schicht). Verbinder zählen mit, die Mittellinie einschließlich Verbinder muss also einfach sein. |
 | Kontaktzonen | – | Paare mit Bogenabstand > 2·w und Abstand in [(1 − ε)·w, w + 0,5 mm] (A) sind gewollte Kontakte. Zusammenhängende Läufe entlang des Pfads werden paarweise zu Zonen mit Lage, Länge, kleinstem Abstand, Überlappung und Art zusammengefasst: `joint` (Segmentarten im Umkreis w beider Seiten nur `outfill`/`web`, mit `outfill`), `node` (nur `web`/`infill`), sonst `shell`. |
 | M3 Überhangfrei | ja | Raupenfläche (Mittellinie ⊕ w/2, Schichtpfade vereinigt) von L + 1 minus Raupenfläche von L ⊕ δ, δ = 2 mm (A); Restfläche > 1 mm² ist ein Fehler. Gegenbeispiel: größtes Reststück. |
 | M4 Senkrechter Schichtwechsel | ja | Letzter Ring von L → erster Ring von L + 1: `link_next`, aufeinanderfolgende Indizes, waagrecht ≤ 0,5 mm (A) und, falls eine Trajektorie da ist, als `link` gefahren (nicht als Travel). Ausgenommen sind Wechsel mit Änderung der Inselzahl. Kennzahlen: Anteil senkrechter Wechsel gesamt und ohne Ausnahmen. |
 | M5 Im Teil | ja | Jeder Mittellinienpunkt (inkl. Verbinder) liegt in (Querschnitt ⊕ 1 mm) ⊖ w/2, d. h. die Raupenscheibe liegt im Querschnitt ⊕ 1 mm (A); damit auch nie über Öffnungen. Zusätzlich: Wegpunkthöhe = (L + 1)·h ± 0,5 mm. |
-| M6 Krümmung | ja | Fenstermethode (siehe unten): Radius ≥ w/2 · (1 − 5 %) hart; < w · (1 − 5 %) ist eine Warnung (Ziel). |
-| M6b Trajektorie folgt toolpath | ja | Jedes `print`-Sample liegt ≤ 0,5 mm neben der dicht abgetasteten Ringpolylinie, jedes `link`-Sample ≤ 0,5 mm neben der Verbindergeraden. Ersetzt den Sehnenfehler gegen die Sollkurve, die im Artefakt nicht steht. |
+| M6 Krümmung | ja | Fenstermethode (siehe unten): Radius ≥ w/2 · (1 − tol) hart; < w · (1 − tol) ist eine Warnung (Ziel). tol je Punkt aus der längsten Originalsehne im Fenster: 0,5 % (A) bei feiner Abtastung bis 5 % (A) bei Sehnenfehler 0,5 mm. |
+| M6b Trajektorie folgt toolpath | ja | Jedes `print`-Sample liegt ≤ 0,5 mm neben der dicht abgetasteten Ringpolylinie, jedes `link`-Sample ≤ 0,5 mm neben der Verbindergeraden. Ersetzt den Sehnenfehler gegen die Sollkurve, die im Artefakt nicht steht. **Abdeckung:** Die `print`-Samples eines Rings (dazu das angrenzende `link`/`approach`/`retract`-Sample, wenn es auf Ringanfang bzw. -ende liegt) werden auf den Ring projiziert; ausgelassene Ringlänge (Δs − Sehne) zwischen zwei Samples, ein Rücksprung, ein fehlender Ringanfang bzw. -ende oder ein nicht ganz umlaufener geschlossener Ring > 1 mm (A) ist ein Fehler (z. B. abgeschnittene Kehre bei laufender Pumpe). |
 | M7 Kontakt | nein (Bericht) | Kontaktzonen je Schicht und je Meter Wand (Wandlänge = längste Grundrisskante von `part.stl`), getrennt nach Art, Kontaktlänge je Meter, Zonen der ersten Schicht mit Lage und Überlappung. |
 
 ### Krümmung (M6), robuste Fenstermethode
@@ -70,7 +70,11 @@ Konstanten mit (A) sind Annahmen und gehören in den SPEC-Nachtrag (`docs/muster
 Die Mittellinie des Schichtpfads wird gleichabständig (Schritt min(1 mm, w/30)) neu abgetastet. Je
 Punkt p(s) ist der Radius der Umkreis von p(s − a), p(s), p(s + a) mit a = w/2. Für Punkte auf einem
 Kreis liefert das dessen Radius unabhängig von der Abtastdichte der Eingabe; Polylinien mit Sehnenfehler
-≤ 0,5 mm (Sehne bis ≈ 7,7 mm bei r = 15 mm) weichen um höchstens ≈ 4 % ab, daher die Toleranz 5 % (A).
+≤ 0,5 mm (Sehne bis ≈ 7,7 mm bei r = 15 mm) weichen um höchstens ≈ 4 % ab. Die Toleranz hängt deshalb
+von der längsten Originalsehne c im Fenster ab: e = c²/(8·r_ref), S = r_ref·(1 − cos(a/r_ref)),
+tol = 0,5 % + 1,15·e/S, höchstens 5 % (`rules.radius_tolerance`). Ein fein abgetasteter Bogen
+(Sehne ≤ 2 mm) wird damit auf ≈ 1 % genau geprüft (r = 14,85 mm und 14,6 mm sind rot); nur eine grobe,
+aber noch zulässige Polylinie bekommt die vollen 5 %.
 Ein Knick mit Ablenkung φ ergibt a / (2 sin(φ/2)), eine Umkehr 0. Offene Schichtpfade werden ohne die
 Enden (a) ausgewertet, geschlossene Züge zyklisch (die Naht wird mitgeprüft).
 
@@ -103,6 +107,11 @@ Für G9 wird deshalb vorgeschlagen, das Orakel nur auf Teile mit Musterparameter
 `params.layer_order`/`infill_pattern`/`outfill_pattern`) hart anzuwenden und für die übrigen nur zu
 berichten. `has_pattern_kinds` im Bericht zeigt, ob der toolpath Musterarten (`infill`, `web`,
 `outfill`) enthält.
+
+## Laufzeit
+
+Gemessen auf der Cloud-VM (ein Kern): echter S1-Lauf (40 Schichten, 80 Ringe, 18 MB Trajektorie) ≈ 3 s
+je Teil; synthetische Fugenwand mit 40 Schichten (680 Ringe) ≈ 4 s. Der Bericht nennt `runtime_s` je Teil.
 
 ## Grenzen und offene Punkte
 
@@ -137,5 +146,10 @@ Fugenwand mit Feldern, Fugenkontakt, V-Stegen, Doppelknoten und Gurtkontakt als 
 Schicht; zwei Inseln mit je eigenem Strang. Gegenbeispiele: Kreuzung, Überhang, diagonaler
 Schichtwechsel, Schichtwechsel als Travel, Lücke im Strang (Trajektorie und toolpath), Druck außerhalb
 des Teils, zu enger Radius, Druck über einer Öffnung, zu tiefer Kontakt an Fuge und Knoten, Trajektorie
-neben dem toolpath. Grenzfälle knapp über/unter: Kontakt 26/25 mm (Schwelle 25,5), Versatz 0,4/0,6 mm
-(0,5), Überstand 1,5/3,5 mm (δ = 2), Überstand über das Teil 0,8/1,3 mm (1), Radius 15/14 mm (w/2).
+neben dem toolpath, abgeschnittene Kehre und Rücksprung bei laufender Pumpe (Abdeckung M6b), fehlende
+oberste Schicht, leerer toolpath. Grenzfälle knapp über/unter: Kontakt genau 25,5 mm gültig, 25,45/25/24 mm
+zu tief (Schwelle 25,5), 26 mm gültig; Versatz 0,4/0,6 mm (0,5); Überstand als ebenes Plateau
+1,5/1,9/2,1/2,5 mm (δ = 2; die Gauß-Beule auf der steilen Sinusflanke ist normal zur Bahn nur ≈ 1/2,3 mm
+und kein exakter Grenzfall); Überstand über das Teil 0,8/1,3 mm (1); Radius fein 15/14,85/14,6/14 mm und
+grob (Sehne 7,7 mm) 15/14 mm (w/2). Ein AST-Test stellt sicher, dass kein Modul `roboprint`, `verify` oder
+`core` importiert.
