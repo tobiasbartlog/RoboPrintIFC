@@ -1,0 +1,34 @@
+{
+  "schema_version": "1",
+  "id": "S4_muster_waben_300",
+  "beschreibung": "Synthetischer Vollquader 600 x 300 x 400 mm (Laenge x Dicke x Hoehe), Modus Modul am Doosantisch. Platzierung am Standard-Druckplatz (0, -50) mm, lange Seite zum Roboter. Muster: Infill Waben (zwei gegenphasige Trapezwellen, Sechseckzellen) auf 300 mm Wanddicke. Auf 200 mm entfaellt der Infill (Band 50 mm < 55,5 mm).",
+  "mode": "modul",
+  "source": {
+    "kind": "box",
+    "size_mm": [
+      600,
+      300,
+      400
+    ]
+  },
+  "decompose": false,
+  "robot": "robots/doosan_m1013.json",
+  "urdf": "third_party/doosan_m1013/urdf/m1013.white.urdf",
+  "tool": "tools/30gut.json",
+  "workstation": "workstations/doosantisch.json",
+  "params": {
+    "pattern_preset": "core/src/roboprint/patterns/presets/waben.json"
+  },
+  "planner_mode": "collision_aware",
+  "expect": {
+    "parts": "all_feasible",
+    "muster": {
+      "machbar": true,
+      "fast": false,
+      "preset": "core/src/roboprint/patterns/presets/waben.json"
+    }
+  },
+  "limits": {
+    "wall_time_s": 400
+  }
+}

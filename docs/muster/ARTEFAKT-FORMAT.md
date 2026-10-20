@@ -134,3 +134,57 @@ und Muster stehen dort aufgelöst (aus `Toolpath.pattern`), also auch bei einem 
 
 **Vertragsname:** Das Objekt `Toolpath.pattern` heißt im Schema `ToolpathPattern` (der Katalog-Eintrag
 der Muster-API heißt `PatternInfo`; beide kamen beim Merge von `v2/muster` zusammen).
+
+## Nachtrag M3.2: Planer, Timing und DRL
+
+Umgesetzt in `core/src/roboprint/planner/` (`plan.py`, `graph.py`, `backend.py`, `__init__.py`),
+`timing.py` und `drl_steps.py`. Ohne Musterparameter bleibt alles bitgleich: S1 vor und nach M3.2
+hat gleiche `trajectory.json` (summary, t_s, q, tcp, kind, ring, layer, branch, status, d_mm, pair),
+gleichen Toolpath (sha256) und gleiche DRL-Befehlszeilen; nur die Provenienz-Zeile weicht ab.
+
+**Was der Planer schon konnte und jetzt abgesichert ist.** Der Planer behandelt jeden Ring als
+Wegpunktfolge vom ersten zum letzten Punkt; offene Ringe (`closed = false`) laufen wie geschlossene.
+Verbinder der Laenge 0 in der Schicht werden ein `link`-Sample am Ringende (Ablaufregel des Pruefers:
+mindestens ein `link`-Sample), der senkrechte Schichtwechsel ein Z-Hub um h (3 bis 6 Samples). Ein
+Muster ist ueber alle Ringe und Schichten **ein** Strang (ein Vorlauf, ein Trapez, Pumpe einmal an
+und aus).
+
+**Neu:**
+- `psi_hold` (Planer): Bei einem Verbinder ohne waagrechte Laenge (≤ 0,5 mm, `plan.is_zero_link`)
+  behaelt der Folgering das psi am Ende des Vorgaengers (Startzustaende mit anderem psi kosten BIG).
+  Sonst koennte sich die Duese (TCP 134 mm neben der Flanschachse) mit laufender Pumpe auf der Stelle
+  drehen. In allen Laeufen unten war die Drehung an Verbindern 0°, max|Δq| am Verbinder 0,026 rad.
+- **Double mit Paar Werkzeugkoerper ↔ link_4 bei Mustern** (`backend.PATTERN_SELF_PAIRS`, nur wenn
+  `params.uses_pattern`): Mit `alternate` endet jede ungerade Schicht an der Naht der Aussenschale. An
+  der Oberkante von S1 faltet das Handgelenk dort so, dass der Werkzeugkoerper link_4 unter d_hard
+  kommt (Double-Plan: d = 9,8 mm in Schicht 37, Kollision −2,9 mm beim Abheben nach Schicht 39). Das
+  Double kannte das Paar nicht, die Abschlusspruefung verwarf den Plan, und die Nachplanung mit der
+  echten Welt kostete das 2,6- bis 2,8-Fache von S1. Mit dem Paar ist der Double-Plan machbar.
+- DRL: Der Ringkommentar nennt Musterverbinder (`# Ring r (ueber Verbinder, senkrecht, Z +10.0 mm)`
+  bzw. `(ueber Verbinder, Laenge 0)`); Verbinder mit waagrechter Laenge behalten den bisherigen Text.
+  Ein Verbinder der Laenge 0 faellt mit dem Ringende zusammen und ist dessen Ziel (kein Segment der
+  Laenge 0, kein radius 0 im Strang). radius = min(r_blend, ½ angrenzende Segmente) wie bisher; der
+  Z-Hub hat radius ≤ 2 mm (h/2 = 5 mm). `movesx` (v3, opt-in) nur fuer Straenge aus einem Ring mit
+  ≤ 100 Zielen; Musterstraenge haben Verbinder und bleiben `movel` mit Blending.
+
+**Laufzeit** (S1-Quader 600 × 200 × 400 mm, 40 Schichten, `--jobs 2`, VM mit anderen Agenten geteilt,
+daher ±30 % Rauschen; Szenarien unter `docs/muster/szenarien/`):
+
+| Lauf | Ringe | Wegpunkte | Samples | Planung vor M3.2 | Planung nach M3.2 | Faktor zu S1 | Druckzeit |
+|---|---|---|---|---|---|---|---|
+| S1 ohne Muster | 80 | 5680 | 41 074 | 54,7 s | 58,1 s (bitgleich) | 1,0 | 1129 s |
+| `S4_muster_alternate` | 80 | 6440 | 38 281 | 149,5 s (Nachplanung) | 75,2 s | 1,3 | 1032 s |
+| `S4_muster_fugenwand` | 280 | 7760 | 37 194 | 52,8 s | 52 … 88 s | 0,9 … 1,5 | 979 s |
+| `S4_muster_sinus` | 120 | 7880 | 46 026 | 146,4 s (Nachplanung) | 67,8 s | 1,2 | 1250 s |
+
+(M3.3: `S4_muster_alternate` heißt jetzt `S4_muster_schalen_alternate`, `S4_muster_fugenwand`
+`S4_muster_fugenwand_raute`; alle Szenarien nehmen ein Preset, siehe `SPEC-NACHTRAG-MUSTER.md`, Block 4.)
+
+Die Kurven bringen 1,1- bis 1,4-mal so viele Wegpunkte wie S1 (Fugenwand 10 mm Abstand auf den
+Geraden, Sinus bis 2,9 mm in den Boegen). Die Planung bleibt damit weit unter 3 × S1; Knoten nur
+alle Δs = 20 mm (Verdichtung dazwischen per movel-IK) ist deshalb nicht noetig und nicht eingebaut.
+
+**Pruefung** (nur aufgerufen): `python -m verify.check_run` (G3-Regeln) meldet fuer alle drei Laeufe
+nur die Abdeckung (alternate 94,4 %, Sinus 94,6 %, Fugenwand 64,6 % < 95 %; Gate-Einwand 1); 0
+collision, 0 unreachable, d_min 10,83 mm, Verbinder, Ablauf, Pfad und Zweig gruen. `verify/fake_drcf`:
+v2 und v3 aller drei Laeufe ok. `python -m verify_muster.check`: GRUEN M1–M7 fuer alle drei.

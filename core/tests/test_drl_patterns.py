@@ -141,3 +141,32 @@ def test_v3_movesx_nur_bis_100_punkte(alternate) -> None:
         assert "movesx(" not in text
     errs = check(text, "v3", alternate)
     assert [e for e in errs if HAS_PINOCCHIO or "posx" not in e] == []
+
+
+def _rz(a: float) -> np.ndarray:
+    c, s = np.cos(a), np.sin(a)
+    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]]) @ np.diag([1.0, -1.0, -1.0])
+
+
+def test_ziel_am_selben_ort_mit_drehung_bleibt_erhalten() -> None:
+    """Gegenpruefung M3.2: Ein Ziel am selben Ort ersetzt das vorige nur bei gleicher Orientierung.
+    Dreht sich die Duese an einem Verbinder der Laenge 0 auf der Stelle (Ausweg des Planers, wenn psi
+    nicht zu halten ist), muss das Programm beide Posen anfahren wie die Trajektorie; vorher fiel das
+    Ringende weg, und die Drehung wurde unbemerkt auf das Segment davor verschmiert."""
+    from roboprint.drl_steps import Move, _Strand
+
+    P = np.array([[0.0, 0.0, 0.0], [20.0, 0.0, 0.0], [20.0, 0.0, 0.0], [40.0, 0.0, 0.0]])  # noqa: N806
+    R = np.stack([_rz(0.0), _rz(0.0), _rz(np.radians(15.0)), _rz(np.radians(15.0))])  # noqa: N806
+    st = _Strand(start=0, first_ring=0, last_ring=1)
+    for i, k in ((1, "print"), (2, "link"), (3, "print")):
+        st.target(i, k, 0 if i == 1 else 1, P, R)
+    assert [it[0] for it in st.items] == [1, 2, 3]
+    moves = [m for m in st.close(P, 2.0) if isinstance(m, Move)]
+    # Drehung auf der Stelle: Halt wie in der Trajektorie
+    assert [m.radius_mm for m in moves] == [0.0, 0.0, 0.0]
+
+    R_same = np.stack([_rz(0.0)] * 4)  # noqa: N806
+    st = _Strand(start=0, first_ring=0, last_ring=1)
+    for i, k in ((1, "print"), (2, "link"), (3, "print")):
+        st.target(i, k, 0 if i == 1 else 1, P, R_same)
+    assert [(it[0], it[1]) for it in st.items] == [(2, "link"), (3, "print")]  # zusammengefasst wie bisher
