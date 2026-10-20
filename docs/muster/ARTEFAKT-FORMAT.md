@@ -177,6 +177,9 @@ daher ±30 % Rauschen; Szenarien unter `docs/muster/szenarien/`):
 | `S4_muster_fugenwand` | 280 | 7760 | 37 194 | 52,8 s | 52 … 88 s | 0,9 … 1,5 | 979 s |
 | `S4_muster_sinus` | 120 | 7880 | 46 026 | 146,4 s (Nachplanung) | 67,8 s | 1,2 | 1250 s |
 
+(M3.3: `S4_muster_alternate` heißt jetzt `S4_muster_schalen_alternate`, `S4_muster_fugenwand`
+`S4_muster_fugenwand_raute`; alle Szenarien nehmen ein Preset, siehe `SPEC-NACHTRAG-MUSTER.md`, Block 4.)
+
 Die Kurven bringen 1,1- bis 1,4-mal so viele Wegpunkte wie S1 (Fugenwand 10 mm Abstand auf den
 Geraden, Sinus bis 2,9 mm in den Boegen). Die Planung bleibt damit weit unter 3 × S1; Knoten nur
 alle Δs = 20 mm (Verdichtung dazwischen per movel-IK) ist deshalb nicht noetig und nicht eingebaut.
