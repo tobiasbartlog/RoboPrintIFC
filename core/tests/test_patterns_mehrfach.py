@@ -171,6 +171,35 @@ def test_overlap_above_eps_rejected():
         _plan("doppelwelle", _quader(300), contact_overlap_pct=16.0)
 
 
+@pytest.mark.parametrize("name", DOUBLE)
+@pytest.mark.parametrize(("length", "thickness", "shells"), [(400, 500, 2), (400, 330, 2), (600, 500, 1)])
+def test_double_lead_in_never_below_hard_radius(name, length, thickness, shells):
+    """Gegenprüfung: Kurzer, dicker Quader 400 × 500 mm (2 Schalen) lieferte einen Einlauf mit
+    r = 14,25 mm = (1 − RADIUS_TOL)·w/2, also genau auf der M6-Fehlergrenze (Fehler). Die Sollkurve
+    muss r ≥ w/2 haben; sonst entfällt das Muster mit Begründung."""
+    sec = {L: box(-length / 2, -thickness / 2, length / 2, thickness / 2) for L in range(2)}
+    p, paths, rep = _plan(name, sec, shells=shells)
+    assert rep.ok, [v.to_dict() for v in rep.errors]
+    info = paths[0].meta["infill"]
+    if "skipped" not in info:
+        assert info["lead_in_radius_mm"] >= p.w / 2
+        assert info["wave_min_radius_mm"] is None or info["wave_min_radius_mm"] >= p.w / 2
+    assert rep.paths[0].min_radius_mm >= p.w / 2 - 0.5
+
+
+@pytest.mark.parametrize("name", DOUBLE)
+def test_double_touch_never_cross(name):
+    """Welle 1 und Welle 2 berühren sich (Abstand ≤ w) und kreuzen sich nie (≥ (1 − ε)·w), auch
+    gegen den Einlauf; der ganze Strang ist einfach."""
+    for thickness, shells in ((220, 2), (300, 2), (250, 1), (400, 1)):
+        p, paths, rep = _plan(name, _quader(thickness), shells=shells)
+        assert rep.ok
+        w1, _, w2 = _infill(paths[0])
+        d = LineString(w1.points).distance(LineString(w2.points))
+        assert (1 - p.eps) * p.w <= d <= p.w, (thickness, shells, d)
+        assert LineString(paths[0].polyline()).is_simple
+
+
 # --------------------------------------------------------------------------- Fermat
 
 
@@ -320,6 +349,35 @@ def test_oracle_verify_muster_double(tmp_path, name, thickness, shells):
 def test_oracle_verify_muster_fermat_pillar(tmp_path):
     res = _oracle(tmp_path, "fermat", box(-150, -100, 150, 100), 300, 200)
     assert res.returncode == 0, res.stdout + res.stderr
+
+
+@pytest.mark.skipif(not (REPO / "verify_muster" / "check.py").is_file(), reason="verify_muster fehlt")
+def test_oracle_verify_muster_fermat_two_rings(tmp_path):
+    """Zwei-Ring-Ausweichfall (Pfeiler 200 × 200) gegen das unabhängige Orakel."""
+    res = _oracle(tmp_path, "fermat", box(-100, -100, 100, 100), 200, 200)
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
+def test_fermat_reversal_is_vertical_and_spacing_w():
+    """Schicht L + 1 ist die Umkehrung von L (Ende L = Anfang L + 1 in XY, reiner Z-Hub); die
+    Ringe laufen im Abstand w ohne Lücke: Außer der Mittelzelle und der Kerbe an der Bruchstelle
+    bleibt keine offene Fläche, in die ein Kreis mit Durchmesser w passt."""
+    from shapely import maximum_inscribed_circle
+
+    g = box(0, 0, 300, 200)
+    sec, p, paths, _ = _fermat(g, n=4)
+    for a, b in zip(paths, paths[1:], strict=False):
+        assert np.allclose(a.end, b.start) and np.allclose(a.polyline()[::-1], b.polyline())
+    beads = LineString(paths[0].polyline()).buffer(p.w / 2)
+    holes = g.difference(beads)
+    big = [h for h in getattr(holes, "geoms", [holes]) if maximum_inscribed_circle(h, 0.2).length >= p.w / 2]
+    # nur die Mittelzelle (offener Hohlraum wie bei Schalen, Inkreis ≈ 33 mm an Kehre und
+    # Ringwechsel); sie berührt den Rand nicht
+    assert len(big) == 1 and big[0].contains(g.centroid)
+    assert big[0].distance(g.exterior) > p.w
+    # Kerbe an der Bruchstelle: schmaler als w/2 tief
+    notch = [h for h in getattr(holes, "geoms", [holes]) if h.intersects(g.exterior) and h.area > 100]
+    assert all(maximum_inscribed_circle(h, 0.2).length < p.w / 3 for h in notch)
 
 
 # --------------------------------------------------------------------------- Gegenprobe ohne metrics

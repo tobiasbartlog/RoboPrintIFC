@@ -52,7 +52,11 @@ Maße in Bandkoordinaten (B = Bandbreite, o = Kontaktüberlappung, Standard 5 % 
   λ = 2s + 2·2A/tan θ.
 - Einlauf wie bei den Wellen: tangentenstetiger Biarc von `ctx.entry` auf den ersten Scheitel. Die
   Seite und der Wellenanfang werden gesucht, gewählt wird der größte Einlaufradius (bis w), bei
-  Gleichstand der früheste Einstieg.
+  Gleichstand der früheste Einstieg. Gesucht wird erst 3·w hinter dem Bandanfang, ohne Ergebnis
+  bis 8·w. Einlauf, Wellen und Wende müssen an der Sollkurve r ≥ w/2 haben, ohne die 5-%-
+  Messtoleranz von `metrics` (Gegenprüfung: Quader 400 × 500 mm lieferte vorher einen Einlauf
+  mit 14,25 mm = 0,95·w/2, ein M6-Fehler; heute entfällt das Muster dort mit Begründung. Die
+  linke Insel 500 × 300 neben einer Öffnung fand erst im erweiterten Fenster einen Einlauf, r = 24,7 mm).
 - Welle 2 endet neben dem Einlauf im Hohlraum. Dort liegt die Naht, also weder an der Außenfläche
   noch an der Stoßfläche.
 

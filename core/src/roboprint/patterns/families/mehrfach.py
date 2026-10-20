@@ -55,7 +55,6 @@ from shapely.geometry import LineString
 from roboprint.patterns.families import _mehrfach_fermat as fermat
 from roboprint.patterns.families import wellen
 from roboprint.patterns.geometry import arc_points, biarc, densify
-from roboprint.patterns.metrics import RADIUS_TOL
 from roboprint.patterns.registry import pattern
 from roboprint.patterns.types import Contact, IslandContext, IslandPlan, ParamSpec, Segment
 
@@ -65,6 +64,8 @@ CHECK_MM = wellen.CHECK_MM
 CLEAR_MARGIN_MM = wellen.CLEAR_MARGIN_MM
 #: Suchbereich des Wellenanfangs hinter dem Bandanfang (in w)
 SEARCH_W = 3.0
+#: erweiterter Suchbereich, falls im ersten Fenster kein Strang passt (in w)
+SEARCH_W_MAX = 8.0
 
 OVERLAP_PARAM = ParamSpec(
     "contact_overlap_pct",
@@ -264,6 +265,11 @@ def build_double(ctx: IslandContext, shape: str) -> IslandPlan:
             r_wave,
         )
 
+    # M6 hart an der Sollkurve: r ≥ w/2 ohne Abzug. RADIUS_TOL (5 %) ist die Messtoleranz von
+    # metrics; wer bis (1 − RADIUS_TOL)·w/2 baut, landet genau auf der Fehlergrenze (Einlauf
+    # 14,25 mm im 500 × 400-Quader war ein M6-Fehler).
+    r_hard = w / 2.0
+
     def feasible(curve: np.ndarray) -> bool:
         dense = densify(curve, CHECK_MM)
         s = wellen.arc_of(dense)
@@ -271,51 +277,59 @@ def build_double(ctx: IslandContext, shape: str) -> IslandPlan:
             return False
         return LineString(np.vstack([printed.pts[-3:], dense[1:]])).is_simple
 
-    # 1. Einlauf: Welle 1 beginnt immer in einem Scheitel (u_s, σ·v_t) mit Richtung +u. Der Biarc
-    #    hängt also nur von (σ, u_s) ab; Kandidaten nach (Einlaufradius bis w, frühester Einstieg).
-    cands = []
+    def search(lo: float, hi: float):
+        """Einlauf mit Wellenanfang u_s ∈ [lo, hi] (1-mm-Raster) und ganzer Strang, oder None."""
+        # 1. Einlauf: Welle 1 beginnt immer in einem Scheitel (u_s, σ·v_t) mit Richtung +u. Der
+        #    Biarc hängt also nur von (σ, u_s) ab; Kandidaten nach (Einlaufradius bis w, frühester
+        #    Einstieg).
+        cands = []
+        for sigma in (sigma0, -sigma0):
+            full_radius = False
+            for u_s in np.arange(lo, hi + 1e-9, 1.0):
+                if u_e - u_s < w:
+                    break
+                q = wellen.to_xy(fr, np.array([[u_s, sigma * v_t]]))[0]
+                res = biarc(entry, t_in, q, fr["eu"], 0.05, 1.0)
+                if res is None:
+                    continue
+                lead, r_lead = res
+                r_lead = min(r_lead, w)
+                if r_lead < r_hard:
+                    continue
+                # Vorprüfung nur des Einlaufs (plus 2·w geradeaus am Scheitel)
+                probe = np.vstack([lead, q + 2.0 * w * fr["eu"]])
+                cands.append(((round(r_lead, 1), -float(u_s)), sigma, float(u_s), lead, r_lead, probe))
+                # frühester Einstieg mit vollem Radius w: besser wird es auf dieser Seite nicht
+                if r_lead >= w - 1e-6 and feasible(probe):
+                    full_radius = True
+                    break
+            if full_radius:
+                break
+        cands.sort(key=lambda c: c[0], reverse=True)
+        # 2. Wellen bauen und den ganzen Strang prüfen, bis ein Kandidat passt
+        for _, sigma, u_s, lead, r_lead, probe in cands:
+            if not feasible(probe):
+                continue
+            pc = pieces(u_s, sigma)
+            if pc is None:
+                continue
+            w1, arc, w2, k, r_wave = pc
+            if min(r_wave, v_t) < r_hard:
+                continue
+            if feasible(np.vstack([lead, w1[1:], arc[1:], w2[1:]])):
+                return (
+                    None,
+                    {"lead": lead, "w1": w1, "arc": arc, "w2": w2, "k": k, "r_wave": r_wave,
+                     "r_lead": r_lead, "u_s": u_s, "sigma": sigma},
+                )  # fmt: skip
+        return None
+
+    # Erst im nahen Fenster (schnell); nur ohne Ergebnis weiter hinten (Eintritt an der Stirnschale,
+    # z. B. Insel 500 × 300 neben einer Öffnung: im nahen Fenster nur Einläufe mit r < w/2)
     lo = max(u0 - w, u_entry)
-    for sigma in (sigma0, -sigma0):
-        full_radius = False
-        for u_s in np.arange(lo, lo + SEARCH_W * w + 1e-9, 1.0):
-            if u_e - u_s < w:
-                break
-            q = wellen.to_xy(fr, np.array([[u_s, sigma * v_t]]))[0]
-            res = biarc(entry, t_in, q, fr["eu"], 0.05, 1.0)
-            if res is None:
-                continue
-            lead, r_lead = res
-            r_lead = min(r_lead, w)
-            if r_lead < (1.0 - RADIUS_TOL) * w / 2.0:
-                continue
-            # Vorprüfung nur des Einlaufs (plus 2·w geradeaus am Scheitel)
-            probe = np.vstack([lead, q + 2.0 * w * fr["eu"]])
-            cands.append(((round(r_lead, 1), -float(u_s)), sigma, float(u_s), lead, r_lead, probe))
-            # frühester Einstieg mit vollem Radius w: besser wird es auf dieser Seite nicht
-            if r_lead >= w - 1e-6 and feasible(probe):
-                full_radius = True
-                break
-        if full_radius:
-            break
-    cands.sort(key=lambda c: c[0], reverse=True)
-    # 2. Wellen bauen und den ganzen Strang prüfen, bis ein Kandidat passt
-    best = None
-    for _, sigma, u_s, lead, r_lead, probe in cands:
-        if not feasible(probe):
-            continue
-        pc = pieces(u_s, sigma)
-        if pc is None:
-            continue
-        w1, arc, w2, k, r_wave = pc
-        if min(r_wave, v_t) < (1.0 - RADIUS_TOL) * w / 2.0:
-            continue
-        if feasible(np.vstack([lead, w1[1:], arc[1:], w2[1:]])):
-            best = (
-                None,
-                {"lead": lead, "w1": w1, "arc": arc, "w2": w2, "k": k, "r_wave": r_wave,
-                 "r_lead": r_lead, "u_s": u_s, "sigma": sigma},
-            )  # fmt: skip
-            break
+    best = search(lo, lo + SEARCH_W * w)
+    if best is None:
+        best = search(lo + SEARCH_W * w + 1.0, lo + SEARCH_W_MAX * w)
     if best is None:
         return IslandPlan(
             [], meta={**base, "skipped": "kein kreuzungsfreier Einlauf bzw. Wellen passen nicht ins Band"}
