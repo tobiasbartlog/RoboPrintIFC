@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="962" viewBox="0 0 1000 962" font-family="sans-serif" font-size="12">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<path d="M 876.9,688.5 876.9,123.1 123.1,123.1 123.1,688.5 876.9,688.5 Z " fill="#f1f3f5" stroke="#adb5bd" fill-rule="evenodd"/>
+<polyline points="645.5,508.6 675.8,487.4 694.6,462.0 705.2,432.4 706.8,389.6 699.1,359.0 682.9,332.0 659.6,310.8 631.1,297.3 599.9,292.7 533.3,292.7 466.7,292.7 400.1,292.7 379.2,294.8 349.5,305.4 324.2,324.2 305.4,349.5 294.8,379.2 293.2,421.9 300.9,452.5 317.1,479.6 340.4,500.8 368.9,514.2 400.1,518.8 450.1,518.8 500.0,518.8 521.6,523.1 542.5,538.1 554.6,560.8 555.4,586.4 544.9,609.8 525.0,626.1 500.0,631.9" fill="none" stroke="#868e96" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 4"/>
+<polyline points="500.0,631.9 430.9,631.9 361.8,631.9 292.7,631.9 281.6,631.4 249.4,623.3 221.0,606.3 198.7,581.7 184.5,551.7 179.6,518.8 179.6,443.5 179.6,368.1 179.6,292.7 180.1,281.6 188.2,249.4 205.3,221.0 229.9,198.7 259.9,184.5 292.7,179.6 361.8,179.6 430.9,179.6 500.0,179.6 569.1,179.6 638.2,179.6 707.3,179.6 718.4,180.1 750.6,188.2 779.0,205.3 801.3,229.9 815.5,259.9 820.4,292.7 820.4,368.1 820.4,443.5 820.4,518.8 815.5,551.7 801.3,581.7 779.0,606.3 750.6,623.3 718.4,631.4 647.0,631.9" fill="none" stroke="#868e96" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 4"/>
+<polyline points="647.0,631.9 718.4,631.4 750.6,623.3 779.0,606.3 801.3,581.7 815.5,551.7 820.4,518.8 820.4,443.5 820.4,368.1 820.4,292.7 815.5,259.9 801.3,229.9 779.0,205.3 750.6,188.2 718.4,180.1 707.3,179.6 638.2,179.6 569.1,179.6 500.0,179.6 430.9,179.6 361.8,179.6 292.7,179.6 259.9,184.5 229.9,198.7 205.3,221.0 188.2,249.4 180.1,281.6 179.6,292.7 179.6,368.1 179.6,443.5 179.6,518.8 184.5,551.7 198.7,581.7 221.0,606.3 249.4,623.3 281.6,631.4 292.7,631.9 361.8,631.9 430.9,631.9 500.0,631.9" fill="none" stroke="#1c7ed6" stroke-opacity="0.18" stroke-width="113.1" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="500.0,631.9 525.0,626.1 544.9,609.8 555.4,586.4 554.6,560.8 542.5,538.1 521.6,523.1 500.0,518.8 450.1,518.8 400.1,518.8 368.9,514.2 340.4,500.8 317.1,479.6 300.9,452.5 293.2,421.9 294.8,379.2 305.4,349.5 324.2,324.2 349.5,305.4 379.2,294.8 400.1,292.7 466.7,292.7 533.3,292.7 599.9,292.7 631.1,297.3 659.6,310.8 682.9,332.0 699.1,359.0 706.8,389.6 705.2,432.4 694.6,462.0 675.8,487.4 645.5,508.6" fill="none" stroke="#74c0fc" stroke-opacity="0.18" stroke-width="113.1" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="647.0,631.9 718.4,631.4 750.6,623.3 779.0,606.3 801.3,581.7 815.5,551.7 820.4,518.8 820.4,443.5 820.4,368.1 820.4,292.7 815.5,259.9 801.3,229.9 779.0,205.3 750.6,188.2 718.4,180.1 707.3,179.6 638.2,179.6 569.1,179.6 500.0,179.6 430.9,179.6 361.8,179.6 292.7,179.6 259.9,184.5 229.9,198.7 205.3,221.0 188.2,249.4 180.1,281.6 179.6,292.7 179.6,368.1 179.6,443.5 179.6,518.8 184.5,551.7 198.7,581.7 221.0,606.3 249.4,623.3 281.6,631.4 292.7,631.9 361.8,631.9 430.9,631.9 500.0,631.9" fill="none" stroke="#1c7ed6" stroke-width="2"><title>outer Ring 0 einwärts 488.85 mm</title></polyline>
+<polygon points="820.0,521.3 823.2,530.9 814.3,529.5" fill="#1c7ed6"/>
+<polygon points="652.3,179.6 661.3,175.1 661.3,184.1" fill="#1c7ed6"/>
+<polygon points="204.2,222.0 207.9,212.6 213.9,219.2" fill="#1c7ed6"/>
+<polygon points="274.4,629.6 264.6,631.8 266.8,623.0" fill="#1c7ed6"/>
+<polyline points="500.0,631.9 525.0,626.1 544.9,609.8 555.4,586.4 554.6,560.8 542.5,538.1 521.6,523.1 500.0,518.8 450.1,518.8 400.1,518.8 368.9,514.2 340.4,500.8 317.1,479.6 300.9,452.5 293.2,421.9 294.8,379.2 305.4,349.5 324.2,324.2 349.5,305.4 379.2,294.8 400.1,292.7 466.7,292.7 533.3,292.7 599.9,292.7 631.1,297.3 659.6,310.8 682.9,332.0 699.1,359.0 706.8,389.6 705.2,432.4 694.6,462.0 675.8,487.4 645.5,508.6" fill="none" stroke="#74c0fc" stroke-width="2"><title>inner Ring 1 auswärts 298.18 mm</title></polyline>
+<polygon points="390.8,517.5 400.3,514.3 399.0,523.2" fill="#74c0fc"/>
+<polygon points="623.7,296.2 614.1,299.3 615.4,290.4" fill="#74c0fc"/>
+<circle cx="647.0" cy="631.9" r="7" fill="none" stroke="#2b8a3e" stroke-width="2.5"><title>Start</title></circle>
+<rect x="640.5" y="503.6" width="10" height="10" fill="none" stroke="#c92a2a" stroke-width="2.5"><title>Ende</title></rect>
+<circle cx="236.4" cy="413.9" r="3.5" fill="#15aabf"><title>Kontakt shell 16.0 mm</title></circle>
+<circle cx="436.9" cy="575.4" r="3.5" fill="#15aabf"><title>Kontakt shell 27.67 mm</title></circle>
+<circle cx="509.2" cy="236.2" r="3.5" fill="#15aabf"><title>Kontakt shell 66.17 mm</title></circle>
+<circle cx="600.0" cy="526.9" r="3.5" fill="#15aabf"><title>Kontakt shell 13.92 mm</title></circle>
+<circle cx="601.0" cy="602.7" r="3.5" fill="#15aabf"><title>Kontakt shell 3.89 mm</title></circle>
+<circle cx="763.6" cy="397.7" r="3.5" fill="#15aabf"><title>Kontakt shell 16.0 mm</title></circle>
+<circle cx="647.0" cy="631.9" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M4: Naht berührt Außen- oder Stoßfläche</title></circle>
+<circle cx="525.0" cy="626.1" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="340.4" cy="500.7" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="300.9" cy="452.5" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="324.2" cy="324.2" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="379.2" cy="294.8" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="659.6" cy="310.8" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="675.8" cy="487.4" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="647.0" cy="631.9" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M4: Naht berührt Außen- oder Stoßfläche</title></circle>
+<circle cx="675.8" cy="487.4" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="659.6" cy="310.8" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="379.2" cy="294.8" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="324.2" cy="324.2" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="300.9" cy="452.5" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="340.4" cy="500.7" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="525.0" cy="626.1" r="56.5" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<rect x="10" y="820.5384615384615" width="18" height="6" fill="#1c7ed6"/><text x="32" y="829.5384615384615">outer</text>
+<rect x="120" y="820.5384615384615" width="18" height="6" fill="#74c0fc"/><text x="142" y="829.5384615384615">inner</text>
+<rect x="230" y="820.5384615384615" width="18" height="6" fill="#0ca678"/><text x="252" y="829.5384615384615">hole</text>
+<rect x="340" y="820.5384615384615" width="18" height="6" fill="#e8590c"/><text x="362" y="829.5384615384615">infill</text>
+<rect x="450" y="820.5384615384615" width="18" height="6" fill="#2f9e44"/><text x="472" y="829.5384615384615">web</text>
+<rect x="560" y="820.5384615384615" width="18" height="6" fill="#7048e8"/><text x="582" y="829.5384615384615">outfill</text>
+<text x="10" y="854" fill="#212529">fermat · Schicht 0 (alternate), Folgeschicht gestrichelt · Start ○  Ende □</text>
+<text x="10" y="874" fill="#212529">Pfad 787.03 mm · Druckzeit 7.87 s bei 100.0 mm/s · Material 1.1805 l je m und Schicht · Stränge 1</text>
+<text x="10" y="894" fill="#212529">Kontakte 6 (143.65 mm, 30.0 je m) · Fugenabstand – · längste gerade Außenstrecke 110.0 mm · kleinster Radius 15.0 mm</text>
+<text x="10" y="914" fill="#212529">Regelverstöße: 0 Fehler, 16 Warnungen · Schichtwechsel vertical (0.0 mm)</text>
+</svg>
