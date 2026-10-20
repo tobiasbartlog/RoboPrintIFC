@@ -8,7 +8,7 @@ Der Planer rechnet Abstaende nur ueber `CollisionBackend.distance(q, layer) -> C
 Glieder und Werkzeug als Kugelmengen (k-Means ueber die Vertices der URDF-Kollisionsmeshes
 bzw. des Werkzeug-STL, Radius = groesster Abstand der zugeordneten Vertices), Boden als
 Halbraum, Tisch und Druckstand als Quader (Druckstand = Bounding-Box des Teils bis k*h).
-Es dient dem Planer als Vorauswahl (Kostenterm, Platzierungssuche) und als Ersatz, solange
+Es dient dem Planer als Vorauswahl (Kostenterm, Vorpruefung des Druckplatzes) und als Ersatz, solange
 `roboprint.collision.World` noch nicht implementiert ist. Die Abnahme rechnet mit `World`.
 """
 
@@ -227,7 +227,7 @@ class SphereWorld:
         self.root = Path(root)
         self._tpw: np.ndarray | None = None
         self._want_cp = True
-        self.skip_tip = False  # Platzierungssuche: Duesenspitze haengt nicht von der Platzierung ab
+        self.skip_tip = False  # Vorpruefung: Duesenspitze haengt nicht von der Platzierung ab
         self.h = float(layer_height_mm)
         self.bodies = _bodies(self.root, float(r_free_mm))
         self._first = {o: next(i for i, b in enumerate(self.bodies) if b.owner == o) for o in (0, 2)}
@@ -250,7 +250,7 @@ class SphereWorld:
     # ------------------------------------------------------------------ Kern
     def _obstacle_sd(self, kind: int, P: np.ndarray, top: np.ndarray | None, rows: np.ndarray | None = None):  # noqa: N803
         """Abstand von Punkten P (...,3) in W zum Hindernis und naechste Hindernispunkte.
-        `rows`: Zeilen in `self._tpw` (Platzierung je Pose, nur fuer die Platzierungssuche)."""
+        `rows`: Zeilen in `self._tpw` (Platzierung je Pose, nur fuer die Vorpruefung)."""
         if kind == 0:
             if not self._want_cp:
                 return P[..., 2], None
@@ -368,7 +368,7 @@ class SphereWorld:
     def d_batch_placed(
         self, Q: np.ndarray, layers: np.ndarray, T_WP: np.ndarray, self_collision: bool = False
     ):  # noqa: N803
-        """Wie d_batch, aber mit eigener Teilplatzierung T_WP (N,4,4) je Pose (Platzierungssuche)."""
+        """Wie d_batch, aber mit eigener Teilplatzierung T_WP (N,4,4) je Pose (Vorpruefung)."""
         Q = np.asarray(Q, float).reshape(-1, 6)  # noqa: N806
         T_PW = np.linalg.inv(np.asarray(T_WP, float))  # noqa: N806
         out = []
@@ -401,15 +401,6 @@ class SphereWorld:
                 obst = names[h] if h >= 0 else OWNERS[self.bodies[-h - 1].owner]
                 res.append(Contact(float(d[i]), (OWNERS[o], obst), (wit[i, 0].copy(), wit[i, 1].copy())))
         return res
-
-    def with_placement(self, T_WP: np.ndarray) -> SphereWorld:  # noqa: N803
-        """Kopie mit anderer Platzierung des Teils (fuer die Platzierungssuche)."""
-        import copy
-
-        w = copy.copy(self)
-        w.T_WP = np.asarray(T_WP, float)
-        w.T_PW = frames.invert(w.T_WP)
-        return w
 
     def distance(self, q: np.ndarray, layer: int) -> Contact:
         return self.distance_batch(np.asarray(q, float)[None], np.array([layer]))[0]

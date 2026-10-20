@@ -286,21 +286,71 @@ def make_box_P(b: float, t: float, h: float):  # noqa: N802
     return make_box([b, t, h], origin=[-b / 2, -t / 2, 0.0])
 
 
-def test_platzierung_parallel_wie_seriell(kin: Kin) -> None:
-    from roboprint import frames
-    from roboprint.geometry import make_box
-    from roboprint.planner import SphereWorld
-    from roboprint.planner.placement import _scores, _scores_parallel, probe_points
+# --------------------------------------------------------------------------- Druckplatz
 
-    mesh = make_box([300, 200, 60], origin=[-150, -100, 0.0])
-    world = SphereWorld(mesh, np.eye(4), P.layer_height_mm)
-    world.skip_tip = True
-    ws = load_workstation()
-    T = [frames.T_WP(ws, frames.Placement(x, y, 0.0)) for x in (-600, -500, -400, -300) for y in (-350, -250)]
-    probes, psi = probe_points(mesh, P.layer_height_mm, False), P.psi_grid[::6]
-    assert np.array_equal(
-        _scores(kin, world, T, probes, psi, False), _scores_parallel(kin, world, T, probes, psi, False, 2)
+
+def test_druckplatz_standard_und_rastfeld() -> None:
+    """Standard 50 mm vor der Tischmitte auf der Roboterachse (Gier 0, lange Seite zum Roboter).
+    Erlaubt sind nur Rastpunkte im 50-mm-Raster: nie zum Roboter hin, hoechstens 200 mm seitlich."""
+    from roboprint import frames
+    from roboprint.planner import from_overrides, spot_placement
+    from roboprint.planner.params import spot_grid
+
+    assert spot_placement(P) == frames.Placement(0.0, -50.0, 0.0)
+    grid = spot_grid()
+    assert len(grid) == 9 * 6 and (0.0, -50.0) in grid
+    assert {x for x, _ in grid} == {-200.0 + 50.0 * i for i in range(9)}
+    assert {y for _, y in grid} == {-250.0 + 50.0 * i for i in range(6)}
+    assert spot_placement(from_overrides({"spot_x_mm": 200, "spot_y_mm": -250})) == frames.Placement(
+        200.0, -250.0, 0.0
     )
+    for bad in ({"spot_y_mm": 50}, {"spot_x_mm": 25}, {"spot_x_mm": -250}, {"spot_y_mm": -300}):
+        with pytest.raises(ValueError, match="kein Rastpunkt"):
+            from_overrides(bad)
+
+
+def test_ohne_platzierung_steht_das_teil_am_druckplatz() -> None:
+    """Planung, Hoehensuche und Vorpruefung der Zerlegung nehmen den Druckplatz der Parameter;
+    es wird nichts gesucht."""
+    from roboprint import frames
+    from roboprint.decompose_plan import prefeasible_fn
+    from roboprint.planner import from_overrides, plan_part, scan_height
+
+    params = from_overrides({"spot_x_mm": 150, "spot_y_mm": -200})
+    want = frames.Placement(150.0, -200.0, 0.0)
+    mesh = make_box_P(200, 100, 20)
+    pp = plan_part(mesh, "a", params)
+    assert pp.placement == want and pp.path.feasible
+    assert [(t["x_mm"], t["y_mm"], t["yaw_deg"]) for t in pp.tried] == [(150.0, -200.0, 0.0)]
+    sc = scan_height(mesh, "s", params)
+    assert sc.placement == want and sc.path.layers_ok == 2
+    f = prefeasible_fn(params)(mesh)
+    assert f.feasible and f.placement == want
+
+
+def test_feste_platzierung_gilt_auch_in_der_zerlegung() -> None:
+    """`placement_override` ersetzt den Druckplatz fuer Hoehensuche und Teilplanung der Zerlegung."""
+    from roboprint import frames
+    from roboprint.decompose_plan import plan_many_fn, scan_fn
+
+    pl = frames.Placement(*PL_SMALL)
+    scans: list = []
+    assert scan_fn(P, scans, placement=pl)(200.0, 100.0, 20.0) == pytest.approx(20.0)
+    assert scans[0].placement == pl
+    (f,) = plan_many_fn(P, "collision_aware", placement=pl)([make_box_P(200, 100, 30)])
+    assert f.feasible and f.planned.placement == pl
+
+
+def test_teil_zu_gross_fuer_den_druckplatz() -> None:
+    """Breiter als die Tischplatte (1600 mm): weder Vorpruefung noch Planung weichen aus."""
+    from roboprint.decompose_plan import prefeasible_fn
+    from roboprint.planner import plan_part
+
+    big = make_box_P(1700, 200, 20)
+    with pytest.raises(ValueError, match="Druckplatz"):
+        plan_part(big, "big", P)
+    f = prefeasible_fn(P)(big)
+    assert not f.feasible and "Druckplatz" in (f.cause or "")
 
 
 # --------------------------------------------------------------------------- Zeit

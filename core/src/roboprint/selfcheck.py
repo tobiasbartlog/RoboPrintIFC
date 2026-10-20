@@ -111,7 +111,7 @@ def _table_outline_W(root: Path) -> Any:  # noqa: N802
 
 
 def _base_footprint_W(root: Path) -> Any:  # noqa: N802
-    """Grundriss der Roboterbasis in W (konvexe Huelle von base_link, wie die Platzierungssuche)."""
+    """Grundriss der Roboterbasis in W (konvexe Huelle von base_link, wie die Pruefung des Druckplatzes)."""
     from roboprint.planner.placement import base_footprint_S
 
     ws = load_workstation(root)

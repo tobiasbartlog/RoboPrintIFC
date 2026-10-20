@@ -1,16 +1,15 @@
-"""Platzierungssuche (SPEC §5.4/3): theta in {0, 90, 180, 270} Grad, (x, y) auf einem 25-mm-Raster
-innerhalb der Arbeitsflaeche, ohne Ueberschneidung mit der Roboterbasis, Ziel maximales d_min.
+"""Druckplatz (SPEC §5.4/3, Nutzerentscheidung 20.10.2026): Jedes Modul steht am Druckplatz aus den
+Parametern (`spot_x_mm`, `spot_y_mm`, Rastpunkte aus `params.spot_grid()`), Gier 0, also mit der langen
+Seite zum Roboter. Es gibt keine Suche mehr: Die fruehere Suche ueber den ganzen Tisch bewertete fast
+jede Lage gleich (Abstaende ueber `_CULL_MM` = 50 mm sind nur geschaetzt) und landete zufaellig am Rand.
 
-Schnell in zwei Stufen ueber wenige Probewegpunkte (Ecken des Aussenrings in unterster,
-mittlerer und oberster Schicht): Je Probe zaehlt der beste Knoten (max. Vorauswahl-Abstand
-ueber psi und Zweige), je Kandidat die schlechteste Probe. Erst ein 100-mm-Raster, dann das
-25-mm-Raster um die besten Kandidaten. Die volle Planung (und damit das echte d_min) laeuft
-danach fuer die besten Kandidaten in `plan_part`; `decompose` nutzt `rank_placements` ebenso.
+`placement_score` ist die schnelle Vorpruefung fuer die H*-Bisektion: wenige Probewegpunkte (Ecken des
+Aussenrings in unterster, mittlerer und oberster Schicht), je Probe der beste Knoten (max.
+Vorauswahl-Abstand ueber psi und Zweige), Ergebnis die schlechteste Probe.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -21,18 +20,11 @@ from shapely.geometry import MultiPoint, Polygon, box
 from roboprint import frames
 from roboprint.assets import REPO_ROOT, load_workstation
 
-from .backend import SphereWorld, can_fork_pool, table_box
+from .backend import SphereWorld, table_box
 from .kin import Kin
 from .params import PlannerParams
 
 UNREACHABLE_SCORE = -1.0e3
-_DEBUG = False
-
-
-@dataclass(frozen=True)
-class Candidate:
-    placement: frames.Placement
-    score: float  # min ueber Proben des besten Vorauswahl-Abstands (mm); < -999: unerreichbar
 
 
 @lru_cache(maxsize=2)
@@ -111,147 +103,26 @@ def _scores(
     return np.where(reach, sc, UNREACHABLE_SCORE)
 
 
-_POOL_ARGS: Any = None
+def spot_placement(params: PlannerParams) -> frames.Placement:
+    """Druckplatz aus den Parametern: (x, y) in S, Gier 0."""
+    return frames.Placement(float(params.spot_x_mm), float(params.spot_y_mm), 0.0)
 
 
-def _scores_worker(T_WPs: list[np.ndarray]) -> np.ndarray:  # noqa: N803
-    kin, world, probes, psi, self_collision = _POOL_ARGS
-    return _scores(kin, world, T_WPs, probes, psi, self_collision)
-
-
-def _scores_parallel(kin, world, T_WPs, probes, psi, self_collision, procs: int) -> np.ndarray:  # noqa: N803
-    """`_scores` auf `procs` Prozesse verteilt (fork); jede Platzierung wird fuer sich bewertet,
-    das Ergebnis ist dasselbe wie seriell."""
-    import multiprocessing as mp
-
-    global _POOL_ARGS
-    if procs <= 1 or len(T_WPs) < 4 * procs or not can_fork_pool():
-        return _scores(kin, world, T_WPs, probes, psi, self_collision)
-    parts = [[T_WPs[i] for i in ix] for ix in np.array_split(np.arange(len(T_WPs)), 2 * procs)]
-    _POOL_ARGS = (kin, world, probes, psi, self_collision)
-    try:
-        with mp.get_context("fork").Pool(procs) as pool:
-            res = pool.map(_scores_worker, parts)
-    finally:
-        _POOL_ARGS = None
-    return np.concatenate(res)
-
-
-def rank_placements(
+def placement_score(
     part_mesh_P: Any,  # noqa: N803
     kin: Kin,
     params: PlannerParams,
+    placement: frames.Placement,
     root: Path = REPO_ROOT,
-    top: int = 4,
-    yaws_deg: tuple[float, ...] = (0.0, 90.0, 180.0, 270.0),
-    procs: int = 1,
-) -> list[Candidate]:
-    """Kandidaten-Platzierungen, bestes zuerst (Score absteigend); `procs` > 1 bewertet die
-    Kandidaten in mehreren Prozessen (gleiches Ergebnis). Ergebnisse werden je Prozess fuer
-    gleiche Geometrie und Parameter gemerkt (Zerlegung: viele gleich grosse Module)."""
-    import hashlib
-
-    h = hashlib.sha1(np.ascontiguousarray(part_mesh_P.vertices, dtype=float).tobytes())
-    h.update(np.ascontiguousarray(part_mesh_P.faces, dtype=np.int64).tobytes())
-    key = (h.hexdigest(), params, str(root), top, tuple(yaws_deg))
-    hit = _RANK_CACHE.get(key)
-    if hit is None:
-        hit = _rank_placements(part_mesh_P, kin, params, root, top, yaws_deg, procs)
-        if len(_RANK_CACHE) >= 64:
-            _RANK_CACHE.pop(next(iter(_RANK_CACHE)))
-        _RANK_CACHE[key] = hit
-    return list(hit)
-
-
-_RANK_CACHE: dict[tuple, list[Candidate]] = {}
-
-
-def _rank_placements(part_mesh_P, kin, params, root, top, yaws_deg, procs) -> list[Candidate]:  # noqa: N803
-    ws = load_workstation(root)
+) -> float | None:
+    """Vorauswahl-Abstand des Teils an `placement` (mm), `UNREACHABLE_SCORE`, wenn eine Probe
+    unerreichbar ist, None, wenn der Grundriss nicht auf die Arbeitsflaeche passt oder die
+    Roboterbasis schneidet."""
     foot = MultiPoint(np.asarray(part_mesh_P.vertices)[:, :2]).convex_hull
+    if not footprint_ok(foot, placement, root):
+        return None
     world = SphereWorld(part_mesh_P, np.eye(4), params.layer_height_mm, root, params.r_free_mm)
     world.skip_tip = True
-    surf = work_surface_S(root).bounds
-
-    def evaluate(cands: list[frames.Placement], probes, psi, self_collision) -> list[Candidate]:
-        pls, seen = [], set()
-        Pp = np.array([p for p, _ in probes])  # noqa: N806
-        for pl in cands:
-            if not footprint_ok(foot, pl, root):
-                continue
-            # symmetrische Teile: gleiche Probenmenge in W nur einmal bewerten
-            key = tuple(sorted(map(tuple, np.round(frames.transform_points(frames.T_SP(pl), Pp), 1))))
-            if key in seen:
-                continue
-            seen.add(key)
-            pls.append(pl)
-        T_WPs = [frames.T_WP(ws, pl) for pl in pls]  # noqa: N806
-        sc = _scores_parallel(kin, world, T_WPs, probes, psi, self_collision, procs)
-        return [Candidate(pl, float(v)) for pl, v in zip(pls, sc, strict=True)]
-
-    def grid(step: float) -> list[frames.Placement]:
-        xs = np.arange(np.ceil(surf[0] / step) * step, surf[2] + 1e-9, step)
-        ys = np.arange(np.ceil(surf[1] / step) * step, surf[3] + 1e-9, step)
-        return [
-            frames.Placement(float(x), float(y), float(np.radians(t)))
-            for t in yaws_deg
-            for x in xs
-            for y in ys
-        ]
-
-    import time
-
-    t0 = time.perf_counter()
-    coarse = evaluate(
-        grid(100.0), probe_points(part_mesh_P, params.layer_height_mm, False), params.psi_grid[::6], False
-    )
-    coarse.sort(key=lambda c: -c.score)
-    seeds = distinct([c for c in coarse if c.score > UNREACHABLE_SCORE], top, 150.0)
-    pls: dict[tuple[float, float, float], frames.Placement] = {}
-    for c in seeds:
-        for dx in (-50.0, -25.0, 0.0, 25.0, 50.0):
-            for dy in (-50.0, -25.0, 0.0, 25.0, 50.0):
-                key = (c.placement.x_mm + dx, c.placement.y_mm + dy, c.placement.yaw_rad)
-                pls.setdefault(key, frames.Placement(*key))
-    t1 = time.perf_counter()
-    fine = evaluate(
-        list(pls.values()),
-        probe_points(part_mesh_P, params.layer_height_mm, True),
-        params.psi_grid[::3],
-        False,
-    )
-    res = sorted(fine, key=lambda c: -c.score)
-    if _DEBUG:
-        t2 = time.perf_counter()
-        print(f"placement: coarse {len(coarse)} {t1 - t0:.1f}s, fine {len(fine)} {t2 - t1:.1f}s")
-    return res or coarse
-
-
-def find_placement(
-    part_mesh_P: Any,  # noqa: N803
-    params: PlannerParams | None = None,
-    root: Path = REPO_ROOT,
-    top: int = 4,
-) -> list[Candidate]:
-    """Platzierungssuche fuer ein Teil (Frame P), bestes zuerst; fuer `decompose` (A2.2) und
-    `plan_part`. Die volle Planung der besten Kandidaten macht `plan_part` (echtes d_min)."""
-    from roboprint.assets import load_tool
-
-    kin = Kin(load_workstation(root), load_tool(root))
-    return rank_placements(part_mesh_P, kin, params or PlannerParams(), root, top)
-
-
-def distinct(cands: list[Candidate], n: int, min_dist_mm: float = 100.0) -> list[Candidate]:
-    """Die besten n Kandidaten, untereinander verschieden (anderes theta oder >= min_dist_mm)."""
-    out: list[Candidate] = []
-    for c in cands:
-        p = c.placement
-        if all(
-            abs(p.yaw_rad - o.placement.yaw_rad) > 1e-6
-            or np.hypot(p.x_mm - o.placement.x_mm, p.y_mm - o.placement.y_mm) >= min_dist_mm
-            for o in out
-        ):
-            out.append(c)
-        if len(out) >= n:
-            break
-    return out
+    probes = probe_points(part_mesh_P, params.layer_height_mm, True)
+    T_WP = frames.T_WP(load_workstation(root), placement)  # noqa: N806
+    return float(_scores(kin, world, [T_WP], probes, params.psi_grid[::3], False)[0])

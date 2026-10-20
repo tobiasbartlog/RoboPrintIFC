@@ -38,6 +38,10 @@ class PlannerParams:
     # 19.10.2026). Die Zerlegung schlaegt H* <= diesem Wert vor, kleiner, wenn der Planer hoeher
     # nicht machbar ist.
     module_height_max_mm: float = 400.0
+    # Druckplatz in S (Nutzerentscheidung 20.10.2026): Alle Module eines Laufs stehen hier, Gier 0,
+    # lange Seite zum Roboter. Standard 50 mm vor der Tischmitte; nur Rastpunkte aus `spot_grid()`.
+    spot_x_mm: float = 0.0
+    spot_y_mm: float = -50.0
     # Verdichtung (SPEC §5.2/5), mit kleiner Reserve unter den Grenzen 5 mm / 0,005 rad
     dense_tcp_mm: float = 4.9
     dense_dq_rad: float = 0.0049
@@ -48,6 +52,9 @@ class PlannerParams:
     lambda_transfer: float = 0.2
     # Travel: Hoehen des Zwischenpunkts ueber dem Druckstand (SPEC §5.3)
     via_heights_mm: tuple[float, ...] = (150.0, 300.0, 500.0)
+
+    def __post_init__(self) -> None:
+        check_spot(self.spot_x_mm, self.spot_y_mm)
 
     @property
     def psi_grid(self) -> np.ndarray:
@@ -61,6 +68,33 @@ class PlannerParams:
                 continue
             out[k] = float(v) if isinstance(v, int) and not isinstance(v, bool) else v
         return out
+
+
+# Rastfeld des Druckplatzes in S (mm): x quer zum Roboter, y zum Roboter hin positiv. Gemessen am
+# Quader 600 x 200 (Hoehensuche, 20.10.2026): y = 0 ... -250 ergibt H* 940 ... 850 mm, y = +100 nur
+# 250 mm (Glied 4 im Druckstand); x = +-200 bei y = -50 ergibt >= 950 mm, x = -400 nur 810 mm.
+SPOT_STEP_MM = 50.0
+SPOT_X_RANGE_MM = (-200.0, 200.0)
+SPOT_Y_RANGE_MM = (-250.0, 0.0)
+
+
+def spot_grid() -> list[tuple[float, float]]:
+    """Alle Rastpunkte (x, y) des Druckplatzes in S."""
+    def axis(lo: float, hi: float) -> list[float]:
+        return [lo + i * SPOT_STEP_MM for i in range(int(round((hi - lo) / SPOT_STEP_MM)) + 1)]
+
+    return [(x, y) for y in axis(*SPOT_Y_RANGE_MM) for x in axis(*SPOT_X_RANGE_MM)]
+
+
+def check_spot(x_mm: float, y_mm: float) -> None:
+    """ValueError, wenn (x, y) kein Rastpunkt ist."""
+    for v, (lo, hi), name in ((x_mm, SPOT_X_RANGE_MM, "x"), (y_mm, SPOT_Y_RANGE_MM, "y")):
+        on_grid = abs(v / SPOT_STEP_MM - round(v / SPOT_STEP_MM)) < 1e-9
+        if not (lo - 1e-9 <= v <= hi + 1e-9 and on_grid):
+            raise ValueError(
+                f"Druckplatz {name} = {v:g} mm ist kein Rastpunkt "
+                f"({lo:g} bis {hi:g} mm im {SPOT_STEP_MM:g}-mm-Raster)"
+            )
 
 
 _ALIASES = {

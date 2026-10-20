@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T19:15:00+02:00 · Session: cloud-verify · Phase: P6 abgeschlossen, Höhensuche nachgeprüft
+Herzschlag: 2026-10-20T13:30:00+02:00 · Session: lokal (Tobias) · Phase: P6, Druckplatz statt Platzierungssuche
 
 # PROGRESS — Nachtlauf v2
 
@@ -581,3 +581,54 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   (Δ 3·10⁻⁸), Überlappung 0, kein Fehler zu Eignung oder Überhang. Die einzigen 3 Fehler betreffen die übrigen
   Wände des IFC, die das Szenario bewusst weglässt („fehlt in summary.walls“).
 - Damit ist H* ≥ 910 mm für 600 × 200 mm unabhängig bestätigt; die Erwartung ~800 mm (Double-Plan) war zu vorsichtig.
+
+### 2026-10-20 13:30 Druckplatz statt Platzierungssuche (Nutzerentscheidung Tobias)
+- **Anlass:** „Die Wand wird neben dem Roboter an der Tischseite gedruckt. Lieber zentral vor dem Roboter.“ Die
+  Giebelwand stand bei (−450, 250) und (−625, 300) mm, 90° gedreht, also seitlich am Rand und mit der kurzen Seite
+  zum Roboter.
+- **Ursache:** `rank_placements` maß den kleinsten Vorauswahl-Abstand an wenigen Probewegpunkten. Über
+  `_CULL_MM` = 50 mm schätzt das Kugel-Double nur mit Hüllkugeln. Fast der ganze Tisch bekam deshalb denselben Score
+  (Quader 600 × 200 × 910: 49,9 bis 51,1 mm), und Rauschen entschied. Sieger war (650, 325) mm, 90°. Jedes Modul
+  suchte für sich, und `placement_override` galt nur für den Einzelquader.
+- **Messung** (Quader 600 × 200, Grenze 1000 mm, `scan_height` an genau einer Lage, Windows):
+
+| Lage (x, y) in S | vor J1 | Gier | H* | d_min | begrenzt durch |
+|---|---|---|---|---|---|
+| (0, +100) | 385 mm | 0° | 250 mm | 10,83 | link_4 im Druckstand (d = −3,6 mm) |
+| (0, 0) Tischmitte | 485 mm | 0° | 940 mm | 10,00 | tool_body ↔ link_4 ab Schicht 54 |
+| **(0, −50)** | 535 mm | 0° | **950 mm** | 10,83 | link_2 ↔ Druckstand, Schicht 96 |
+| (0, −100) / (0, −150) | 585 / 635 mm | 0° | 940 / 920 mm | 10,83 | link_2 bzw. Reichweite |
+| (0, −200) / (0, −250) | 685 / 735 mm | 0° | 880 / 850 mm | 10,83 | Reichweite |
+| (−400 / −200 / +200 / +400, −50) | | 0° | 810 / 950 / ≥ 1000 / 940 mm | 10,83 | Reichweite (rechts besser, TCP-Versatz) |
+| (0, 0) / (0, −200) | | 90° | 150 / 640 mm | 10,83 | tool_body ↔ link_4 / Zweigwechsel |
+| (−450, 250), alte Seitenlage | | 90° | 960 mm | 10,06 | Zweigwechsel |
+
+- **Entscheidungen (Grilling mit Tobias, alle Empfehlungen angenommen):** ein Druckplatz je Lauf für alle Module;
+  der Platz ist eine Eingabe der Zerlegung (Änderung → „veraltet“); keine Platzierungssuche mehr, auch nicht für S1;
+  Standard (0, −50) mm (gleiche Höhe wie die Mitte, aber ohne den knappen Kontakt am Handgelenk); Rastpunkte
+  x −200…200 × y −250…0 mm im 50-mm-Raster, nie zum Roboter hin; nur Gier 0; geht ein Modul nicht, wird es
+  niedriger oder kleiner, nie gedreht oder verschoben; kein Verschieben einzelner Module nach der Zerlegung (später
+  denkbar: mehrere Module nebeneinander, dann sind gedruckte Module Hindernisse).
+- **Kern:** `PlannerParams.spot_x_mm`/`spot_y_mm` (Standard 0/−50), geprüft in `__post_init__` gegen
+  `params.spot_grid()` (API: 422 „kein Rastpunkt“). `planner/placement.py`: `spot_placement`, `placement_score` (ein
+  Platz, Vorprüfung der H*-Bisektion); Rastersuche, `distinct`, `find_placement`, `rank_placements`,
+  `PartPlan.candidates` und `SphereWorld.with_placement` entfallen. `plan_part` und `scan_height` planen genau einen
+  Platz (ohne Angabe den Druckplatz, mit Prüfung von Tischplatte und Basis). `scenario_parts` reicht
+  `placement_override` an Vorprüfung, Höhensuche und Teilplanung durch.
+- **Viewer:** „Druckeinstellungen → Module“ zeigt den Druckplatz als Draufsicht (`SpotPicker`): Tisch, Roboter als
+  Kreis um J1, Kreuz in der Tischmitte, Ring am Standard, Rastpunkte, Modulumriss (Wanddicke × höchstens 600 mm).
+  Ziehen, Klick oder Pfeiltasten rasten ein, Home und der Reset-Knopf führen zum Standard. Der Platz zählt als eine
+  Änderung. Fokus beim Ziehen ohne Scrollen (sonst sprang das Feld unter dem Zeiger weg, e2e hat es gefunden).
+  Logik in `web/src/state/spot.ts`; `test_web_spot_grid_matches_core` koppelt das Rastfeld an den Kern.
+- **Läufe lokal (Windows, Stand dieses Eintrags):**
+
+| Lauf | vorher | jetzt |
+|---|---|---|
+| S1 | (−500, 325) bzw. (625, 150) 90°, d_min 10,83, ~230 s | (0, −50) 0°, machbar, d_min 10,83 mm, 0 coll/unreach, 72 s |
+| Giebelwand, Grenze 400 mm | 30 Teile à 370 (oben 296), 194 s | gleich, alle bei (0, −50), d_min 10,83 mm, 108 s |
+| Giebelwand, Grenze 1000 mm | 12 Teile 910/896, seitlich 90°, d_min 10,06, 801 s | gleich, alle bei (0, −50), d_min 10,83 mm, 410 s |
+
+- **Checks lokal:** ruff grün; pytest core -n 2: 174 passed, 6 skipped, 1 failed (`test_traversal_symlink`, Windows
+  ohne Symlink-Recht, wie bisher); web lint, typecheck, vitest 86 passed; e2e `params.spec.ts` 2 passed.
+- **Offen:** SPEC §5.4/3, §7, §10 und Beschreibung S1 (gesperrt, Text liegt bereit, Nutzer entsperrt kurz);
+  Cloud-verify G1–G8 (G3/G4/G7 mit neuen Platzierungen, Orakel für S2).
