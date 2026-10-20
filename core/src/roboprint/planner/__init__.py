@@ -26,7 +26,7 @@ from roboprint import frames
 from roboprint.assets import REPO_ROOT, load_tool, load_workstation
 from roboprint.slicer import SlicedPart, SliceParams, slice_part
 
-from .backend import CollisionBackend, SphereWorld, make_world
+from .backend import PATTERN_SELF_PAIRS, CollisionBackend, SphereWorld, make_world
 from .kin import Kin
 from .params import PlannerParams, from_overrides
 from .placement import footprint_ok, placement_score, spot_placement
@@ -73,10 +73,13 @@ def _setup(part_mesh_P, sliced, placement, params, root, world_factory):  # noqa
     ws, tool = load_workstation(root), load_tool(root)
     T_WP = frames.T_WP(ws, placement)  # noqa: N806
     final = world_factory(part_mesh_P, T_WP, params.layer_height_mm, root, params.r_free_mm)
+    extra = PATTERN_SELF_PAIRS if params.uses_pattern else ()
     screen = (
         final
         if isinstance(final, SphereWorld)
-        else SphereWorld(part_mesh_P, T_WP, params.layer_height_mm, root, params.r_free_mm)
+        else SphereWorld(
+            part_mesh_P, T_WP, params.layer_height_mm, root, params.r_free_mm, extra_self_pairs=extra
+        )
     )
     height = float(np.asarray(part_mesh_P.bounds)[1][2])
     return T_WP, final, screen, height, Kin(ws, tool), ring_tasks(sliced, T_WP)

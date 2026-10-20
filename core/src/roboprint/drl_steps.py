@@ -174,10 +174,16 @@ class _Strand:
     links: int = 0
     items: list[Comment | tuple[int, str, int]] = field(default_factory=list)
 
-    def target(self, i: int, kind: str, ring: int, P_B: np.ndarray) -> None:  # noqa: N803
+    def target(self, i: int, kind: str, ring: int, P_B: np.ndarray, R_B: np.ndarray | None = None) -> None:  # noqa: N803
+        """Ziel anhaengen. Ein Ziel am selben Ort wie das vorige ersetzt dieses nur bei gleicher
+        Orientierung (`R_B`, Drehmatrizen in B); dreht sich die Duese dort auf der Stelle (Ausweg
+        des Planers, wenn psi am Verbinder der Laenge 0 nicht zu halten ist), bleiben beide Ziele,
+        damit das Programm die Drehung so faehrt wie die Trajektorie und nicht auf das Segment davor
+        verschmiert."""
         prev = next((it for it in reversed(self.items) if isinstance(it, tuple)), None)
-        ref = P_B[prev[0]] if prev else P_B[self.start]
-        if np.linalg.norm(P_B[i] - ref) < _MERGE_MM:
+        j = prev[0] if prev else self.start
+        same_rot = R_B is None or np.allclose(R_B[i], R_B[j], atol=1e-9)
+        if np.linalg.norm(P_B[i] - P_B[j]) < _MERGE_MM and same_rot:
             if prev is None:
                 return  # faellt auf den Strangbeginn: kein eigenes Ziel
             self.items.remove(prev)
@@ -279,7 +285,7 @@ def plan_steps(
         if tr.status[i] == "unreachable":
             raise ValueError(f"Bewegungsziel Sample {i} ist unreachable")
         assert strand is not None
-        strand.target(i, kinds[i], rings[i], P_B)
+        strand.target(i, kinds[i], rings[i], P_B, T_BT[:, :3, :3])
         cur = i
 
     steps.append(Comment("Start (Home)"))
