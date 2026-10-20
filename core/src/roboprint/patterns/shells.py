@@ -51,6 +51,7 @@ from shapely.geometry import LineString
 from roboprint.patterns.geometry import (
     Loop,
     biarc,
+    biarc_radius,
     centerline_band,
     densify,
     offset_region,
@@ -65,6 +66,9 @@ from roboprint.patterns.types import IslandContext, IslandPlan, Lane, PatternPar
 FINE_TOL_MM = 0.05
 #: Abstand S-Kurve ↔ Ringanfang bzw. Ringende ≥ w − CLEAR_TOL_MM (Kontakt ohne Doppelmaterial)
 CLEAR_TOL_MM = 0.1
+#: Kürzester druckbarer Innenring in w: Ein kürzerer Ring hat weniger als w Durchmesser, seine
+#: Raupe überdeckt sich selbst (M2) und lässt keinen Schalenwechsel zu (`clear_end`: Länge > 2·w)
+MIN_RING_W = math.pi
 
 
 def shell_lanes(region: Any, params: PatternParams) -> tuple[Lane, ...]:
@@ -114,6 +118,17 @@ def _min_dist(a: np.ndarray, b: np.ndarray) -> float:
     return float(cKDTree(b).query(a)[0].min())
 
 
+def _dropped_note(shell: int, params: PatternParams, length: float) -> dict[str, Any]:
+    """meta-Hinweis, wenn Schalen ab `shell` als Restring entfallen."""
+    return {
+        "from_shell": shell,
+        "count": params.shells - shell,
+        "ring_length_mm": round(length, 2),
+        "hint": f"Schale {shell} ist nur ein Restring ({length:.1f} mm < π·w = "
+        f"{MIN_RING_W * params.w:.1f} mm) und entfällt mit allen inneren Schalen",
+    }
+
+
 def lane_change(
     ring: Loop,
     nxt: Loop,
@@ -141,8 +156,30 @@ def lane_change(
     head = densify(ring.sub(start, start + min(3.0 * w, 0.3 * ring.length)), 1.0)[1:]
     if avoid is not None and len(avoid) > 1:
         head = np.vstack([head, densify(avoid, 1.0)])
+    head_tree = cKDTree(head) if len(head) else None  # einmal statt je ℓ (wie `_min_dist`)
+    ells = max(ell0, min_ell) + np.arange(0.0, 8.0 * w, 1.0)
+
+    def clear_of(pts: np.ndarray) -> bool:
+        probe = densify(pts, 1.0)[:-1]
+        gap = math.inf if head_tree is None or not len(probe) else float(head_tree.query(probe)[0].min())
+        return gap >= w - CLEAR_TOL_MM
+
+    # Schneller Durchlauf: Gewählt wird das erste ℓ mit r ≥ R und freier S-Kurve; die Bestwerte
+    # davor zählen dann nicht (Wertung < 2·R). Punkte und Abstand also nur für ℓ mit r ≥ R. Bricht
+    # die Suche ohne Treffer ab, entscheidet der vollständige Durchlauf (Bestwert) wie bisher.
+    for ell in ells:
+        if ell >= 0.6 * ring.length:
+            break
+        A = ring.point(start - ell)
+        tA = ring.tangent(start - ell, incoming=True)
+        r = biarc_radius(A, tA, B, tB)
+        if r is None or r < R - 1e-6:
+            continue
+        pts = biarc(A, tA, B, tB, FINE_TOL_MM, params.step_mm)[0]
+        if clear_of(pts):
+            return float(ell), pts, tb
     best: tuple[float, np.ndarray, float] | None = None
-    for ell in max(ell0, min_ell) + np.arange(0.0, 8.0 * w, 1.0):
+    for ell in ells:
         if ell >= 0.6 * ring.length:
             break
         A = ring.point(start - ell)
@@ -151,12 +188,10 @@ def lane_change(
         if res is None:
             continue
         pts, r = res
-        clear = _min_dist(densify(pts, 1.0)[:-1], head) >= w - CLEAR_TOL_MM
+        clear = clear_of(pts)
         score = min(r, R) + (R if clear else 0.0)
         if best is None or score > best[2]:
             best = (float(ell), pts, score)
-        if r >= R - 1e-6 and clear:
-            break
     if best is None:  # kein Biarc: gerade Linie (M6/M2 melden das)
         ell = min(ell0, 0.25 * ring.length)
         return ell, np.vstack([ring.point(start - ell), B]), tb
@@ -170,7 +205,11 @@ def clear_end(loop: Loop, t_from: float, trans: np.ndarray, w: float) -> float:
     L = loop.length
     lo = t_from + max(2.0 * w, L - 8.0 * w)
     ts = np.arange(lo, t_from + L, 1.0)
-    pts = np.array([loop.point(t) for t in ts])
+    if not len(ts):
+        # Ring kürzer als 2·w: kein Ende frei von der S-Kurve (shell_chain lässt solche Ringe weg;
+        # die Familie Topologie fängt den Fehler und versucht weniger Schalen)
+        raise ValueError(f"Ring zu kurz für einen Schalenwechsel: {L:.1f} mm ≤ 2·w = {2.0 * w:.1f} mm")
+    pts = loop.points(ts)
     dist = cKDTree(densify(trans, 1.0)).query(pts)[0]
     bad = np.flatnonzero(dist < w - CLEAR_TOL_MM)
     if len(bad) == 0:
@@ -238,11 +277,17 @@ def shell_chain(
     p = ctx.params
     mains: list[np.ndarray] = []
     extras: list[tuple[int, str, np.ndarray]] = []
+    dropped: dict[str, Any] | None = None
     for s in range(p.shells):
         m, rest = _main_exterior(ctx.lanes, s)
         if s == 0 and ring0 is not None:
             m = np.asarray(ring0, float)
         if m is None:
+            break
+        if s > 0 and Loop(m).length < MIN_RING_W * p.w:
+            # Rückfall: Restring (z. B. in der Innenecke eines L-Querschnitts, wo der Offset nur
+            # noch einen Punkt übrig lässt) ist nicht druckbar und ließe keinen Schalenwechsel zu
+            dropped = _dropped_note(s, p, Loop(m).length)
             break
         mains.append(m)
         extras.extend((s, "inner" if s else "outer", r) for r in rest)
@@ -251,6 +296,8 @@ def shell_chain(
     loops = [Loop(m) for m in mains]
     start, meta = choose_seam(loops[0], ctx.region, ctx.part_bounds, p)
     meta = {**meta, "shells": len(loops), "transitions_mm": []}
+    if dropped is not None:
+        meta["shells_dropped"] = dropped
     segs: list[Segment] = []
     # gedachte nächste Bahn: konzentrisch (Eckradius r − w; + 0,5 mm, damit die Tangente in der
     # Ecke bestimmt ist), sonst wie eine echte Schale gerundet (r)
@@ -258,7 +305,9 @@ def shell_chain(
     for rad in dict.fromkeys((max(p.corner_radius - p.w, 0.0) + 0.5, p.corner_radius)) if open_end else ():
         ext = [r for kd, r in offset_ring(ctx.region, (len(loops) + 0.5) * p.w, rad) if kd == "exterior"]
         if ext:
-            virtuals.append(Loop(max(ext, key=lambda r: abs(_area(r)))))
+            v = Loop(max(ext, key=lambda r: abs(_area(r))))
+            if v.length >= MIN_RING_W * p.w:  # sonst kein Platz für ein Infill (Restring, siehe oben)
+                virtuals.append(v)
     virtual = virtuals[0] if virtuals else None
     if len(loops) == 1 and virtual is None:
         pts = loops[0].sub(start, start)

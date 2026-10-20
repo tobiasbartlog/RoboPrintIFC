@@ -115,8 +115,9 @@ Helfer für Familien
 
 geometry.py: `polygons`, `offset_region`, `offset_ring`, `cavity`, `centerline_band`, `dedupe`,
 `arc_length`, `densify`, `resample_curve`, `curvature_radius`, `chord_error_estimate`, `Loop`
-(Ring mit Bogenlänge: point, tangent, project, sub, reversed), `arc_points`, `tangent_arc`, `biarc`,
-`fillet_polyline`. layout.py: `fit_to_length`, `choose_seam`, `face_clearance`, `protected_faces`.
+(Ring mit Bogenlänge: point, points, tangent, project, sub, reversed), `arc_points`, `tangent_arc`,
+`biarc`, `biarc_radius` (nur der Radius, ohne Punkte), `fillet_polyline`. layout.py: `fit_to_length`,
+`choose_seam`, `face_clearance`, `protected_faces`.
 shells.py: `shell_lanes`, `shell_chain(ctx, ring0=None, ring0_kind='outer')`, `lane_change`.
 types.py: `reverse_layer`, `Segment.reversed`, `LayerPath.reversed`.
 
