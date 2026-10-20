@@ -9,7 +9,21 @@ Die erste Zeile setzt nur das Skript.
 
 | Aufgabe | Phase | Status | Branch | Commit |
 |---|---|---|---|---|
-| Einrichtung, Ausgangslage verify --fast | M0 | offen | v2/muster | |
+| Einrichtung, Ausgangslage verify --fast, Artefaktformat (`docs/muster/ARTEFAKT-FORMAT.md`) | M0 | läuft | v2/muster | |
+| R Recherche → `docs/muster/recherche.md` | M1 | offen | v2/muster-recherche | |
+| K Kern `core/src/roboprint/patterns/` (Schnittstelle, alternate, 2 Schalen, metrics M1–M7) | M1 | offen | v2/muster-kern | |
+| O Orakel `verify_muster/` mit Selbsttests | M1 | offen | v2/muster-orakel | |
+| I-Wellen (Sinus, Zickzack gerundet, Trapez/Mäander) | M2 | offen | v2/muster-wellen | |
+| I-Mehrfach (Doppelwelle/Kettenglied, Waben, Fermat) | M2 | offen | v2/muster-mehrfach | |
+| Outfill O1/O2/O3 | M2 | offen | v2/muster-outfill | |
+| Topologie (Öffnungen, Inseln, Laibungsstege, Naht, Übergänge) | M2 | offen | v2/muster-topologie | |
+| Einbau Slicer + Vertrag + Schema/TS | M3 | offen | v2/muster-einbau | |
+| Einbau Planer/Timing/DRL | M3 | offen | v2/muster-einbau | |
+| Musterszenarien, `scripts/verify_muster.py`, SPEC-Nachtrag | M3 | offen | v2/muster-einbau | |
+| Viewer: Musterwahl, 2D-Vorschau, Legende, Kennzahlen | M4 | offen | v2/muster-viewer | |
+| Vergleich, MUSTERKATALOG, Testdrucke | M5 | offen | v2/muster-katalog | |
+| Gegenprüfung und Härtung | M6 | offen | v2/muster | |
+| Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
 
 ## Gate-Stand
 
