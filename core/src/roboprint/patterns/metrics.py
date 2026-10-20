@@ -438,6 +438,12 @@ def _contact_zones(
     zones: list[Contact] = []
     if len(i) == 0:
         return zones
+    # Stoßpunkt zweier Segmente (Verbinder Länge 0) gehört zu beiden: zweite Zuordnung `alt`
+    alt = seg.copy()
+    for q in np.flatnonzero(np.diff(seg) != 0):
+        a, b = path.segments[seg[q]], path.segments[seg[q + 1]]
+        if np.linalg.norm(a.end - b.start) < 1e-6:
+            alt[q] = seg[q + 1]
     key = seg[i] * 100000 + seg[j]
     for kv in np.unique(key):
         sel = np.flatnonzero(key == kv)
@@ -449,7 +455,13 @@ def _contact_zones(
             mid = run[len(run) // 2]
             at = (pts[i[mid]] + pts[j[mid]]) / 2
             length = float(arc[i[run]].max() - arc[i[run]].min()) + DENSE_MM
-            kind = _contact_kind(kinds[si], kinds[sj])
+            combos = {
+                _contact_kind(kinds[a], kinds[b])
+                for x, y in zip(i[run], j[run], strict=True)
+                for a in {seg[x], alt[x]}
+                for b in {seg[y], alt[y]}
+            }
+            kind = next(k for k in ("joint", "node", "shell") if k in combos)
             for c in path.contacts:
                 if np.hypot(c.at[0] - at[0], c.at[1] - at[1]) <= w:
                     kind = c.kind

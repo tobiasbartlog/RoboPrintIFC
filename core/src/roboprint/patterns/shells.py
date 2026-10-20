@@ -21,9 +21,15 @@ Schalenwechsel (Begründung). Ein Strang muss von Ring k auf Ring k + 1 wechseln
    von Ring k + 1 und der des zweiten genau auf dem Start von Ring k: Die S-Kurve hält zu beiden
    überall genau den Abstand w, berührt also (Kontakt, keine Überlappung). Doppelmaterial entsteht
    nirgends; es bleibt je Wechsel ein Zwickel von etwa w·ℓ/2 in jeder der beiden Bahnen, außen
-   direkt vor der Naht (im gerundeten Eckbereich), innen hinter dem Ende von Ring k + 1.
-   Liegt die Naht in einem Eckbogen, sucht der Kern das kleinste ℓ ≥ ℓ₀, bei dem beide Bögen des
-   Biarcs mindestens R haben.
+   direkt vor der Naht, innen hinter dem Ende von Ring k + 1. Beim Rechteck (Naht in der Mitte des
+   Eckbogens bei (x_min, y_min), Umlauf gegen den Uhrzeigersinn) liegt der äußere Zwickel auf dem
+   halben Eckbogen und dem anschließenden Stück der Stoßfläche x_min (S1: ℓ ≈ 77 mm), also nicht
+   auf der Außenfläche. Kürzer ginge es nur mit R < w (M6-Ziel verfehlt, `transition_radius_mm`
+   bis w/2 einstellbar); ein voll geschlossener Ring 0 ließe gar keinen Wechsel ohne Überfahren
+   des Ringanfangs zu (M2).
+   Liegt die Naht in einem Eckbogen oder sind die Ringe kurz (Pfeiler), sucht der Kern das kleinste
+   ℓ ≥ ℓ₀, bei dem beide Bögen des Biarcs mindestens R haben und die S-Kurve den Ringanfang nur
+   berührt; das Ende von Ring k + 1 wird so gewählt, dass es die S-Kurve nur berührt (`clear_end`).
 
 Schichtwechsel: Gerade Schichten beginnen an der Naht auf Schale 0 und enden innen; ungerade sind
 die exakte Umkehrung (plan.py). Ende L = Anfang L + 1, der Wechsel ist ein reiner Z-Hub.
@@ -39,11 +45,13 @@ import math
 from typing import Any
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 from roboprint.patterns.geometry import (
     Loop,
     biarc,
     centerline_band,
+    densify,
     offset_region,
     offset_ring,
     resample_curve,
@@ -54,6 +62,8 @@ from roboprint.patterns.types import IslandContext, IslandPlan, Lane, PatternPar
 
 #: Feine Abtastung der Bögen vor dem Neu-Abtasten (Sehnenfehler gesamt ≤ chord_tol + 0,05 mm)
 FINE_TOL_MM = 0.05
+#: Abstand S-Kurve ↔ Ringanfang bzw. Ringende ≥ w − CLEAR_TOL_MM (Kontakt ohne Doppelmaterial)
+CLEAR_TOL_MM = 0.1
 
 
 def shell_lanes(region: Any, params: PatternParams) -> tuple[Lane, ...]:
@@ -96,23 +106,33 @@ def _fine(points: np.ndarray, params: PatternParams, closed: bool = False) -> np
     return resample_curve(points, params.step_mm, params.chord_tol_mm, closed=closed)
 
 
+def _min_dist(a: np.ndarray, b: np.ndarray) -> float:
+    """Kleinster Abstand zwischen zwei (dicht abgetasteten) Punktmengen."""
+    if len(a) == 0 or len(b) == 0:
+        return math.inf
+    return float(cKDTree(b).query(a)[0].min())
+
+
 def lane_change(
-    ring: Loop, nxt: Loop, start: float, params: PatternParams
+    ring: Loop, nxt: Loop, start: float, params: PatternParams, min_ell: float = 0.0
 ) -> tuple[float, np.ndarray, float]:
     """S-Kurve vom Ende von `ring` (Start bei Bogenlänge `start`) auf `nxt`.
 
-    Rückgabe (ℓ, Punkte der S-Kurve von A = ring(start − ℓ) nach B = nxt neben ring(start),
-    Bogenlänge von B auf `nxt`). Siehe Modul-Docstring (Abschnitt Schalenwechsel)."""
-    R = params.transition_radius
+    Gesucht wird das kleinste ℓ ≥ max(ℓ₀, min_ell) (1-mm-Schritte), bei dem beide Biarc-Bögen
+    mindestens R haben und die S-Kurve vom Anfang des Rings (start … start + 3·w) mindestens
+    w − CLEAR_TOL_MM entfernt bleibt (kein Doppelmaterial). Rückgabe (ℓ, Punkte der S-Kurve von
+    A = ring(start − ℓ) nach B = nxt neben ring(start), Bogenlänge von B auf `nxt`)."""
+    R, w = params.transition_radius, params.w
     P = ring.point(start)
     tb = nxt.project(P)
     B = nxt.point(tb)
     tB = nxt.tangent(tb)
     d = float(np.linalg.norm(B - P))
     ell0 = 2.0 * math.sqrt(max(R * R - (R - d / 2.0) ** 2, 0.0)) if d < 2 * R else d
+    head = densify(ring.sub(start, start + min(3.0 * w, 0.3 * ring.length)), 1.0)
     best: tuple[float, np.ndarray, float] | None = None
-    for ell in ell0 + np.arange(0.0, 6.0 * params.w, 1.0):
-        if ell >= 0.5 * ring.length:
+    for ell in max(ell0, min_ell) + np.arange(0.0, 8.0 * w, 1.0):
+        if ell >= 0.6 * ring.length:
             break
         A = ring.point(start - ell)
         tA = ring.tangent(start - ell, incoming=True)
@@ -120,14 +140,31 @@ def lane_change(
         if res is None:
             continue
         pts, r = res
-        if best is None or r > best[2]:
-            best = (float(ell), pts, r)
-        if r >= R - 1e-6:
+        clear = _min_dist(densify(pts, 1.0)[:-1], head[1:]) >= w - CLEAR_TOL_MM
+        score = min(r, R) + (R if clear else 0.0)
+        if best is None or score > best[2]:
+            best = (float(ell), pts, score)
+        if r >= R - 1e-6 and clear:
             break
     if best is None:  # kein Biarc: gerade Linie (M6/M2 melden das)
         ell = min(ell0, 0.25 * ring.length)
         return ell, np.vstack([ring.point(start - ell), B]), tb
     return best[0], best[1], tb
+
+
+def clear_end(loop: Loop, t_from: float, trans: np.ndarray, w: float) -> float:
+    """Spätestes Ende (Bogenlänge in (t_from, t_from + L)) eines Rings, der bei t_from beginnt und
+    einmal herumläuft, sodass seine letzten Stücke von der Kurve `trans` (die bei t_from auf den
+    Ring traf) mindestens w − CLEAR_TOL_MM Abstand halten: Kontakt, kein Doppelmaterial."""
+    L = loop.length
+    lo = t_from + max(2.0 * w, L - 8.0 * w)
+    ts = np.arange(lo, t_from + L, 1.0)
+    pts = np.array([loop.point(t) for t in ts])
+    dist = cKDTree(densify(trans, 1.0)).query(pts)[0]
+    bad = np.flatnonzero(dist < w - CLEAR_TOL_MM)
+    if len(bad) == 0:
+        return float(ts[-1])
+    return float(ts[max(int(bad[0]) - 1, 0)])
 
 
 def shell_chain(ctx: IslandContext, ring0: np.ndarray | None = None, ring0_kind: str = "outer") -> IslandPlan:
@@ -157,20 +194,20 @@ def shell_chain(ctx: IslandContext, ring0: np.ndarray | None = None, ring0_kind:
         pts = _fine(pts, p, closed=True)
         segs.append(Segment(ring0_kind, 0, pts, closed=True, label="Schale 0"))
     head: np.ndarray | None = None
-    a_prev: np.ndarray | None = None
     for k, lp in enumerate(loops if len(loops) > 1 else []):
         kind = ring0_kind if k == 0 else "inner"
+        # Ende dieses Rings: frei von der ankommenden S-Kurve (head)
+        t_end = start + lp.length if head is None else clear_end(lp, start, head, p.w)
         if k < len(loops) - 1:
-            ell, trans, tb = lane_change(lp, loops[k + 1], start, p)
+            ell, trans, tb = lane_change(lp, loops[k + 1], start, p, min_ell=start + lp.length - t_end)
             body = lp.sub(start, start - ell)
-            a_cur = body[-1]
             meta["transitions_mm"].append(round(ell, 2))
         else:
-            body = lp.sub(start, lp.project(a_prev))
-            trans, tb, a_cur = None, start, None
+            body = lp.sub(start, t_end)
+            trans, tb = None, start
         pts = body if head is None else np.vstack([head, body[1:]])
         segs.append(Segment(kind, k, _fine(pts, p), label=f"Schale {k}"))
-        head, a_prev, start = trans, a_cur, tb
+        head, start = trans, tb
     # Ausweichfall: weitere Teile und Löcher anhängen (siehe Modul-Docstring)
     holes = [(ln.shell, "hole", ln.ring) for ln in ctx.lanes if ln.kind == "hole"]
     for s, kind, r in extras + holes:
