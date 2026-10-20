@@ -70,3 +70,10 @@ def test_module_entry_point(tmp_path):
     )
     assert r.returncode == 0, r.stderr
     assert svg.read_text().startswith("<svg")
+
+
+def test_non_finite_size_gives_exit_2(tmp_path, capsys):
+    """NaN/inf bei --length/--thickness sind ungültige Eingabe (Exit 2), kein Absturz mit Exit 1."""
+    for args in (["--length", "nan", "--thickness", "200"], ["--length", "600", "--thickness", "inf"]):
+        assert main(["pattern-preview", str(PRESET), "--svg", str(tmp_path / "x.svg"), *args]) == 2
+    assert "endliche Zahlen" in capsys.readouterr().err
