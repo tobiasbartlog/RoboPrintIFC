@@ -22,10 +22,13 @@ Messverfahren (alle Längen mm, w = Strangbreite, ε = params.eps):
   Sehnenfehler > chord_tol + 0,05 mm: Warnung.
 - **M7 Kontakt**: Kontaktzonen (zusammenhängende Läufe von Kontaktpaaren) mit Lage, Länge, Art
   (`joint` Außenfeld an Außenfeld, `node` Steg/Gurt an Steg/Gurt, sonst `shell`; ein deklarierter
-  Kontakt des Musters im Umkreis w gibt die Art vor), Anzahl und Länge je Meter Wand.
+  Kontakt des Musters im Umkreis w gibt die Art vor), Anzahl und Länge je Meter Wand. Ein vom
+  Muster deklarierter Kontakt ohne gemessenes Kontaktpaar im Umkreis w ist eine Warnung (Steg
+  erreicht die Schale nicht, oder die Überlappung ist > ε·w und schon ein M2-Fehler).
 
-Kennzahlen: Pfadlänge, Druckzeit bei v_print, Material (Liter je m Wand und Schicht, Liter je m²
-Wandansicht), Zellen (Hohlräume des Querschnitts, Fläche ≥ w²/2, mit Spannweite), Kontaktlängen,
+Kennzahlen: Abdeckung des Schalenbereichs (`shell_coverage`, Maß wie G3), Pfadlänge, Druckzeit
+bei v_print, Material (Liter je m Wand und Schicht, Liter je m² Wandansicht), Zellen (Hohlräume
+des Querschnitts, Fläche ≥ w²/2, mit Spannweite), Kontaktlängen,
 Fugenlagen und Fugenabstand, längste gerade ungestützte Außenstrecke (gerade Läufe der Segmente
 `outer`/`outfill`, geteilt an Punkten mit Kontakt zu `web`/`infill`), kleinster Radius.
 """
@@ -110,6 +113,9 @@ class PathMetrics:
     start: tuple[float, float]
     end: tuple[float, float]
     w: float = 30.0
+    #: Anteil des Schalenbereichs (Insel minus Insel ⊖ shells·w mit Gehrung, wie G3/slicer.py), den
+    #: die Raupen dieses Pfads bedecken. G3 verlangt für den Slicer ≥ 0,95 je Schicht.
+    shell_coverage: float = 1.0
 
     @property
     def contact_length_mm(self) -> float:
@@ -154,6 +160,7 @@ class PathMetrics:
             "max_cell_span_mm": rr(max((c["span_mm"] for c in self.cells), default=0.0), 1),
             "material_l_per_m_layer": rr(self.material_l_per_m_layer, 4),
             "material_l_per_m2": rr(self.material_l_per_m2, 3),
+            "shell_coverage": rr(self.shell_coverage, 4),
             "start": [rr(self.start[0]), rr(self.start[1])],
             "end": [rr(self.end[0]), rr(self.end[1])],
         }
@@ -218,7 +225,10 @@ def bead_area(path: LayerPath, w: float) -> Any:
     pl = path.polyline()
     if len(pl) < 2:
         return Point(pl[0]).buffer(w / 2.0)
-    return LineString(pl).buffer(w / 2.0, quad_segs=8)
+    g = LineString(pl).buffer(w / 2.0, quad_segs=8)
+    # GEOS liefert bei fast tangentialen Raupenrändern gelegentlich ungültige Puffer
+    # (TopologyException in difference); dann reparieren.
+    return g if g.is_valid else shapely.make_valid(g)
 
 
 def _runs(order_vals: np.ndarray, gap: float) -> list[np.ndarray]:
@@ -279,6 +289,7 @@ def measure_path(
     pairs = tree.query_pairs(w + p.contact_tol_mm, output_type="ndarray")
     min_clear = math.inf
     contacts: list[Contact] = []
+    contact_mid = np.zeros((0, 2))
     if len(pairs):
         i, j = pairs.min(axis=1), pairs.max(axis=1)
         sep = np.abs(arc[j] - arc[i])
@@ -310,8 +321,31 @@ def measure_path(
                 )
         ok = ~bad
         contacts = _contact_zones(path, pts, arc, seg, i[ok], j[ok], d[ok], kinds, w)
+        contact_mid = (pts[i[ok]] + pts[j[ok]]) / 2
     if not LineString(path.polyline()).is_simple and not any(v.rule == "M2" for v in viol):
         viol.append(Violation("M2", "error", L, isl, tuple(path.start), 0.0, (1 - eps) * w, "Selbstschnitt"))
+
+    # M7: Jeder deklarierte Kontakt muss als gemessener Kontakt (Abstand in [(1 − ε)·w, w + tol])
+    # im Umkreis w vorhanden sein; sonst Spalt (Steg erreicht die Schale nicht) oder Überlappung.
+    for c in path.contacts:
+        dist = (
+            float(np.min(np.hypot(contact_mid[:, 0] - c.at[0], contact_mid[:, 1] - c.at[1])))
+            if len(contact_mid)
+            else math.inf
+        )
+        if dist > w:
+            viol.append(
+                Violation(
+                    "M7",
+                    "warn",
+                    L,
+                    isl,
+                    c.at,
+                    None if not math.isfinite(dist) else dist,
+                    w,
+                    f"deklarierter Kontakt ({c.kind}) nicht gemessen: Spalt oder Überlappung",
+                )
+            )
 
     # M4: Nahtlage (Anfang/Ende)
     ends = [path.start] if closed else [path.start, path.end]
@@ -397,6 +431,10 @@ def measure_path(
                 }
             )
     vol = total * w * p.layer_height_mm
+    isl_polys = polygons(section)
+    region = isl_polys[isl] if 0 <= isl < len(isl_polys) else section
+    shell_reg = region.difference(region.buffer(-p.shells * w, join_style="mitre"))
+    coverage = float(beads.intersection(shell_reg).area / shell_reg.area) if shell_reg.area > 0 else 1.0
     met = PathMetrics(
         layer=L,
         island=isl,
@@ -420,6 +458,7 @@ def measure_path(
         start=tuple(map(float, path.start)),
         end=tuple(map(float, path.end)),
         w=w,
+        shell_coverage=coverage,
     )
     return met, viol
 

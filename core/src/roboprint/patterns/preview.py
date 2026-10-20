@@ -259,6 +259,7 @@ def preview(spec: Any = None, outline: Any = None, layer: int = 0) -> dict[str, 
         if pm and np.isfinite(min(m.min_clearance_mm for m in pm))
         else None,
         "cells": [c for m in pm for c in m.cells],
+        "shell_coverage": round(min((m.shell_coverage for m in pm), default=1.0), 4),
         "paths": [m.to_dict() for m in pm],
     }
     lc = next((c for c in rep.layer_changes if c["from"] == layer), None)
