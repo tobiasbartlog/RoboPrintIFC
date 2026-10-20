@@ -1,16 +1,33 @@
-"""Ein Teil planen: Ringe (Ladder-Graph), Travel (SPEC §5.3), Verdichtung, Pruefung, Ergebnis.
+"""Ein Teil planen: Ringe (Ladder-Graph), Straenge mit Verbindern, Travel (SPEC §5.3), Verdichtung,
+Pruefung, Ergebnis.
 
-Ablauf je Ring (spec/ARTEFAKTE.md): lift -> transfer -> lower -> approach -> print -> retract.
-Der erste Ring beginnt mit `transfer` aus der Home-Pose (Sample 0 ist Home), nach dem letzten
-Ring folgt ein `lift`. `layer[i]` ist die Anzahl k fertiger Schichten:
-print/approach/retract von Schicht L: k = L; lift nach Schicht L: k = L + 1;
-transfer/lower vor einem Ring: k = (Schicht des vorigen Rings) + 1, vor dem ersten Ring 0.
+Ablauf je Strang (spec/ARTEFAKTE.md): transfer -> lower -> approach -> print r -> [link r+1 ->
+print r+1]* -> retract -> lift. Der erste Strang beginnt mit `transfer` aus der Home-Pose (Sample 0
+ist Home), nach dem letzten Ring folgt ein `lift`.
+
+Strang (Nutzerentscheidung 20.10.2026): Hat Ring r `link_next`, plant der Planer Ring r + 1 im Zweig
+am Ende von r (`force_branch`, Start nahe der Gelenkstellung am Ende von r, Gewicht lambda_link) und
+verbindet beide mit einem Verbinder (`link`: movel vom Ende von r zum Start von r + 1, psi linear).
+Verbinder und Ring r + 1 werden wie Druck geprueft (k = Schicht von r + 1). Geht das nicht
+(unerreichbar, d < d_hard bei collision_aware, Zweigwechsel noetig, Ring-Nachplanung mit `mark_hard`
+erfolglos), endet der Strang an r: Abfahren und Abheben von r, dann Travel zu r + 1. Abfahren und
+Abheben eines Rings werden deshalb erst angehaengt, wenn feststeht, dass kein Verbinder folgt. Das
+Verweil-Sample (Pumpe an, wait t_tot) steht nur am Strangbeginn.
+
+`layer[i]` ist die Anzahl k fertiger Schichten: print/approach/retract von Schicht L: k = L; link vor
+einem Ring in Schicht L: k = L; lift nach Schicht L: k = L + 1; transfer/lower vor einem Strang:
+k = (Schicht des vorigen Rings) + 1, vor dem ersten Ring 0.
+
+Hoehensuche (`stop_at_bad`): Ein Praefix des Plans bis zu einer Schichtgrenze ist der Plan des
+niedrigeren Teils. Fuehrt dort ein Verbinder in die naechste Schicht, plant der Planer das Strangende
+(Abfahren, Abheben) zusaetzlich als `Tail`; `truncate` haengt es an. Die Hoehensuche stoppt an der
+ersten Schicht, deren Ringe, Verbinder oder Strangende nicht gehen.
 """
 
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -19,11 +36,25 @@ from roboprint.robot import HOME_Q
 from roboprint.selfcheck import TOL_LIFT_MM
 
 from .backend import can_fork_pool, contacts_batch, contacts_parallel
-from .densify import Dense, movej, movel, movel_chain
+from .densify import Dense, movej, movel, print_dense
 from .graph import N_BRANCH, RingGraph, RingPath, build_graph, mark_hard, solve_ring
 from .kin import Kin, nearest_variant
 from .params import PlannerParams
-from .result import _IN_RING, PlannedPath, summarize, truncate
+from .result import PlannedPath, Tail, summarize, truncate
+from .samples import (
+    Cursor,
+    OpenStrand,
+    Piece,
+    RingTask,
+    Samples,
+    branch_order,
+    branch_q,
+    last_ok,
+    pieces_bad,
+    reanchor,
+    samples_bad,
+    tail_of,
+)
 
 _RING_RETRIES = 2
 #: Planer, dessen Ring-Graphen die Pool-Prozesse bauen (fork erbt ihn, siehe `_graph_worker`)
@@ -45,39 +76,19 @@ def _check_worker(args: tuple[np.ndarray, np.ndarray]) -> list[Any]:
 
 
 @dataclass
-class RingTask:
-    """Ein Druckring in W: Wegpunkte (geschlossen), Schicht, Index im Toolpath."""
+class _Motion:
+    """Geplante Bewegung eines Rings: Zugang (lower/approach bzw. Verbinder), Druck, Abfahren."""
 
-    index: int
-    layer: int
-    p_W: np.ndarray  # (n,3)  # noqa: N815
-
-
-@dataclass
-class Samples:
-    q: list[np.ndarray] = field(default_factory=list)
-    ok: list[np.ndarray] = field(default_factory=list)
-    p_W: list[np.ndarray] = field(default_factory=list)  # noqa: N815
-    psi: list[np.ndarray] = field(default_factory=list)
-    kind: list[str] = field(default_factory=list)
-    ring: list[int] = field(default_factory=list)
-    layer: list[int] = field(default_factory=list)
-    contacts: list[Any] = field(default_factory=list)
-    n: int = 0
-
-    def add(self, d: Dense, kind: str, ring: int, layer: int, contacts: list[Any] | None = None) -> range:
-        m = len(d.q)
-        self.q.append(d.q)
-        self.ok.append(d.ok)
-        self.p_W.append(d.p_W)
-        self.psi.append(d.psi)
-        self.kind += [kind] * m
-        self.ring += [ring] * m
-        self.layer += [layer] * m
-        self.contacts += contacts if contacts is not None else [None] * m
-        r = range(self.n, self.n + m)
-        self.n += m
-        return r
+    pre: list[Piece]  # vor dem Druck (lower, approach bzw. link)
+    dp: Dense
+    cp: list[Any]
+    dr: Dense
+    cr: list[Any]
+    q_e: np.ndarray  # Gelenkstellung am Ringende
+    psi_e: float
+    bad_wp: np.ndarray  # Wegpunkte, deren Knoten neu gewaehlt werden sollen
+    core_bad: bool = False  # Verbinder oder Druck geht nicht (nur Verbinder-Versuch)
+    q_ls: np.ndarray | None = None  # Gelenkstellung ueber dem Ringstart (Travel)
 
 
 class PartPlanner:
@@ -126,6 +137,12 @@ class PartPlanner:
         self._pending: list[tuple[int, int, Any]] = []  # (erstes Sample, Anzahl, AsyncResult)
         self._sent = 0  # Samples bis hierher an den Pool gegeben
         self._final_done = np.zeros(0, bool)
+        # Strang: offener Ring (Ende steht aus), Stand nach dem letzten Strangende, Strangenden je
+        # Schichtgrenze mit Verbinder (fuer `truncate`)
+        self._open: OpenStrand | None = None
+        self._cur: Cursor | None = None
+        self.tails: dict[int, Tail] = {}
+        self._k_lower = 0
 
     # -------------------------------------------------------------- Hilfen
     def stand_top_W(self, k: int) -> float:  # noqa: N802
@@ -162,27 +179,27 @@ class PartPlanner:
         floor = self.stand_top_W(k) + self.p.z_lift_mm - TOL_LIFT_MM
         return bool(np.any(over & (d.p_W[:, 2] < floor)))
 
-    def _ring_bad(self, n0: int, i0: int, free: bool) -> bool:
-        """Hoehensuche: Geht der Ring ab Sample `n0` (Transfer bis Abheben) nicht? Unerreichbar,
-        unter d_hard (mit der echten Welt geprueft), Zweigwechsel im Ring oder unfreier Transfer."""
+    def _block_bad(self, n0: int, i0: int, free: bool) -> bool:
+        """Hoehensuche: Geht das Stueck ab Sample `n0` nicht? Unerreichbar, unter d_hard (mit der
+        echten Welt geprueft), Zweigwechsel im Strang oder unfreier Transfer."""
         if self.aware and not free:
             return True
         s = self.s
-        ok = np.concatenate(s.ok[i0:])
-        d = np.array([c.d_mm if c is not None else np.inf for c in s.contacts[n0:]])
-        if not ok.all() or bool((d < self.p.d_hard_mm).any()):
-            return True
-        from roboprint.robot import branch_of
-
-        br = np.asarray(branch_of(np.vstack(s.q[i0:])), int).reshape(-1)
-        inr = np.array([k in _IN_RING for k in s.kind[n0:]])
-        return bool(np.any(inr[1:] & inr[:-1] & (br[1:] != br[:-1])))
+        return samples_bad(
+            np.vstack(s.q[i0:]), np.concatenate(s.ok[i0:]), s.contacts[n0:], s.kind[n0:], self.p.d_hard_mm
+        )
 
     def _ik_branch(self, p_W: np.ndarray, psi: float, branch: int, q_ref: np.ndarray):  # noqa: N803
         Q, ok = self.kin.ik(p_W[None], np.array([psi]))
         if ok[0, branch]:
             return nearest_variant(Q[0, branch], q_ref)
         return None
+
+    def _movel(self, p_a, psi_a, p_b, psi_b, q_a, branch) -> Dense:
+        t = time.perf_counter()
+        d = movel(self.kin, p_a, psi_a, p_b, psi_b, q_a, branch, self.p)
+        self.timings["dense"] += time.perf_counter() - t
+        return d
 
     # -------------------------------------------------------------- Ring
     def _graph(self, task: RingTask) -> RingGraph:
@@ -203,54 +220,23 @@ class PartPlanner:
             del self._graphs[k]
         return replace(g, d_real=np.full_like(g.d_real, np.nan))
 
-    def _plan_ring(self, task: RingTask, q_prev, b_prev, force_branch=None):
+    def _solve(self, g: RingGraph, q_prev, b_prev, force_branch=None, link: bool = False) -> RingPath:
         t = time.perf_counter()
-        g = self._graph(task)
-        path = solve_ring(g, self.p, self.real if self.aware else None, q_prev, b_prev, force_branch)
+        w = self.p.lambda_link if link else None
+        real = self.real if self.aware else None
+        path = solve_ring(g, self.p, real, q_prev, b_prev, force_branch, w_start=w)
         self.timings["graph"] += time.perf_counter() - t
-        return g, path
+        return path
 
     def _print_dense(self, task: RingTask, path: RingPath) -> tuple[Dense, np.ndarray]:
-        """Druck-Samples entlang des Pfads; liefert auch den Wegpunkt-Index (Segmentende) je Sample.
-
-        Zusammenhaengend erreichbare Wegpunkte werden in einem Zug verdichtet (`movel_chain`);
-        ein Wegpunkt ohne Knoten wird ein `unreachable`-Sample, danach geht es mit einem Sprung
-        weiter (faellt in der Dichtepruefung auf, das Teil ist dann nicht machbar)."""
         t = time.perf_counter()
-        parts, seg = [], []
-        n = len(task.p_W)
-        q_cur = path.q[0]
-        psi_cur = float(path.psi[0])
-        i = 0
-        while i < n - 1:
-            if path.states[i] >= 0 and path.states[i + 1] >= 0:
-                j = i + 1
-                while j + 1 < n and path.states[j + 1] >= 0:
-                    j += 1
-                d, si = movel_chain(
-                    self.kin, task.p_W[i : j + 1], path.psi[i : j + 1], q_cur, path.branch[i : j + 1], self.p
-                )
-                parts.append(d)
-                seg.append(si + i)
-                if d.ok.any():
-                    q_cur = d.q[np.nonzero(d.ok)[0][-1]]
-                psi_cur = float(path.psi[j])
-                i = j
-                continue
-            if path.states[i + 1] < 0:  # Wegpunkt ohne Gelenkloesung: unreachable
-                d = Dense(
-                    q_cur[None], np.zeros(1, bool), task.p_W[i + 1][None], np.array([psi_cur]), np.ones(1)
-                )
-            else:  # wieder erreichbar: Sprung
-                q_cur, psi_cur = path.q[i + 1], float(path.psi[i + 1])
-                d = Dense(
-                    q_cur[None], np.ones(1, bool), task.p_W[i + 1][None], np.array([psi_cur]), np.ones(1)
-                )
-            parts.append(d)
-            seg.append(np.full(1, i + 1))
-            i += 1
+        out = print_dense(self.kin, task.p_W, path, self.p)
         self.timings["dense"] += time.perf_counter() - t
-        return _cat(parts), np.concatenate(seg) if seg else np.zeros(0, int)
+        return out
+
+    def _retract(self, task: RingTask, q_e: np.ndarray, psi_e: float) -> Dense:
+        end = task.p_W[-1]
+        return self._movel(end, psi_e, end + np.array([0, 0, self.p.approach_mm]), psi_e, q_e, branch_q(q_e))
 
     # -------------------------------------------------------------- Travel
     def _transfer(self, q_a: np.ndarray, q_b: np.ndarray, p_a: np.ndarray, p_b: np.ndarray, k: int):
@@ -343,99 +329,193 @@ class PartPlanner:
         self.timings["final_check"] = time.perf_counter() - t
 
     def _run(self) -> None:
-        p, s = self.p, self.s
-        up = np.array([0.0, 0.0, p.approach_mm])
-        q_cur = HOME_Q.copy()
-        p_cur = self.kin.tcp_W(q_cur[None])[0, :3, 3]
-        s.add(
-            Dense(q_cur[None], np.ones(1, bool), p_cur[None], np.zeros(1), np.zeros(1)),
-            "transfer",
-            0,
-            0,
-            self._check(Dense(q_cur[None], np.ones(1, bool), p_cur[None], np.zeros(1), np.zeros(1)), 0),
-        )
-        s.psi[0] = np.array([float(_psi_q(self.kin, q_cur))])
-        b_prev: int | None = None
-        k_travel = 0
-        psi_cur = float(s.psi[0][0])
+        s = self.s
+        q0 = HOME_Q.copy()
+        p0 = self.kin.tcp_W(q0[None])[0, :3, 3]
+        home = Dense(q0[None], np.ones(1, bool), p0[None], np.zeros(1), np.zeros(1))
+        s.add(home, "transfer", 0, 0, self._check(home, 0))
+        s.psi[0] = np.array([_psi_q(self.kin, q0)])
+        self._cur = Cursor(q0, p0, float(s.psi[0][0]), None, 0)
+        self._open = None
         for task in self.rings:
-            L = task.layer
-            n0, i0 = s.n, len(s.q)
-            start = task.p_W[0]
-            self._k_lower = k_travel
-            appr = start + up
-            z_travel = max(self.stand_top_W(k_travel) + p.z_lift_mm, appr[2])
-            p_ls = np.array([appr[0], appr[1], z_travel])
-            # Ring planen; Zweigwechsel nur am Transfer, falls dieser unfrei bleibt
-            order: list[int | None] = [None]
-            chosen = None
-            for force in order:
-                g, path = self._plan_ring(task, q_cur, b_prev, force)
-                for _ in range(_RING_RETRIES + 1):
-                    res = self._ring_motion(task, path, p_ls, appr, L)
-                    if res is None:
+            op = self._open
+            if op is not None and op.task.link_next and task.index == op.task.index + 1:
+                n0, i0 = s.n, len(s.q)
+                if self._link(op, task):
+                    if self.stop_at_bad and self._block_bad(n0, i0, True):
+                        self.layers_ok = task.layer
                         break
-                    bad_wp = res[-1]
-                    if not self.aware or bad_wp.size == 0:
-                        break
-                    mark_hard(g, path, bad_wp)
-                    t = time.perf_counter()
-                    path = solve_ring(g, p, self.real, q_cur, b_prev, force)
-                    self.timings["graph"] += time.perf_counter() - t
-                if res is None:
+                    self._submit_checks()
                     continue
-                q_ls = res[0]
-                legs, free = self._transfer(q_cur, q_ls, p_cur, p_ls, k_travel)
-                if free or not self.aware:
-                    chosen = (path, res, legs, free)
-                    break
-                if chosen is None:
-                    chosen = (path, res, legs, free)
-                if force is None:
-                    b0 = int(path.branch[0])
-                    order += [b for b in _branch_order(g) if b != b0]
-            if chosen is None:  # Ring gar nicht erreichbar
-                d = Dense(q_cur[None], np.zeros(1, bool), start[None], np.array([psi_cur]), np.ones(1))
-                s.add(d, "print", task.index, L, [None])
-                if self.stop_at_bad:
-                    self.layers_ok = L
-                    break
-                continue
-            path, res, legs, free = chosen
-            q_ls, dl, cl, da, ca, dp, cp, dr, cr, _bad = res
-            for d, c in legs:
-                s.add(d, "transfer", task.index, k_travel, c)
-            s.add(dl, "lower", task.index, k_travel, cl)
-            s.add(da, "approach", task.index, L, ca)
-            # Verweil-Sample am Ringstart (Pumpe an, wait t_tot) gehoert zum Druck
-            last = Dense(da.q[-1:], da.ok[-1:], da.p_W[-1:], da.psi[-1:], np.ones(1))
-            s.add(last, "print", task.index, L, ca[-1:])
-            s.add(dp, "print", task.index, L, cp)
-            s.add(dr, "retract", task.index, L, cr)
-            # Abheben
-            k_travel = L + 1
-            p_r = dr.p_W[-1]
-            z_lift = max(self.stand_top_W(k_travel) + p.z_lift_mm, p_r[2])
-            q_r = _last_ok(dr, dp, path)
-            psi_r = float(dr.psi[-1])
-            dlift = movel(
-                self.kin, p_r, psi_r, np.array([p_r[0], p_r[1], z_lift]), psi_r, q_r, _branch_q(q_r), p
-            )
-            s.add(dlift, "lift", task.index, k_travel, self._check(dlift, k_travel))
-            q_cur = _last_ok(dlift, dr, path)
-            p_cur = dlift.p_W[-1]
-            psi_cur = psi_r
-            b_prev = _branch_q(q_cur)
-            if self.stop_at_bad and self._ring_bad(n0, i0, free):
-                self.layers_ok = L
+            if op is not None and not self._close():
+                break
+            if not self._strand_start(task):
                 break
             self._submit_checks()
+        if self._open is not None:  # letzter Strang (nach einem Abbruch der Hoehensuche ohne Bewertung)
+            self._close(evaluate=self.layers_ok is None)
         if self.stop_at_bad and self.layers_ok is None:
             self.layers_ok = 1 + max((r.layer for r in self.rings), default=-1)
 
-    def _ring_motion(self, task: RingTask, path: RingPath, p_ls, appr, L):
+    # -------------------------------------------------------------- Strang
+    def _strand_end(self, op: OpenStrand) -> list[Piece]:
+        """Abfahren (schon geplant) und Abheben des offenen Rings; Abheben um z_lift ueber den
+        Druckstand nach der Schicht des Rings (k = L + 1)."""
+        L = op.task.layer
+        k = L + 1
+        p_r = op.dr.p_W[-1]
+        z_lift = max(self.stand_top_W(k) + self.p.z_lift_mm, p_r[2])
+        q_r = last_ok(op.dr, None, None, op.q_end)
+        psi_r = float(op.dr.psi[-1])
+        dlift = self._movel(p_r, psi_r, np.array([p_r[0], p_r[1], z_lift]), psi_r, q_r, branch_q(q_r))
+        return [
+            (op.dr, "retract", op.task.index, L, op.cr),
+            (dlift, "lift", op.task.index, k, self._check(dlift, k)),
+        ]
+
+    def _close(self, evaluate: bool = True) -> bool:
+        """Strangende: Abfahren und Abheben des offenen Rings anhaengen. False: Hoehensuche stoppt."""
+        op, s = self._open, self.s
+        assert op is not None
+        self._open = None
+        n0, i0 = s.n, len(s.q)
+        pieces = self._strand_end(op)
+        for d, kind, ring, k, c in pieces:
+            s.add(d, kind, ring, k, c)
+        dlift = pieces[-1][0]
+        q = last_ok(dlift, op.dr, None, op.q_end)
+        self._cur = Cursor(q, dlift.p_W[-1], float(op.dr.psi[-1]), branch_q(q), op.task.layer + 1)
+        if evaluate and self.stop_at_bad and self._block_bad(n0, i0, True):
+            self.layers_ok = op.task.layer
+            return False
+        return True
+
+    def _link(self, op: OpenStrand, task: RingTask) -> bool:
+        """Ring `task` ueber einen Verbinder an den offenen Strang haengen (SPEC §5.3). False: geht
+        nicht, der Strang endet an `op`."""
+        b = op.branch
+        g = self._graph(task)
+        path = self._solve(g, op.q_end, b, b, link=True)
+        best: _Motion | None = None
+        for attempt in range(_RING_RETRIES + 1):
+            mo = self._link_motion(task, path, op, b)
+            if mo is None:
+                break
+            if not mo.core_bad:
+                best = mo
+                if mo.bad_wp.size == 0:
+                    break
+            if not self.aware or mo.bad_wp.size == 0 or attempt == _RING_RETRIES:
+                break
+            mark_hard(g, path, mo.bad_wp)
+            path = self._solve(g, op.q_end, b, b, link=True)
+        if best is None:
+            return False
+        s = self.s
+        if task.layer != op.task.layer:
+            # Schichtgrenze: Strangende fuer einen Plan, der hier endet (Hoehensuche, `truncate`)
+            tail = self._strand_end(op)
+            if self.stop_at_bad and pieces_bad(tail, self.p.d_hard_mm):
+                return False
+            self.tails[s.n] = tail_of(tail)
+        for d, kind, ring, k, c in best.pre:
+            s.add(d, kind, ring, k, c)
+        s.add(best.dp, "print", task.index, task.layer, best.cp)
+        self._open = OpenStrand(task, best.q_e, best.psi_e, best.dr, best.cr)
+        return True
+
+    def _link_motion(self, task: RingTask, path: RingPath, op: OpenStrand, b: int) -> _Motion | None:
+        """Verbinder (movel Ende von r -> Start von r + 1) und Druck von r + 1 im Zweig `b`; None, wenn
+        das im Zweig nicht geht (unerreichbar, Sprung, Zweigwechsel)."""
+        if (path.states < 0).any() or (path.branch != b).any() or path.restarts:
+            return None
+        L = task.layer
+        dk = self._movel(op.task.p_W[-1], op.psi_end, task.p_W[0], float(path.psi[0]), op.q_end, b)
+        if not dk.ok.all():
+            return None
+        dp, seg = self._print_dense(task, reanchor(path, dk.q[-1]))
+        if len(dp.q) == 0 or not dp.ok.all():
+            return None
+        from roboprint.robot import branch_of
+
+        if (np.asarray(branch_of(np.vstack([dk.q, dp.q])), int).reshape(-1) != b).any():
+            return None
+        q_e, psi_e = dp.q[-1], float(path.psi[-1])
+        dr = self._retract(task, q_e, psi_e)
+        ck, cp, cr = self._check(dk, L), self._check(dp, L), self._check(dr, L)
+        bad_wp, core_bad = np.zeros(0, int), False
+        if self.aware:
+            bk, bp = self._bad(ck, dk), self._bad(cp, dp)
+            core_bad = bool(bk.any() or bp.any())
+            if bk.any():
+                bad_wp = np.array([0])
+            if bp.any():
+                bad_wp = np.unique(np.concatenate([bad_wp, seg[bp], seg[bp] - 1]))
+            if self._bad(cr, dr).any():
+                bad_wp = np.unique(np.concatenate([bad_wp, [len(task.p_W) - 1]]))
+        pre: list[Piece] = [(dk, "link", task.index, L, ck)]
+        return _Motion(pre, dp, cp, dr, cr, q_e, psi_e, bad_wp, core_bad)
+
+    def _strand_start(self, task: RingTask) -> bool:
+        """Travel zum Ring `task` (Zweigwechsel nur hier, falls der Transfer unfrei bleibt), Anfahrt,
+        Verweil-Sample und Druck: Beginn eines neuen Strangs. False: Hoehensuche stoppt."""
+        p, s, cur = self.p, self.s, self._cur
+        assert cur is not None
+        L = task.layer
+        n0, i0 = s.n, len(s.q)
+        start = task.p_W[0]
+        self._k_lower = cur.k
+        appr = start + np.array([0.0, 0.0, p.approach_mm])
+        z_travel = max(self.stand_top_W(cur.k) + p.z_lift_mm, appr[2])
+        p_ls = np.array([appr[0], appr[1], z_travel])
+        order: list[int | None] = [None]
+        chosen = None
+        for force in order:
+            g = self._graph(task)
+            path = self._solve(g, cur.q, cur.branch, force)
+            for _ in range(_RING_RETRIES + 1):
+                mo = self._ring_motion(task, path, p_ls, appr, L)
+                if mo is None or not self.aware or mo.bad_wp.size == 0:
+                    break
+                mark_hard(g, path, mo.bad_wp)
+                path = self._solve(g, cur.q, cur.branch, force)
+            if mo is None:
+                continue
+            assert mo.q_ls is not None
+            legs, free = self._transfer(cur.q, mo.q_ls, cur.p, p_ls, cur.k)
+            if free or not self.aware:
+                chosen = (mo, legs, free)
+                break
+            if chosen is None:
+                chosen = (mo, legs, free)
+            if force is None:
+                b0 = int(path.branch[0])
+                order += [b for b in branch_order(g) if b != b0]
+        if chosen is None:  # Ring gar nicht erreichbar
+            d = Dense(cur.q[None], np.zeros(1, bool), start[None], np.array([cur.psi]), np.ones(1))
+            s.add(d, "print", task.index, L, [None])
+            if self.stop_at_bad:
+                self.layers_ok = L
+                return False
+            return True
+        mo, legs, free = chosen
+        for d, c in legs:
+            s.add(d, "transfer", task.index, cur.k, c)
+        for d, kind, ring, k, c in mo.pre:
+            s.add(d, kind, ring, k, c)
+        # Verweil-Sample am Strangbeginn (Pumpe an, wait t_tot) gehoert zum Druck
+        da, ca = mo.pre[-1][0], mo.pre[-1][4]
+        dwell = Dense(da.q[-1:], da.ok[-1:], da.p_W[-1:], da.psi[-1:], np.ones(1))
+        s.add(dwell, "print", task.index, L, ca[-1:])
+        s.add(mo.dp, "print", task.index, L, mo.cp)
+        self._open = OpenStrand(task, mo.q_e, mo.psi_e, mo.dr, mo.cr)
+        if self.stop_at_bad and self._block_bad(n0, i0, free):
+            self.layers_ok = L
+            return False
+        return True
+
+    def _ring_motion(self, task: RingTask, path: RingPath, p_ls, appr, L) -> _Motion | None:
         """lower, approach, print, retract fuer einen Ringpfad; None, wenn Ringstart unerreichbar."""
-        p = self.p
         if path.states[0] < 0:
             return None
         b = int(path.branch[0])
@@ -443,26 +523,13 @@ class PartPlanner:
         q_ls = self._ik_branch(p_ls, psi0, b, q0)
         if q_ls is None:
             return None
-        t = time.perf_counter()
-        dl = movel(self.kin, p_ls, psi0, appr, psi0, q_ls, b, p)
-        q_a = _last_ok(dl, None, None, q_ls)
-        da = movel(self.kin, appr, psi0, task.p_W[0], psi0, q_a, b, p)
-        self.timings["dense"] += time.perf_counter() - t
-        dp, seg = self._print_dense(task, _reanchor(path, _last_ok(da, None, None, q_a)))
-        q_e = _last_ok(dp, da, None, q_a)
+        dl = self._movel(p_ls, psi0, appr, psi0, q_ls, b)
+        q_a = last_ok(dl, None, None, q_ls)
+        da = self._movel(appr, psi0, task.p_W[0], psi0, q_a, b)
+        dp, seg = self._print_dense(task, reanchor(path, last_ok(da, None, None, q_a)))
+        q_e = last_ok(dp, da, None, q_a)
         psi_e = float(path.psi[-1]) if path.states[-1] >= 0 else psi0
-        t = time.perf_counter()
-        dr = movel(
-            self.kin,
-            task.p_W[-1],
-            psi_e,
-            task.p_W[-1] + np.array([0, 0, p.approach_mm]),
-            psi_e,
-            q_e,
-            _branch_q(q_e),
-            p,
-        )
-        self.timings["dense"] += time.perf_counter() - t
+        dr = self._retract(task, q_e, psi_e)
         cl = self._check(dl, self._k_lower)
         ca = self._check(da, L)
         cp = self._check(dp, L)
@@ -476,7 +543,8 @@ class PartPlanner:
                 bad_wp = np.unique(np.concatenate([bad_wp, [0]]))
             if self._bad(cr, dr).any():
                 bad_wp = np.unique(np.concatenate([bad_wp, [len(task.p_W) - 1]]))
-        return q_ls, dl, cl, da, ca, dp, cp, dr, cr, bad_wp
+        pre: list[Piece] = [(dl, "lower", task.index, self._k_lower, cl), (da, "approach", task.index, L, ca)]
+        return _Motion(pre, dp, cp, dr, cr, q_e, psi_e, bad_wp, q_ls=q_ls)
 
     def _finish(self) -> PlannedPath:
         s, p = self.s, self.p
@@ -493,55 +561,32 @@ class PartPlanner:
             cs = contacts_parallel(self.final, q[todo], np.array([s.layer[i] for i in todo]), self.procs)
             for i, c in zip(todo, cs, strict=True):
                 s.contacts[i] = c
+        # Strangenden an Schichtgrenzen (nur fuer `truncate`): ungepruefte Samples mit der echten Welt
+        tt = [
+            (tl, i)
+            for tl in self.tails.values()
+            for i in range(len(tl.q))
+            if tl.ok[i] and tl.contacts[i] is None
+        ]
+        if tt:
+            qs = np.array([tl.q[i] for tl, i in tt])
+            cs = contacts_parallel(self.final, qs, np.array([tl.layer[i] for tl, i in tt]), self.procs)
+            for (tl, i), c in zip(tt, cs, strict=True):
+                tl.contacts[i] = c
         self.timings["final_check"] = self.timings.get("final_check", 0.0) + time.perf_counter() - t
         path = summarize(
             q, ok, np.vstack(s.p_W), np.concatenate(s.psi), s.kind, s.ring, s.layer, s.contacts, p,
             dict(self.timings),
         )  # fmt: skip
         path.layers_ok = self.layers_ok
+        path.tails = self.tails
         return path
-
-
-def _cat(parts: list[Dense]) -> Dense:
-    if not parts:
-        return Dense.empty()
-    return Dense(*(np.concatenate([getattr(d, f) for d in parts]) for f in ("q", "ok", "p_W", "psi", "u")))
-
-
-def _last_ok(d: Dense, fallback: Dense | None, path: RingPath | None, q_default=None) -> np.ndarray:
-    for x in (d, fallback):
-        if x is not None and x.ok.any():
-            return x.q[np.nonzero(x.ok)[0][-1]]
-    if q_default is not None:
-        return q_default
-    if path is not None:
-        return path.q[np.nonzero(path.states >= 0)[0][-1]]
-    raise ValueError("keine gueltige Gelenkstellung")
-
-
-def _branch_q(q: np.ndarray) -> int:
-    from roboprint.robot import branch_of
-
-    return int(branch_of(q))
 
 
 def _psi_q(kin: Kin, q: np.ndarray) -> float:
     from .kin import psi_of
 
     return float(psi_of(kin.tcp_W(q[None])[:, :3, :3])[0])
-
-
-def _reanchor(path: RingPath, q_start: np.ndarray) -> RingPath:
-    """Pfad an die tatsaechliche Startstellung (Ende der Anfahrt) anschliessen."""
-    q = path.q.copy()
-    q[0] = q_start
-    return RingPath(path.states, q, path.psi, path.branch, path.cost, path.restarts)
-
-
-def _branch_order(g) -> list[int]:
-    """Zweige nach Anzahl gueltiger Knoten am Ringstart (fuer den Zweigwechsel am Transfer)."""
-    v = g.valid[0].reshape(-1, N_BRANCH).sum(0)
-    return [int(b) for b in np.argsort(-v) if v[b] > 0]
 
 
 __all__ = ["PartPlanner", "PlannedPath", "RingTask", "summarize", "truncate"]

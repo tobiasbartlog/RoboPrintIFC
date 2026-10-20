@@ -92,6 +92,61 @@ def test_two_contours_order():
     sl = slice_part(trimesh.util.concatenate([a, b]), P)
     rs = [r for r in sl.rings if r.layer == 0]
     assert [r.shell for r in rs] == [0, 0, 1, 1]
+    _assert_links_over_material(trimesh.util.concatenate([a, b]), sl)
+
+
+# --- Verbinder (SPEC §5.3, Nutzerentscheidung 20.10.2026) ---
+
+
+def _assert_links_over_material(mesh, sl, link_max=60.0):
+    """Jeder erlaubte Verbinder: Schicht L oder L + 1, waagrecht <= link_max, Gerade im Querschnitt."""
+    for a, b in zip(sl.rings[:-1], sl.rings[1:], strict=True):
+        if not a.link_next:
+            continue
+        assert b.layer in (a.layer, a.layer + 1)
+        pa, pb = a.points[-1, :2], b.points[0, :2]
+        assert np.linalg.norm(pb - pa) <= link_max + 1e-9
+        geom = LineString([pa, pb]) if np.linalg.norm(pb - pa) > 1e-9 else Point(pa)
+        for L in {a.layer, b.layer}:
+            assert _section_poly(mesh, (L + 0.5) * 10).buffer(0.01).covers(geom)
+    assert not sl.rings[-1].link_next
+
+
+def test_verbinder_quader():
+    """Schale 0 -> 1 in der Schicht und Schale 1 -> 0 beim Schichtwechsel, je 30 * sqrt(2) mm."""
+    sl = slice_part(_box(600, 200, 100), P)
+    flags = [r.link_next for r in sl.rings]
+    assert flags == [True] * (len(flags) - 1) + [False]
+    for a, b in zip(sl.rings[:-1], sl.rings[1:], strict=True):
+        assert np.linalg.norm(b.points[0, :2] - a.points[-1, :2]) == pytest.approx(30 * np.sqrt(2))
+    tp = to_toolpath(sl, np.eye(4), "p0")
+    assert [r.link_next for r in tp.rings] == flags
+    assert not any(r.link_next for r in slice_part(_box(600, 200, 40), SliceParams(link_max_mm=0.0)).rings)
+    assert not any(r.link_next for r in slice_part(_box(600, 200, 40), SliceParams(link_max_mm=40.0)).rings)
+
+
+def test_kein_verbinder_ueber_einen_spalt():
+    """Zwei Inseln mit 6 mm Spalt: Ende links und Start rechts liegen 56 mm auseinander (< link_max_mm),
+    die Gerade fuehrt aber ueber den Spalt. Uebereinander (Schichtwechsel derselben Insel) geht es."""
+    a, b = _box(50, 200, 20), _box(50, 200, 20)
+    a.apply_translation([-28, 0, 0])
+    b.apply_translation([28, 0, 0])
+    mesh = trimesh.util.concatenate([a, b])
+    for lmax in (60.0, 200.0):
+        sl = slice_part(mesh, SliceParams(link_max_mm=lmax))
+        _assert_links_over_material(mesh, sl, lmax)
+        side = [np.sign(r.points[0, 0]) for r in sl.rings]
+        assert [r.layer for r in sl.rings] == [0, 0, 1, 1]
+        for r, (s0, s1) in enumerate(zip(side[:-1], side[1:], strict=True)):
+            assert sl.rings[r].link_next == (s0 == s1)
+        assert sl.rings[1].link_next  # Schichtwechsel ueber derselben Insel
+
+
+def test_kein_verbinder_ueber_die_oeffnung():
+    mesh = _wall_with_window()
+    sl = slice_part(mesh, P)
+    _assert_links_over_material(mesh, sl)
+    assert sum(r.link_next for r in sl.rings) > 0
 
 
 def test_thin_wall_drops_second_shell():

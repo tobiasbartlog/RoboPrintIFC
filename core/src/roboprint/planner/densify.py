@@ -4,7 +4,8 @@
   dem kuerzeren Bogen). IK entlang der Bahn im festen Zweig, je Sample die 2pi-Variante nahe
   am Vorgaenger. Gibt es im Zweig keine Loesung, ist das Sample `unreachable` (q bleibt die
   letzte gueltige Loesung, nur zur Anzeige; nie eingefroren weitergeprueft).
-  `movel_chain` verdichtet eine ganze Folge von movel-Stuecken (ein Druckring) vektorisiert.
+  `movel_chain` verdichtet eine ganze Folge von movel-Stuecken (ein Druckring) vektorisiert,
+  `print_dense` einen ganzen Ringpfad aus dem Ladder-Graphen.
 - `movej`: gelenklinear.
 - Abtastung, bis zwischen zwei Samples der TCP <= dense_tcp_mm wandert und max|dq| <= dense_dq_rad.
 
@@ -18,6 +19,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .graph import RingPath
 from .kin import Kin, joint_diff, nearest_variant, psi_of, wrap_pi
 from .params import PlannerParams
 
@@ -231,3 +233,42 @@ def movej(kin: Kin, q_a: np.ndarray, q_b: np.ndarray, params: PlannerParams) -> 
         Q = q_a + u[:, None] * dq  # noqa: N806
         T = kin.tcp_W(Q)  # noqa: N806
     return Dense(Q[1:], np.ones(m, bool), T[1:, :3, 3], psi_of(T[1:, :3, :3]), u[1:])
+
+
+def print_dense(kin: Kin, P: np.ndarray, path: RingPath, params: PlannerParams) -> tuple[Dense, np.ndarray]:  # noqa: N803
+    """Druck-Samples entlang eines Ringpfads (Wegpunkte `P`); liefert auch den Wegpunkt-Index
+    (Segmentende) je Sample.
+
+    Zusammenhaengend erreichbare Wegpunkte werden in einem Zug verdichtet (`movel_chain`), ab der
+    Stellung `path.q[0]`; ein Wegpunkt ohne Knoten wird ein `unreachable`-Sample, danach geht es mit
+    einem Sprung weiter (faellt in der Dichtepruefung auf, das Teil ist dann nicht machbar)."""
+    parts, seg = [], []
+    n = len(P)
+    q_cur = path.q[0]
+    psi_cur = float(path.psi[0])
+    i = 0
+    while i < n - 1:
+        if path.states[i] >= 0 and path.states[i + 1] >= 0:
+            j = i + 1
+            while j + 1 < n and path.states[j + 1] >= 0:
+                j += 1
+            d, si = movel_chain(kin, P[i : j + 1], path.psi[i : j + 1], q_cur, path.branch[i : j + 1], params)
+            parts.append(d)
+            seg.append(si + i)
+            if d.ok.any():
+                q_cur = d.q[np.nonzero(d.ok)[0][-1]]
+            psi_cur = float(path.psi[j])
+            i = j
+            continue
+        if path.states[i + 1] < 0:  # Wegpunkt ohne Gelenkloesung: unreachable
+            d = Dense(q_cur[None], np.zeros(1, bool), P[i + 1][None], np.array([psi_cur]), np.ones(1))
+        else:  # wieder erreichbar: Sprung
+            q_cur, psi_cur = path.q[i + 1], float(path.psi[i + 1])
+            d = Dense(q_cur[None], np.ones(1, bool), P[i + 1][None], np.array([psi_cur]), np.ones(1))
+        parts.append(d)
+        seg.append(np.full(1, i + 1))
+        i += 1
+    if not parts:
+        return Dense.empty(), np.zeros(0, int)
+    cat = Dense(*(np.concatenate([getattr(d, f) for d in parts]) for f in ("q", "ok", "p_W", "psi", "u")))
+    return cat, np.concatenate(seg)

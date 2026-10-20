@@ -98,13 +98,15 @@ def scan_fn(
 
 
 def _same_rings(low: list[Any], high: list[Any], n_layers: int) -> bool:
-    """Sind die Ringe `low` exakt die Ringe von `high` unter Schicht `n_layers`?"""
+    """Sind die Ringe `low` exakt die Ringe von `high` unter Schicht `n_layers`? Auch die Verbinder
+    (`link_next`) muessen gleich sein, ausser am obersten Ring von `low` (dort endet das Teil)."""
     if len(low) > len(high) or (len(high) > len(low) and high[len(low)].layer < n_layers):
         return False
     return all(
         a.layer == b.layer and a.shell == b.shell and a.kind == b.kind and a.points.shape == b.points.shape
         and np.allclose(a.points, b.points, atol=1e-6)
-        for a, b in zip(low, high, strict=False)
+        and (a.link_next == b.link_next or i == len(low) - 1)
+        for i, (a, b) in enumerate(zip(low, high, strict=False))
     )  # fmt: skip
 
 

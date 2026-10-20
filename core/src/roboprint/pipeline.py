@@ -38,21 +38,49 @@ from roboprint.planner.kin import Kin
 # Fortschritts-Callback: progress(stage, fraction 0..1, message), siehe `roboprint.api_jobs`.
 ProgressCallback = Callable[[str, float, str], None]
 
-ASSUMPTIONS = [
-    "Schichthoehe h = 10 mm (A)",
-    "Strangbreite w = 30 mm, Duese 30gut (A)",
-    "v_print = 100 mm/s (A)",
-    "v_travel = 250 mm/s, Gelenke <= 30 % der Grenzen (A)",
-    "z_lift = 30 mm ueber Druckstand-Oberkante (A)",
-    "An- und Abfahrt senkrecht 20 mm (A)",
-    "V_pump = 5,0 V konstant auf AO 1 (A)",
-    "t_tot = 3,0 s Verweilzeit am Ringstart (A, provisorisch)",
-    "r_blend = min(2 mm, halbe Segmentlaenge) (A)",
-    "d_hard = 10 mm (A)",
-    "tau_max = 0 Grad (A)",
-    "tcp_name FGC_30GUT muss am Teach Pendant angelegt sein (A)",
-    "Duese rotationssymmetrisch, Gierwinkel psi frei (SPEC §13/3)",
-]
+def _de(v: float, digits: int | None = None) -> str:
+    """Zahl mit Dezimalkomma (deutsche Texte): 5.0 -> '5,0' (digits=1), 2.5 -> '2,5'."""
+    txt = f"{v:.{digits}f}" if digits is not None else f"{v:g}"
+    return txt.replace(".", ",")
+
+
+def assumptions(params: PlannerParams) -> list[str]:
+    """Annahmen und Prozesswerte des Laufs fuer summary.json, aus den tatsaechlich genutzten
+    Parametern. Kennzeichen wie SPEC §10: (A) Annahme mit Standardwert, (Nutzerwert) ueberschrieben."""
+    std = PlannerParams()
+
+    def tag(*names: str, a: str = "A") -> str:
+        same = all(getattr(params, n) == getattr(std, n) for n in names)
+        return a if same else "Nutzerwert"
+
+    p = params
+    if p.link_max_mm > 0:
+        strand = (
+            f"Verbinder bis link_max_mm = {_de(p.link_max_mm)} mm: Ringe werden ueber gedruckte Geraden "
+            "zu Straengen verbunden, ohne Halt und mit durchlaufender Pumpe; Abheben nur zwischen "
+            f"Straengen ({tag('link_max_mm', a='Nutzer 20.10.2026')})"
+        )
+    else:
+        strand = f"link_max_mm = 0: Verbinder aus, jeder Ring ein eigener Strang ({tag('link_max_mm')})"
+    return [
+        f"Schichthoehe h = {_de(p.layer_height_mm)} mm ({tag('layer_height_mm')})",
+        f"Strangbreite w = {_de(p.bead_width_mm)} mm, Duese 30gut ({tag('bead_width_mm')})",
+        f"v_print = {_de(p.v_print_mm_s)} mm/s, auch in Verbindern ({tag('v_print_mm_s')})",
+        f"v_travel = {_de(p.v_travel_mm_s)} mm/s, Gelenke <= {_de(100 * p.joint_speed_fraction)} % der "
+        f"Grenzen ({tag('v_travel_mm_s', 'joint_speed_fraction')})",
+        f"z_lift = {_de(p.z_lift_mm)} mm ueber Druckstand-Oberkante, nur zwischen Straengen "
+        f"({tag('z_lift_mm')})",
+        f"An- und Abfahrt senkrecht {_de(p.approach_mm)} mm ({tag('approach_mm')})",
+        f"V_pump = {_de(p.v_pump_v, 1)} V konstant auf AO 1 ({tag('v_pump_v')})",
+        f"t_tot = {_de(p.t_tot_s, 1)} s Pumpen-Vorlauf am Strangbeginn, einmal je Strang "
+        f"({tag('t_tot_s')}, provisorisch)",
+        strand,
+        f"r_blend = min({_de(p.r_blend_mm)} mm, halbe Segmentlaenge), im ganzen Strang ({tag('r_blend_mm')})",
+        f"d_hard = {_de(p.d_hard_mm)} mm ({tag('d_hard_mm')})",
+        f"tau_max = {_de(p.tau_max_deg)} Grad ({tag('tau_max_deg')})",
+        f"tcp_name {p.tcp_name} muss am Teach Pendant angelegt sein ({tag('tcp_name')})",
+        "Duese rotationssymmetrisch, Gierwinkel psi frei (SPEC §13/3)",
+    ]
 
 
 @dataclass
@@ -247,7 +275,7 @@ def run_scenario(path: Path, out: Path, jobs: int = 1, progress: ProgressCallbac
             scenario_id=scn.id,
             scenario_path=str(path),
             params=params.as_summary(),
-            assumptions=ASSUMPTIONS,
+            assumptions=assumptions(params),
             walls=walls,
             parts=entries,
             timings_s={k: round(v, 3) for k, v in timings.items()},

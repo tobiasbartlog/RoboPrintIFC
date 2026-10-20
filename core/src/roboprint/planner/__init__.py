@@ -6,9 +6,10 @@ Schnittstelle::
     scan_height(part_mesh_P, part_id, params) -> PartPlan          # Hoehensuche, `path.layers_ok`
     truncate_plan(plan, n_layers, params) -> PartPlan              # Plan der unteren Schichten
 
-Module: `graph` (Knoten, Kanten, Viterbi), `plan` (Ringe, Travel, Pruefung), `result` (Status,
-Ursache, Praefix), `densify` (movel/movej-Abtastung), `placement` (Druckplatz), `backend`
-(Kollisions-Naht, Kugel-Double), `kin` (Posen mit psi), `params` (SPEC §10).
+Module: `graph` (Knoten, Kanten, Viterbi), `plan` (Ringe, Straenge mit Verbindern, Travel,
+Pruefung), `samples` (Ringaufgabe, Samples, Strangzustand), `result` (Status, Ursache, Praefix),
+`densify` (movel/movej-Abtastung), `placement` (Druckplatz), `backend` (Kollisions-Naht,
+Kugel-Double), `kin` (Posen mit psi), `params` (SPEC §10).
 """
 
 from __future__ import annotations
@@ -47,12 +48,20 @@ class PartPlan:
 
 def slice_params(params: PlannerParams) -> SliceParams:
     return SliceParams(
-        params.layer_height_mm, params.bead_width_mm, params.shells, params.step_mm, params.approach_mm
+        params.layer_height_mm,
+        params.bead_width_mm,
+        params.shells,
+        params.step_mm,
+        params.approach_mm,
+        params.link_max_mm,
     )
 
 
 def ring_tasks(sliced: SlicedPart, T_WP: np.ndarray) -> list[RingTask]:  # noqa: N803
-    return [RingTask(i, r.layer, frames.transform_points(T_WP, r.points)) for i, r in enumerate(sliced.rings)]
+    return [
+        RingTask(i, r.layer, frames.transform_points(T_WP, r.points), r.link_next)
+        for i, r in enumerate(sliced.rings)
+    ]
 
 
 def _setup(part_mesh_P, sliced, placement, params, root, world_factory):  # noqa: N803
@@ -215,7 +224,9 @@ def scan_height(
 
 
 def _prefix_len(path: PlannedPath, sliced: SlicedPart, n_layers: int) -> int:
-    """Anzahl Samples bis einschliesslich des Abhebens nach Schicht `n_layers` - 1."""
+    """Anzahl Samples vor dem ersten Sample eines Rings der Schicht `n_layers` (Travel bzw.
+    Verbinder dorthin gehoeren zu diesem Ring). Endet dort ein Strang offen, haengt `truncate` das
+    Strangende an."""
     r_cut = sum(1 for r in sliced.rings if r.layer < n_layers)
     if any(r.layer >= n_layers for r in sliced.rings[:r_cut]):
         raise ValueError("Ringe sind nicht nach Schichten geordnet")
@@ -223,9 +234,15 @@ def _prefix_len(path: PlannedPath, sliced: SlicedPart, n_layers: int) -> int:
 
 
 def truncate_plan(pp: PartPlan, n_layers: int, params: PlannerParams) -> PartPlan:
-    """Plan der unteren `n_layers` Schichten eines Plans aus `scan_height` (gleiche Platzierung)."""
+    """Plan der unteren `n_layers` Schichten eines Plans aus `scan_height` (gleiche Platzierung).
+
+    Der oberste Ring hat im niedrigeren Teil keinen Nachfolger, also auch keinen Verbinder; sein
+    Strang endet dort (`truncate` haengt Abfahren und Abheben aus dem Plan an)."""
     r_cut = sum(1 for r in pp.sliced.rings if r.layer < n_layers)
-    sliced = SlicedPart(pp.sliced.layer_height_mm, pp.sliced.bead_width_mm, n_layers, pp.sliced.rings[:r_cut])
+    rings = list(pp.sliced.rings[:r_cut])
+    if rings and rings[-1].link_next:
+        rings[-1] = replace(rings[-1], link_next=False)
+    sliced = SlicedPart(pp.sliced.layer_height_mm, pp.sliced.bead_width_mm, n_layers, rings)
     path = truncate(pp.path, _prefix_len(pp.path, pp.sliced, n_layers), params)
     return replace(pp, sliced=sliced, path=path)
 

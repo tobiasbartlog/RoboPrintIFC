@@ -7,14 +7,21 @@ Pruefungen, wird es `nicht machbar` mit Ursache.
 Pruefungen (Buchstaben wie in der Aufgabe A4.2):
 
 - a: Schichtreihenfolge ueber die Druckringe monoton nicht fallend; `layer` (k) der Samples von
-     `approach`/`print`/`retract`/`lift` passt zur Ringschicht (spec/ARTEFAKTE.md).
+     `approach`/`print`/`retract`/`link`/`lift` passt zur Ringschicht (spec/ARTEFAKTE.md: `link` vor
+     Ring r + 1 hat k = Schicht von r + 1). Ablauf je Strang: jeder Ring hat genau einen
+     Druckabschnitt, davor `approach` oder `link` desselben Rings, danach `retract` desselben Rings oder
+     `link` des Rings r + 1; `link` nach Ring r + 1 nur direkt zwischen Druck r und Druck r + 1 und nur
+     mit `toolpath.rings[r].link_next`.
 - b: Travel (`lift`, `transfer`, `lower`): TCP nie im Druckstand-Solid; ueber der Teil-Grundflaeche
      (Druckstand k) liegt der TCP am Ende des Abhebens und im ganzen Transfer mindestens
      z_lift - TOL_LIFT_MM ueber der Druckstand-Oberkante; `lower` endet approach_mm ueber dem Ringstart.
 - c: Teil-Grundriss liegt in der Tischplatte (Tischumriss auf Hoehe der Arbeitsflaeche aus dem
      Tisch-STL) und schneidet die Roboterbasis nicht.
 - d: Jeder Druck-Wegpunkt liegt im Materialquerschnitt seiner Schicht (Toleranz TOL_PRINT_MM) und
-     auf der Ringhoehe (L + 1) * h.
+     auf der Ringhoehe (L + 1) * h. Verbinder (SPEC §5.3): Samples hoechstens TOL_LINK_MM neben der
+     Geraden vom letzten Wegpunkt von r zum ersten Wegpunkt von r + 1, das letzte Sample an deren
+     Ende; die waagrechte Gerade liegt im Querschnitt der Schicht von r + 1 und beim Schichtwechsel
+     auch der von r (Toleranz TOL_PRINT_MM), ihre waagrechte Laenge ist <= link_max_mm.
 - e: Die Trajektorie beginnt in der Home-Pose.
 - f: Teilmasse stimmen mit dem Szenario (Box) bzw. der Zerlegung ueberein.
 """
@@ -30,7 +37,7 @@ from typing import Any
 import numpy as np
 import shapely
 from shapely.affinity import affine_transform
-from shapely.geometry import MultiPolygon, Polygon
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from shapely.ops import unary_union
 
 from roboprint import frames
@@ -41,6 +48,8 @@ from roboprint.slicer import _section_polygons
 TOL_LIFT_MM = 5.0  # Abheben/Transfer: z_lift minus Toleranz ueber der Druckstand-Oberkante
 TOL_LOWER_MM = 1.0  # `lower` endet approach_mm ueber dem Ringstart (Lage und Hoehe)
 TOL_PRINT_MM = 1.0  # Druck-Wegpunkt im Material (Querschnitt um die Toleranz aufgeweitet), Ringhoehe
+TOL_LINK_MM = 0.5  # Verbinder-Sample neben seiner Geraden (wie SPEC §11 G3)
+TOL_LINK_LEN_MM = 0.01  # waagrechte Verbinderlaenge gegen link_max_mm (Rundung der Wegpunkte)
 TOL_TABLE_MM = 0.5  # Grundriss in der Tischplatte (wie die S2-Regel des Pruefers)
 TOL_BASE_AREA_MM2 = 1.0  # erlaubte Schnittflaeche Grundriss / Roboterbasis (Beruehrung)
 TOL_HOME_RAD = 0.0087  # 0,5 Grad
@@ -49,7 +58,7 @@ TOL_VOLUME_REL = 0.005
 MAX_SAMPLES_REPORTED = 3
 
 _TRAVEL = ("lift", "transfer", "lower")
-_RING_KINDS = ("approach", "print", "retract")
+_RING_KINDS = ("approach", "print", "retract", "link")  # k = Schicht des eigenen Rings
 
 
 @dataclass(frozen=True)
@@ -143,7 +152,35 @@ def _check_order(tr: Any, tp: Any) -> list[Violation]:
         if (k in _RING_KINDS or k == "lift") and ly != want:
             out.append(Violation("a", i, f"{k} in Ring {r}: Druckstand k = {ly}, erwartet {want}"))
             break
+    out += _check_strands(kind, ring, rings)
     return out
+
+
+def _check_strands(kind: list[str], ring: list[int], rings: Sequence[Any]) -> list[Violation]:
+    """Ablauf je Strang (spec/ARTEFAKTE.md); meldet den ersten Verstoss."""
+    segs = _runs(kind, ring)
+    printed: set[int] = set()
+    for j, (a, _b, k) in enumerate(segs):
+        r = ring[a]
+        prev = (segs[j - 1][2], ring[segs[j - 1][0]]) if j > 0 else None
+        nxt = (segs[j + 1][2], ring[segs[j + 1][0]]) if j + 1 < len(segs) else None
+        msg = None
+        if k == "print":
+            if r in printed:
+                msg = f"Ring {r} hat mehrere Druckabschnitte"
+            elif prev not in (("approach", r), ("link", r)):
+                msg = f"Ring {r}: vor dem Druck steht {prev}, erwartet approach oder link desselben Rings"
+            elif nxt not in (("retract", r), ("link", r + 1)):
+                msg = f"Ring {r}: nach dem Druck steht {nxt}, erwartet retract oder link zu Ring {r + 1}"
+            printed.add(r)
+        elif k == "link":
+            if not 1 <= r < len(rings) or not getattr(rings[r - 1], "link_next", False):
+                msg = f"Verbinder von Ring {r - 1} nach Ring {r} ohne link_next"
+            elif prev != ("print", r - 1) or nxt != ("print", r):
+                msg = f"Verbinder nach Ring {r} steht nicht zwischen Druck {r - 1} und Druck {r}"
+        if msg is not None:
+            return [Violation("a", a, f"Ablauf je Strang: {msg}")]
+    return []
 
 
 def _check_travel(
@@ -255,6 +292,47 @@ def _check_print(tr: Any, tp: Any, P: np.ndarray, sec: _Section, h: float) -> li
     return out
 
 
+def _check_links(
+    tr: Any,
+    tp: Any,
+    P: np.ndarray,  # noqa: N803
+    sec: _Section,
+    T_WP: np.ndarray,  # noqa: N803
+    link_max_mm: float,
+) -> list[Violation]:
+    """Verbinder auf ihrer Geraden, am Ziel, ueber Material und nicht laenger als link_max_mm."""
+    kind, ring = list(tr.kind), list(tr.ring)
+    rings = tp.rings
+    for a, b, k in _runs(kind, ring):
+        r1 = ring[a]
+        if k != "link" or not 1 <= r1 < len(rings):
+            continue
+        r0 = r1 - 1
+        ends_W = np.array([rings[r0].waypoints[-1][:3], rings[r1].waypoints[0][:3]], dtype=float)  # noqa: N806
+        A, B = _to_P(T_WP, ends_W)  # noqa: N806
+        pts = P[a:b]
+        ab = B - A
+        t = np.clip(((pts - A) @ ab) / max(float(ab @ ab), 1e-12), 0.0, 1.0)
+        dev = np.linalg.norm(pts - (A + t[:, None] * ab), axis=1)
+        where = f"Verbinder Ring {r0} -> {r1}"
+        if dev.max() > TOL_LINK_MM:
+            i = a + int(np.argmax(dev))
+            return [Violation("d", i, f"{where}: Sample {i} {dev.max():.2f} mm neben der Geraden")]
+        if np.linalg.norm(pts[-1] - B) > TOL_LINK_MM:
+            return [Violation("d", b - 1, f"{where} endet nicht am Start von Ring {r1}")]
+        hlen = float(np.linalg.norm(ab[:2]))
+        if hlen > link_max_mm + TOL_LINK_LEN_MM:
+            return [Violation("d", a, f"{where}: {hlen:.1f} mm lang, link_max_mm = {link_max_mm:g}")]
+        geom = LineString([A[:2], B[:2]]) if hlen > 1e-9 else Point(A[:2])
+        for L in sorted({rings[r0].layer, rings[r1].layer}):  # noqa: N806
+            poly = sec.layers[L] if L < len(sec.layers) else Polygon()
+            if poly.is_empty or not poly.buffer(TOL_PRINT_MM).covers(geom):
+                off = geom.difference(poly.buffer(TOL_PRINT_MM)).length if not poly.is_empty else hlen
+                msg = f"{where}: {off:.1f} mm ausserhalb des Teilquerschnitts der Schicht {L}"
+                return [Violation("d", a, msg)]
+    return []
+
+
 def _check_placement(sec: _Section, T_WP: np.ndarray, root: Path) -> list[Violation]:  # noqa: N803
     out: list[Violation] = []
     foot_P = sec.stand(len(sec.layers))  # noqa: N806
@@ -340,11 +418,13 @@ def check_part(
     layer_height_mm: float = 10.0,
     z_lift_mm: float = 30.0,
     approach_mm: float = 20.0,
+    link_max_mm: float = 60.0,
     expected_size_mm: Sequence[float] | None = None,
     expected_volume_mm3: float | None = None,
     root: Path = REPO_ROOT,
 ) -> list[Violation]:
-    """Alle Selbstpruefungen. `tr` hat q, tcp, kind, ring, layer; `tp` hat rings[].layer/waypoints."""
+    """Alle Selbstpruefungen. `tr` hat q, tcp, kind, ring, layer; `tp` hat rings[].layer/waypoints
+    (und `link_next`)."""
     h = layer_height_mm
     T_WP = np.asarray(T_WP, float)  # noqa: N806
     out = _check_dims(mesh_P, expected_size_mm, expected_volume_mm3)
@@ -357,6 +437,7 @@ def check_part(
         out += _check_order(tr, tp)
         out += _check_travel(tr, tp, P, sec, z_lift_mm, approach_mm, T_WP)
         out += _check_print(tr, tp, P, sec, h)
+        out += _check_links(tr, tp, P, sec, T_WP, link_max_mm)
     return out
 
 
@@ -379,6 +460,7 @@ def apply(pp: Any, job: Any, tr: Any, tp: Any, params: Any, scn: Any = None) -> 
         layer_height_mm=params.layer_height_mm,
         z_lift_mm=params.z_lift_mm,
         approach_mm=params.approach_mm,
+        link_max_mm=params.link_max_mm,
         expected_size_mm=size,
         expected_volume_mm3=vols,
     )
@@ -396,12 +478,17 @@ def apply(pp: Any, job: Any, tr: Any, tp: Any, params: Any, scn: Any = None) -> 
 
 
 def check_part_dir(part_dir: str | Path, scenario_path: str | Path | None = None) -> list[Violation]:
-    """Prueft ein geschriebenes Teil `parts/<id>/` (fuer Tests und Experimente)."""
+    """Prueft ein geschriebenes Teil `parts/<id>/` (fuer Tests und Experimente). Prozessparameter
+    (z_lift, An-/Abfahrt, link_max) aus `summary.json` des Laufs, falls vorhanden."""
     import trimesh
 
     from roboprint.contracts import PartArtifact, Toolpath, Trajectory, load_json
 
     d = Path(part_dir)
+    prm: dict[str, Any] = {}
+    summ = d.parent.parent / "summary.json"
+    if summ.is_file():
+        prm = json.loads(summ.read_text(encoding="utf-8")).get("params", {}) or {}
     part = load_json(d / "part.json", PartArtifact)
     tp = load_json(d / "toolpath.json", Toolpath)
     tr = load_json(d / "trajectory.json", Trajectory)
@@ -417,5 +504,8 @@ def check_part_dir(part_dir: str | Path, scenario_path: str | Path | None = None
         tr,
         tp,
         layer_height_mm=tp.layer_height_mm,
+        z_lift_mm=float(prm.get("z_lift_mm", 30.0)),
+        approach_mm=float(prm.get("approach_mm", 20.0)),
+        link_max_mm=float(prm.get("link_max_mm", 60.0)),
         expected_size_mm=size,
     )
