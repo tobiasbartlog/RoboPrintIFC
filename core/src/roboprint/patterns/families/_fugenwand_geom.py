@@ -162,7 +162,13 @@ def loop_pieces(
         leave = tans[i][0]
         pieces.append(Piece(p.kind, arc_between(p, arrive, leave, chord_mm, step_mm), p, p.tag))
         a, b = tans[i]
-        pieces.append(Piece(links[i], densify(np.vstack([a, b]), step_mm), None, "line"))
+        # Jede Gerade bekommt mindestens einen Zwischenpunkt: Sonst schätzt die Metrik den
+        # Sehnenfehler einer kurzen Geraden zwischen zwei Bögen aus dem Umkreis über beide Bögen
+        # (Fehlalarm M6, z. B. 0,63 mm bei 16 mm Gerade zwischen r = 15 mm).
+        seg_len = float(np.linalg.norm(b - a))
+        line = densify(np.vstack([a, b]), min(step_mm, max(seg_len / 2.0, 0.5)))
+        line[0], line[-1] = a, b  # exakt gleiche Stoßpunkte wie die Bögen (Verbinder Länge 0)
+        pieces.append(Piece(links[i], line, None, "line"))
     return pieces
 
 

@@ -53,7 +53,7 @@ Einteilung: `fit_to_length(Modullänge, Feldlänge)` gibt eine ganze Zahl gleich
 `web_angle_deg` > 0, folgt die Ziel-Feldlänge aus dem Stegwinkel (Gerade Fuge → Knoten). Ist die
 Riemenfolge so nicht baubar oder nicht kreuzungsfrei (Wand zu dünn für die Haken), werden
 schrittweise weniger, längere Felder versucht (`meta["fields_requested"]`); geht gar nichts,
-liefert das Muster das Grundmuster `shell_chain` und `meta["fallback"]` nennt den Grund.
+liefert das Muster das Grundmuster `shell_chain` und `meta["pattern_fallback"]` nennt den Grund.
 
 Naht (M4): Der Zug ist geschlossen, Anfang = Ende. Er beginnt in der Mitte des Gurtstücks bzw.
 Stegs mit dem größten Abstand zu Außen- und Stoßflächen (bei Gleichstand nächst der Modulmitte).
@@ -96,7 +96,7 @@ PARAMS = [
     ParamSpec(
         "field_length_mm",
         "Feldlänge (Ziel)",
-        400.0,
+        300.0,
         "mm",
         120.0,
         2000.0,
@@ -113,11 +113,18 @@ PARAMS = [
         1.0,
         help="Winkel Fuge → Knoten gegen die Wandachse; > 0 bestimmt die Ziel-Feldlänge",
     ),
-    ParamSpec("belt", "mit Gurt", True, "", kind="bool", help="ohne Gurt: Rautenkette"),
+    ParamSpec(
+        "belt",
+        "mit Gurt",
+        False,
+        "",
+        kind="bool",
+        help="mit: Schleife je Fuge mit Gurtstück (Doppelgurt); ohne: Rautenkette (Empfehlung)",
+    ),
     ParamSpec(
         "back_offset",
         "Rückseite",
-        "gespiegelt",
+        "versetzt",
         "",
         kind="choice",
         choices=OFFSETS,
@@ -505,7 +512,7 @@ def build_plan(ctx: IslandContext, vals: dict[str, Any]) -> IslandPlan:
     p = ctx.params
     if not _is_rect(ctx.region):
         plan = shell_chain(ctx)
-        plan.meta["fallback"] = "Querschnitt ist kein Rechteck: Grundmuster"
+        plan.meta["pattern_fallback"] = "Querschnitt ist kein Rechteck: Grundmuster"
         return plan
     g0 = _Geo(ctx, vals)
     belt = bool(vals["belt"])
@@ -528,7 +535,7 @@ def build_plan(ctx: IslandContext, vals: dict[str, Any]) -> IslandPlan:
                 continue
             return _finish(ctx, g, g0, fit, n, res, angle_info, reason)
     plan = shell_chain(ctx)
-    plan.meta["fallback"] = f"Fugenwand nicht baubar: {reason}"
+    plan.meta["pattern_fallback"] = f"Fugenwand nicht baubar: {reason}"
     return plan
 
 
