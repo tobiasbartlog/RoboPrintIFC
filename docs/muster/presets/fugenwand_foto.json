@@ -12,8 +12,8 @@
     "hook_radius_mm": 20.0
   },
   "outline": {
-    "length_mm": 600.0,
-    "thickness_mm": 200.0
+    "length_mm": 1000.0,
+    "thickness_mm": 300.0
   },
-  "description": "Variante (a) mit engeren Haken (r = 20 mm < w: M6-Warnung, kein Fehler), damit die Stege auch bei 300 mm Wand schräg (V-förmig) laufen wie auf dem Foto."
+  "description": "Variante (a) mit engeren Haken (r = 20 mm < w: M6-Warnung, kein Fehler), damit die Stege bei 300 mm Wand schräg (V-förmig, 14–31°) laufen wie auf dem Foto. Bei 200 mm Wand bleibt auch dieses Preset ein Mäander (Stegwinkel ≈ 3°)."
 }

@@ -40,11 +40,18 @@ Zwei Gurte mit Abstand würden eine Zelle über die ganze Modullänge offen lass
 Innenbaum: Mittelband ← Knotenspalte → Felddreiecke. Außenbaum: Äußeres ← Fugenspalte → Dreiecke
 unter dem Gurt.
 
-**Variante b: ohne Gurt, gespiegelt, alle Fugen echt: unmöglich.** Ohne Gurt reicht die Raute über
+**Rautenkette mit gespiegelten Fugen: unmöglich.** In der Rautenkette reicht die Raute über
 einer Fuge von der Vorder- bis zur Rückseite. Hätte sie auf beiden Seiten einen Fugenspalt, wäre
 diese Außenzelle zweimal mit dem Äußeren verbunden. Das ist ein Kreis im Außenbaum, und der Zug
-zerfiele in zwei Stränge. Zugleich hängen die Felddreiecke ohne Gurt nur über die Knoten zusammen:
-Vorder- und Rückdreieck eines Felds bilden je eine eigene Innenkomponente, also n Stränge für n Felder.
+zerfiele in zwei Stränge.
+
+*Einschränkung (Gegenprüfung):* Eine frühere Fassung folgerte daraus „gespiegelt ohne Gurt ist
+unmöglich“. Das stimmt so nicht. Reicht die Zelle über einer Fuge nur bis zur Wandmitte und
+berührt dort die gespiegelte Zelle der Rückseite („Knoten beider Seiten berühren sich“), bleibt
+jede Außenzelle einmal mit dem Äußeren verbunden, und die Felder bilden eine Kette von Innenzellen:
+ein Strang. Variante a ist genau diese Form: Ihr „Doppelgurt“ sind die Deckel der Trapezzellen über
+den Fugen, die sich über die Wand hinweg berühren. Unmöglich ist nur die Kombination gespiegelte
+Fugen + Raute über die ganze Wanddicke. Wer gespiegelte Fugen will, nimmt Variante a.
 
 **Variante b (gebaut): Rautenkette.** An jeder Fuge hängt eine Raute: Haken → Steg zur linken
 Spitze in der Wandmitte → Spitze an der Gegenseite → rechte Spitze → Steg → Haken. Die Rauten der
@@ -164,7 +171,9 @@ stellt die Feldlänge auf ≤ 200 mm.
   V-förmige Stege mit allen Winkeln ≥ 20° gibt es bei r = w erst ab **370 mm** Dicke (F = 200).
   Bei 300 mm braucht es r ≈ 20 mm, siehe Preset `foto`: 14–31°.
 - **Rautenkette: Mindestdicke 120 mm (= 4·w).** Bei r = w/2 geht sie bis 120 mm, bei 110 mm fällt sie
-  zurück. Mit r = w braucht sie 185–210 mm. Bei 200 mm und F = 300 ist die Raute mit
+  zurück. Bei 120 mm ist sie aber nur noch ein Mäander (Stegwinkel 0–1,3°), Rauten wie auf dem Foto
+  gibt es erst ab etwa 150–170 mm (Gegenprüfung, F = 300, Stegwinkel: 130 mm 7–14°, 150 mm 17–20°,
+  170 mm 27°, 200 mm 31–41°). Mit r = w braucht sie 185–210 mm. Bei 200 mm und F = 300 ist die Raute mit
   F/4 = 75 mm halber Breite zu schmal für r = 30: Die Tangente Fugenhaken → Spitze fehlt,
   Abstand 56,8 mm < 2·r. Deshalb r = 27.
 - **Endzellen.** Am Modulende gibt es keinen halben Steg. Die Endkappe und ein weiterer Steg ergäben

@@ -30,13 +30,18 @@ und die Außenzellen ebenfalls. Daraus folgen die Varianten:
   der Wandmitte → Spitze an der Gegenseite → rechte Spitze → Fuge). Die Rauten berühren sich an den
   Knoten in der Wandmitte („Knoten beider Seiten berühren sich“), ihre Spitze berührt das
   durchlaufende Feld der Gegenseite. Die Fugen der Rückseite liegen dabei **zwangsläufig** um eine
-  halbe Teilung versetzt: Gespiegelt ohne Gurt (Fugen beider Seiten gegenüber) ist als ein Strang
-  unmöglich. Beweis: Die Raute über einer Fuge ist eine Außenzelle. Hätte sie auf beiden Seiten
-  einen Fugenspalt, wäre sie zweimal mit dem Äußeren verbunden (Kreis im Außenbaum) und der Zug
-  zerfiele in zwei Stränge. Ohne Gurt hängen die Dreiecke über den Feldern außerdem nur über die
-  Knoten zusammen; mit Fugen an allen gespiegelten Stellen bilden je Feld Vorder- und Rückdreieck
-  eine eigene Innenkomponente, also n Stränge für n Felder. Wird `gespiegelt` ohne Gurt gewählt,
-  entsteht deshalb die Rautenkette, und `meta["note"]` sagt das.
+  halbe Teilung versetzt: Die Rautenkette mit gespiegelten Fugen ist als ein Strang unmöglich.
+  Beweis: Die Raute über einer Fuge ist eine Außenzelle, die bis zur Gegenseite reicht. Hätte sie
+  auf beiden Seiten einen Fugenspalt, wäre sie zweimal mit dem Äußeren verbunden (Kreis im
+  Außenbaum) und der Zug zerfiele in zwei Stränge. Wird `gespiegelt` ohne Gurt gewählt, entsteht
+  deshalb die Rautenkette (versetzt), und `meta["note"]` sagt das.
+
+  Gegenprüfung (Einschränkung der Aussage): Gespiegelt **ohne durchgehenden Gurt** ist als ein Strang
+  sehr wohl möglich, wenn die Zelle über einer Fuge nur bis zur Wandmitte reicht und dort die
+  gespiegelte Zelle der Rückseite berührt („Knoten beider Seiten berühren sich“). Genau das ist
+  Variante a: Ihr „Doppelgurt“ besteht aus den Deckeln dieser Trapezzellen (je Fuge das Gurtstück
+  zwischen zwei Knoten), die sich über die Wand hinweg berühren. Unmöglich ist nur die Kombination
+  gespiegelte Fugen + Raute über die ganze Wanddicke.
 
 Geometrie
 =========
@@ -334,8 +339,9 @@ def layout(g: _Geo, vals: dict[str, Any], n: int, F: float) -> tuple[Chain, Chai
         back = rhomb_face(g, back_j, F / 4)
         if not offset:
             info["note"] = (
-                "gespiegelt ohne Gurt ist als ein Strang unmöglich (siehe Docstring); "
-                "gebaut wird die Rautenkette mit um F/2 versetzter Rückseite"
+                "Rautenkette mit gespiegelten Fugen ist als ein Strang unmöglich (siehe Docstring); "
+                "gebaut wird die Rautenkette mit um F/2 versetzter Rückseite. Gespiegelte Fugen "
+                "gibt es mit Gurt (Variante a)"
             )
         info["nodes_x"] = sorted([X - F / 4 for X in front_j] + [X + F / 4 for X in front_j])
     info.update(joints_front_x=front_j, joints_back_x=back_j)

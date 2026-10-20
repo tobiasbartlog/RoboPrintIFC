@@ -67,11 +67,15 @@ VARIANTS = [
         },
         (
             "Variante (a) mit engeren Haken (r = 20 mm < w: M6-Warnung, kein Fehler), damit die Stege "
-            "auch bei 300 mm Wand schräg (V-förmig) laufen wie auf dem Foto."
+            "bei 300 mm Wand schräg (V-förmig, 14–31°) laufen wie auf dem Foto. Bei 200 mm Wand "
+            "bleibt auch dieses Preset ein Mäander (Stegwinkel ≈ 3°)."
         ),
     ),
 ]
 OUTLINES = [(600.0, 200.0), (1000.0, 300.0)]
+#: Querschnitt im Preset (Vorschau beim Laden). „foto“ zeigt die V-Stege erst ab 300 mm Dicke,
+#: bei 600 × 200 wäre die Vorschau des Presets ein Mäander (Gegenprüfung: Stegwinkel 2,7°).
+PRESET_OUTLINE = {"foto": (1000.0, 300.0)}
 
 
 def write_presets() -> list[Path]:
@@ -84,7 +88,13 @@ def write_presets() -> list[Path]:
                 name,
                 "fugenwand",
                 {**BASE, **vals},
-                {"length_mm": 600.0, "thickness_mm": 200.0},
+                dict(
+                    zip(
+                        ("length_mm", "thickness_mm"),
+                        PRESET_OUTLINE.get(key, (600.0, 200.0)),
+                        strict=True,
+                    )
+                ),
                 desc,
             )
         )
