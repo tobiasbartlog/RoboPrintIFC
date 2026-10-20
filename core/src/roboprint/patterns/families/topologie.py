@@ -56,6 +56,7 @@ from roboprint.patterns.families._topologie_bahnen import (
     pillar_min_thickness,
     pillar_min_width,
     reverse_pieces,
+    sill_middle_range,
 )
 from roboprint.patterns.families._topologie_naht import best_chain, island_lanes
 from roboprint.patterns.geometry import polygons, resample_curve
@@ -252,7 +253,9 @@ def _plan_split(sections, rects, p: PatternParams, base: Rect, top: list[Rect], 
     w, rc, eps = p.w, p.corner_radius, p.eps
     T = base.y1 - base.y0
     W = base.width
-    ym = float(p.get("sill_middle_mm", 0.0) or 0.0) or T / 2.0
+    ym_lo, ym_hi = sill_middle_range(T, w)
+    ym_req = float(p.get("sill_middle_mm", 0.0) or 0.0) or T / 2.0
+    ym = min(max(ym_req, ym_lo), ym_hi)
     left = next((r for r in top if abs(r.x0 - base.x0) <= RECT_TOL_MM), None)
     right = next((r for r in top if abs(r.x1 - base.x1) <= RECT_TOL_MM and r is not left), None)
     fL = Frame(base.x0, base.y0, 1.0, 1.0)
@@ -285,7 +288,14 @@ def _plan_split(sections, rects, p: PatternParams, base: Rect, top: list[Rect], 
         case = "randoeffnung"
     plan = _PartPlan("oeffnung", note=f"{case}: Brüstung bis Schicht {k - 1}, Pfeiler ab Schicht {k}")
     base_meta = {"mode": "oeffnung", "case": case, "split_layer": k}
-    sill = _plan(lower, fL, p, {**base_meta, "zone": "bruestung"})
+    sill_meta = {**base_meta, "zone": "bruestung"}
+    if case == "fenster":
+        sill_meta["sill_middle_mm"] = round(ym, 2)
+        if abs(ym - ym_req) > 1e-6:
+            sill_meta["note"] = (
+                f"Mittellauf {ym_req:.1f} mm auf {ym:.1f} mm begrenzt (zulässig {ym_lo:.1f}…{ym_hi:.1f} mm)"
+            )
+    sill = _plan(lower, fL, p, sill_meta)
     pillars = [
         (rr, _plan(pillar_left(a, T, w, rc, eps, below=False), fr, p, {**base_meta, "zone": "pfeiler"}))
         for rr, fr, a in uppers
@@ -331,12 +341,17 @@ def part_plan(ctx: IslandContext) -> _PartPlan:
     if rects is not None:
         bev = _bevel(rects)
         spl = _split(rects) if bev is None else None
-        if bev is not None:
-            plan = _plan_bevel(ctx.sections, rects, p, *bev)
-        elif spl is not None:
-            plan = _plan_split(ctx.sections, rects, p, *spl) or _PartPlan(
-                "allgemein", note="Öffnung zu schmal oder Wand zu dünn für Pfeiler und Brüstungsfeld"
-            )
+        try:
+            if bev is not None:
+                plan = _plan_bevel(ctx.sections, rects, p, *bev)
+            elif spl is not None:
+                plan = _plan_split(ctx.sections, rects, p, *spl) or _PartPlan(
+                    "allgemein", note="Öffnung zu schmal oder Wand zu dünn für Pfeiler und Brüstungsfeld"
+                )
+        except ValueError as exc:
+            # Sicherheitsnetz: Bahnbausteine passen nicht in den Querschnitt (Maße am Rand der
+            # Mindestwerte); lieber allgemein mit Hinweis als ein Abbruch der Planung
+            plan = _PartPlan("allgemein", note=f"Bahnbau nicht möglich ({exc}); allgemein geplant")
     _CACHE[key] = plan
     while len(_CACHE) > _CACHE_SIZE:
         _CACHE.popitem(last=False)

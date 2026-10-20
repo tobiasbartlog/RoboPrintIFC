@@ -160,7 +160,7 @@ def fermat_rect(W: float, T: float, t: float, w: float, rc: float, eps: float, y
         else:
             tt.to(1, min(yb1 - rc, t + 1.0 - w / 2.0))
         out.append(Piece("inner", 1, tt.cut(), "Spur 1"))
-    elif ya0 + rc + w / 2.0 <= t + 1.0:
+    elif ya0 + rc + w / 2.0 <= t + 1.0 and min(yb0 - rc, t + 1.0 - w / 2.0) >= ya0 + rc:
         top = min(yb0 - rc, t + 1.0 - w / 2.0)
         tt = Turtle((xa0, top), (0.0, -1.0))
         tt.to(1, ya0 + rc).turn(rc, 90).to(0, xb0 - rc).turn(rc, 90).to(1, top)
@@ -181,8 +181,17 @@ def pillar_min_width(w: float, rc: float, eps: float) -> float:
 
 
 def pillar_min_thickness(w: float, rc: float) -> float:
-    """Kleinste Wanddicke: Spur-1-Schenkel an der Laibung gerade von 2·w bis T − 1,5·w − rc."""
-    return 1.5 * w + rc + 2.0 * w + 1.0
+    """Kleinste Wanddicke: Spur 1 braucht an der Stoßseite zwei Eckbögen (T ≥ 2·(1,5·w + rc)),
+    ihr Schenkel an der Laibung läuft gerade von T − 1,5·w − rc hinab bis zur Wende bei 2·w
+    (T ≥ 3,5·w + rc). Für w = rc = 30 mm sind das 150 mm (vorher 136 mm angesetzt: Wände
+    136…149 mm brachen beim Bahnbau mit „Rückwärtsfahrt“ ab)."""
+    return max(2.0 * (1.5 * w + rc), 3.5 * w + rc)
+
+
+def sill_middle_range(T: float, w: float) -> tuple[float, float]:
+    """Zulässige Lage des Mittellaufs im Brüstungsfeld (v, mm): Die Flanken (Bögen r = w/2) müssen
+    zwischen Außenspur und Mittellauf passen, also 1,5·w ≤ ym ≤ T − 1,5·w."""
+    return 1.5 * w, T - 1.5 * w
 
 
 def pillar_left(a: float, T: float, w: float, rc: float, eps: float, below: bool) -> list[Piece]:
