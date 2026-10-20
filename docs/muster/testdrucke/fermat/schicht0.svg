@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="878" viewBox="0 0 1000 878" font-family="sans-serif" font-size="12">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<path d="M 908.3,636.1 908.3,91.7 91.7,91.7 91.7,636.1 908.3,636.1 Z " fill="#f1f3f5" stroke="#adb5bd" fill-rule="evenodd"/>
+<polyline points="573.5,513.6 617.1,513.6 660.6,513.6 704.2,513.6 712.2,513.2 735.4,507.4 756.0,495.1 772.1,477.3 782.3,455.7 785.8,431.9 785.8,386.6 785.8,341.2 785.8,295.8 785.5,287.8 779.6,264.6 767.3,244.0 749.5,227.9 727.9,217.7 704.2,214.2 653.1,214.2 602.1,214.2 551.0,214.2 500.0,214.2 449.0,214.2 397.9,214.2 346.9,214.2 295.8,214.2 287.8,214.5 264.6,220.4 244.0,232.7 227.9,250.5 217.7,272.1 214.2,295.8 214.2,341.2 214.2,386.6 214.2,431.9 214.5,439.9 220.4,463.2 232.7,483.7 250.5,499.8 272.1,510.1 295.8,513.6 343.5,513.6 391.1,513.6 406.7,510.5 421.8,499.7 430.6,483.3 431.2,464.8 423.5,447.9 409.2,436.2 391.1,431.9" fill="none" stroke="#868e96" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 4"/>
+<polyline points="391.1,431.9 354.8,431.6 330.4,424.2 310.7,408.1 298.6,385.6 295.8,361.2 300.8,336.2 315.0,315.0 336.2,300.8 361.2,295.8 407.4,295.8 453.7,295.8 500.0,295.8 546.3,295.8 592.6,295.8 638.8,295.8 645.2,296.2 669.6,303.5 689.3,319.7 701.4,342.2 704.2,366.6 699.2,391.6 685.0,412.8 663.8,427.0 638.8,431.9 610.2,431.9 581.7,431.9 565.7,433.5 538.5,444.2 516.9,463.9 503.5,489.9 499.3,524.3 490.4,552.1 472.2,575.0 447.1,590.1 418.3,595.3" fill="none" stroke="#868e96" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 4"/>
+<polyline points="418.3,595.3 367.3,595.3 316.2,595.3 265.2,595.3 214.2,595.3 206.2,594.9 182.9,589.1 162.4,576.7 146.3,559.0 136.0,537.3 132.5,513.6 132.5,463.7 132.5,413.8 132.5,363.9 132.5,314.0 132.5,264.1 132.5,214.2 132.9,206.2 138.7,182.9 151.0,162.4 168.8,146.3 190.5,136.0 214.2,132.5 266.1,132.5 318.1,132.5 370.1,132.5 422.0,132.5 474.0,132.5 526.0,132.5 578.0,132.5 629.9,132.5 681.9,132.5 733.9,132.5 785.8,132.5 793.8,132.9 817.1,138.7 837.6,151.0 853.7,168.8 864.0,190.5 867.5,214.2 867.5,264.1 867.5,314.0 867.5,363.9 867.5,413.8 867.5,463.7 867.5,513.6 867.1,521.6 861.3,544.9 849.0,565.4 831.2,581.5 809.5,591.8 785.8,595.3 738.5,595.3 691.1,595.3 643.7,595.3 596.4,595.3 549.0,595.3" fill="none" stroke="#868e96" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 4"/>
+<polyline points="549.0,595.3 596.4,595.3 643.7,595.3 691.1,595.3 738.5,595.3 785.8,595.3 809.5,591.8 831.2,581.5 849.0,565.4 861.3,544.9 867.1,521.6 867.5,513.6 867.5,463.7 867.5,413.8 867.5,363.9 867.5,314.0 867.5,264.1 867.5,214.2 864.0,190.5 853.7,168.8 837.6,151.0 817.1,138.7 793.8,132.9 785.8,132.5 733.9,132.5 681.9,132.5 629.9,132.5 578.0,132.5 526.0,132.5 474.0,132.5 422.0,132.5 370.1,132.5 318.1,132.5 266.1,132.5 214.2,132.5 190.5,136.0 168.8,146.3 151.0,162.4 138.7,182.9 132.9,206.2 132.5,214.2 132.5,264.1 132.5,314.0 132.5,363.9 132.5,413.8 132.5,463.7 132.5,513.6 136.0,537.3 146.3,559.0 162.4,576.7 182.9,589.1 206.2,594.9 214.2,595.3 265.2,595.3 316.2,595.3 367.3,595.3 418.3,595.3" fill="none" stroke="#1c7ed6" stroke-opacity="0.18" stroke-width="81.7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="418.3,595.3 447.1,590.1 472.2,575.0 490.4,552.1 499.3,524.3 503.5,489.9 516.9,463.9 538.5,444.2 565.7,433.5 581.7,431.9 610.2,431.9 638.8,431.9 663.8,427.0 685.0,412.8 699.2,391.6 704.2,366.6 701.4,342.2 689.3,319.7 669.6,303.5 645.2,296.2 638.8,295.8 592.6,295.8 546.3,295.8 500.0,295.8 453.7,295.8 407.4,295.8 361.2,295.8 336.2,300.8 315.0,315.0 300.8,336.2 295.8,361.2 298.6,385.6 310.7,408.1 330.4,424.2 354.8,431.6 391.1,431.9" fill="none" stroke="#74c0fc" stroke-opacity="0.18" stroke-width="81.7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="391.1,431.9 409.2,436.2 423.5,447.9 431.2,464.8 430.6,483.3 421.8,499.7 406.7,510.5 391.1,513.6 343.5,513.6 295.8,513.6 272.1,510.1 250.5,499.8 232.7,483.7 220.4,463.2 214.5,439.9 214.2,431.9 214.2,386.6 214.2,341.2 214.2,295.8 217.7,272.1 227.9,250.5 244.0,232.7 264.6,220.4 287.8,214.5 295.8,214.2 346.9,214.2 397.9,214.2 449.0,214.2 500.0,214.2 551.0,214.2 602.1,214.2 653.1,214.2 704.2,214.2 727.9,217.7 749.5,227.9 767.3,244.0 779.6,264.6 785.5,287.8 785.8,295.8 785.8,341.2 785.8,386.6 785.8,431.9 782.3,455.7 772.1,477.3 756.0,495.1 735.4,507.4 712.2,513.2 704.2,513.6 660.6,513.6 617.1,513.6 573.5,513.6" fill="none" stroke="#74c0fc" stroke-opacity="0.18" stroke-width="81.7" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="549.0,595.3 596.4,595.3 643.7,595.3 691.1,595.3 738.5,595.3 785.8,595.3 809.5,591.8 831.2,581.5 849.0,565.4 861.3,544.9 867.1,521.6 867.5,513.6 867.5,463.7 867.5,413.8 867.5,363.9 867.5,314.0 867.5,264.1 867.5,214.2 864.0,190.5 853.7,168.8 837.6,151.0 817.1,138.7 793.8,132.9 785.8,132.5 733.9,132.5 681.9,132.5 629.9,132.5 578.0,132.5 526.0,132.5 474.0,132.5 422.0,132.5 370.1,132.5 318.1,132.5 266.1,132.5 214.2,132.5 190.5,136.0 168.8,146.3 151.0,162.4 138.7,182.9 132.9,206.2 132.5,214.2 132.5,264.1 132.5,314.0 132.5,363.9 132.5,413.8 132.5,463.7 132.5,513.6 136.0,537.3 146.3,559.0 162.4,576.7 182.9,589.1 206.2,594.9 214.2,595.3 265.2,595.3 316.2,595.3 367.3,595.3 418.3,595.3" fill="none" stroke="#1c7ed6" stroke-width="2"><title>outer Ring 0 einwärts 779.85 mm</title></polyline>
+<polygon points="730.4,595.3 721.4,599.8 721.4,590.8" fill="#1c7ed6"/>
+<polygon points="867.5,343.1 872.0,352.1 863.0,352.1" fill="#1c7ed6"/>
+<polygon points="688.8,132.5 697.8,128.0 697.8,137.0" fill="#1c7ed6"/>
+<polygon points="334.9,132.5 343.9,128.0 343.9,137.0" fill="#1c7ed6"/>
+<polygon points="132.5,319.4 128.0,310.4 137.0,310.4" fill="#1c7ed6"/>
+<polygon points="245.9,595.3 236.9,599.8 236.9,590.8" fill="#1c7ed6"/>
+<polyline points="418.3,595.3 447.1,590.1 472.2,575.0 490.4,552.1 499.3,524.3 503.5,489.9 516.9,463.9 538.5,444.2 565.7,433.5 581.7,431.9 610.2,431.9 638.8,431.9 663.8,427.0 685.0,412.8 699.2,391.6 704.2,366.6 701.4,342.2 689.3,319.7 669.6,303.5 645.2,296.2 638.8,295.8 592.6,295.8 546.3,295.8 500.0,295.8 453.7,295.8 407.4,295.8 361.2,295.8 336.2,300.8 315.0,315.0 300.8,336.2 295.8,361.2 298.6,385.6 310.7,408.1 330.4,424.2 354.8,431.6 391.1,431.9" fill="none" stroke="#74c0fc" stroke-width="2"><title>inner Ring 2 einwärts 381.65 mm</title></polyline>
+<polygon points="515.4,466.7 515.3,476.8 507.3,472.7" fill="#74c0fc"/>
+<polygon points="636.8,295.7 646.0,291.7 645.5,300.7" fill="#74c0fc"/>
+<polygon points="304.0,331.4 305.3,321.4 312.7,326.4" fill="#74c0fc"/>
+<polyline points="391.1,431.9 409.2,436.2 423.5,447.9 431.2,464.8 430.6,483.3 421.8,499.7 406.7,510.5 391.1,513.6 343.5,513.6 295.8,513.6 272.1,510.1 250.5,499.8 232.7,483.7 220.4,463.2 214.5,439.9 214.2,431.9 214.2,386.6 214.2,341.2 214.2,295.8 217.7,272.1 227.9,250.5 244.0,232.7 264.6,220.4 287.8,214.5 295.8,214.2 346.9,214.2 397.9,214.2 449.0,214.2 500.0,214.2 551.0,214.2 602.1,214.2 653.1,214.2 704.2,214.2 727.9,217.7 749.5,227.9 767.3,244.0 779.6,264.6 785.5,287.8 785.8,295.8 785.8,341.2 785.8,386.6 785.8,431.9 782.3,455.7 772.1,477.3 756.0,495.1 735.4,507.4 712.2,513.2 704.2,513.6 660.6,513.6 617.1,513.6 573.5,513.6" fill="none" stroke="#74c0fc" stroke-width="2"><title>inner Ring 1 auswärts 567.58 mm</title></polyline>
+<polygon points="320.7,513.6 329.7,509.1 329.7,518.1" fill="#74c0fc"/>
+<polygon points="266.0,219.6 260.6,228.0 255.9,220.3" fill="#74c0fc"/>
+<polygon points="651.7,214.2 642.7,218.7 642.7,209.7" fill="#74c0fc"/>
+<polygon points="757.3,493.6 760.0,483.9 766.7,489.9" fill="#74c0fc"/>
+<circle cx="549.0" cy="595.3" r="7" fill="none" stroke="#2b8a3e" stroke-width="2.5"><title>Start</title></circle>
+<rect x="568.5" y="508.6" width="10" height="10" fill="none" stroke="#c92a2a" stroke-width="2.5"><title>Ende</title></rect>
+<circle cx="173.3" cy="370.2" r="3.5" fill="#15aabf"><title>Kontakt shell 62.5 mm</title></circle>
+<circle cx="255.0" cy="361.3" r="3.5" fill="#15aabf"><title>Kontakt shell 7.48 mm</title></circle>
+<circle cx="345.2" cy="554.4" r="3.5" fill="#15aabf"><title>Kontakt shell 45.12 mm</title></circle>
+<circle cx="362.3" cy="472.7" r="3.5" fill="#15aabf"><title>Kontakt shell 9.63 mm</title></circle>
+<circle cx="459.4" cy="516.9" r="3.5" fill="#15aabf"><title>Kontakt shell 3.79 mm</title></circle>
+<circle cx="461.8" cy="502.2" r="3.5" fill="#15aabf"><title>Kontakt shell 3.82 mm</title></circle>
+<circle cx="462.1" cy="499.7" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="462.4" cy="497.3" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="462.7" cy="507.9" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="463.1" cy="508.2" r="3.5" fill="#15aabf"><title>Kontakt shell 3.79 mm</title></circle>
+<circle cx="463.8" cy="492.8" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="464.1" cy="503.4" r="3.5" fill="#15aabf"><title>Kontakt shell 3.82 mm</title></circle>
+<circle cx="464.2" cy="506.1" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="465.0" cy="496.0" r="3.5" fill="#15aabf"><title>Kontakt shell 3.82 mm</title></circle>
+<circle cx="465.8" cy="491.9" r="3.5" fill="#15aabf"><title>Kontakt shell 3.82 mm</title></circle>
+<circle cx="465.8" cy="496.4" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="466.1" cy="489.5" r="3.5" fill="#15aabf"><title>Kontakt shell 3.82 mm</title></circle>
+<circle cx="466.8" cy="486.8" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="467.0" cy="482.1" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="467.1" cy="486.5" r="3.5" fill="#15aabf"><title>Kontakt shell 3.79 mm</title></circle>
+<circle cx="469.3" cy="482.2" r="3.5" fill="#15aabf"><title>Kontakt shell 3.79 mm</title></circle>
+<circle cx="469.3" cy="480.0" r="3.5" fill="#15aabf"><title>Kontakt shell 3.79 mm</title></circle>
+<circle cx="469.7" cy="468.7" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="470.6" cy="473.2" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="470.7" cy="470.8" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="471.6" cy="475.6" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="499.9" cy="173.3" r="3.5" fill="#15aabf"><title>Kontakt shell 164.27 mm</title></circle>
+<circle cx="502.6" cy="255.0" r="3.5" fill="#15aabf"><title>Kontakt shell 108.23 mm</title></circle>
+<circle cx="519.3" cy="577.5" r="3.5" fill="#15aabf"><title>Kontakt shell 5.87 mm</title></circle>
+<circle cx="534.2" cy="525.9" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="534.9" cy="523.6" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="535.7" cy="521.3" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="536.4" cy="518.9" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="536.7" cy="516.5" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="537.3" cy="511.6" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="537.9" cy="506.7" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="538.2" cy="504.2" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="538.5" cy="501.8" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="539.1" cy="518.9" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="539.7" cy="514.0" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="540.0" cy="511.6" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="540.3" cy="509.1" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="540.6" cy="506.7" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="540.9" cy="504.2" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="541.2" cy="501.8" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="541.8" cy="495.3" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="542.3" cy="499.6" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="543.0" cy="493.1" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="544.6" cy="495.3" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="546.2" cy="497.4" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="547.3" cy="495.3" r="3.5" fill="#15aabf"><title>Kontakt shell 2.0 mm</title></circle>
+<circle cx="593.2" cy="472.8" r="3.5" fill="#15aabf"><title>Kontakt shell 55.82 mm</title></circle>
+<circle cx="646.7" cy="554.4" r="3.5" fill="#15aabf"><title>Kontakt shell 61.93 mm</title></circle>
+<circle cx="745.0" cy="364.0" r="3.5" fill="#15aabf"><title>Kontakt shell 7.48 mm</title></circle>
+<circle cx="826.7" cy="352.6" r="3.5" fill="#15aabf"><title>Kontakt shell 62.5 mm</title></circle>
+<circle cx="549.0" cy="595.3" r="40.8" fill="none" stroke="#f59f00" stroke-width="2"><title>M4: Naht berührt Außen- oder Stoßfläche</title></circle>
+<circle cx="663.8" cy="427.0" r="40.8" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="669.6" cy="303.5" r="40.8" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="315.0" cy="315.0" r="40.8" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="330.4" cy="424.2" r="40.8" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="431.2" cy="464.8" r="40.8" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="549.0" cy="595.3" r="40.8" fill="none" stroke="#f59f00" stroke-width="2"><title>M4: Naht berührt Außen- oder Stoßfläche</title></circle>
+<circle cx="431.2" cy="464.8" r="40.8" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="330.4" cy="424.2" r="40.8" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="300.8" cy="336.2" r="40.8" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="669.6" cy="303.5" r="40.8" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="663.8" cy="427.0" r="40.8" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<rect x="10" y="736.7777777777778" width="18" height="6" fill="#1c7ed6"/><text x="32" y="745.7777777777778">outer</text>
+<rect x="120" y="736.7777777777778" width="18" height="6" fill="#74c0fc"/><text x="142" y="745.7777777777778">inner</text>
+<rect x="230" y="736.7777777777778" width="18" height="6" fill="#0ca678"/><text x="252" y="745.7777777777778">hole</text>
+<rect x="340" y="736.7777777777778" width="18" height="6" fill="#e8590c"/><text x="362" y="745.7777777777778">infill</text>
+<rect x="450" y="736.7777777777778" width="18" height="6" fill="#2f9e44"/><text x="472" y="745.7777777777778">web</text>
+<rect x="560" y="736.7777777777778" width="18" height="6" fill="#7048e8"/><text x="582" y="745.7777777777778">outfill</text>
+<text x="10" y="770" fill="#212529">Fermat-Spirale (Pfeiler) · Schicht 0 (alternate), Folgeschicht gestrichelt · Start ○  Ende □</text>
+<text x="10" y="790" fill="#212529">Pfad 1729.08 mm · Druckzeit 17.29 s bei 100.0 mm/s · Material 1.7291 l je m und Schicht · Stränge 1</text>
+<text x="10" y="810" fill="#212529">Kontakte 55 (696.87 mm, 183.33 je m) · Fugenabstand – · längste gerade Außenstrecke 210.0 mm · kleinster Radius 15.0 mm</text>
+<text x="10" y="830" fill="#212529">Regelverstöße: 0 Fehler, 12 Warnungen · Schichtwechsel vertical (0.0 mm)</text>
+</svg>
