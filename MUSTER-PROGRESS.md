@@ -22,7 +22,7 @@ Die erste Zeile setzt nur das Skript.
 | Topologie (Öffnungen, Inseln, Laibungsstege, Naht, Abschrägung) | M2 | erledigt, gemergt | v2/muster-topologie | 6bf2292 |
 | Einbau Slicer + Vertrag + Schema/TS | M3 | erledigt, gemergt (über Viewer) | v2/muster-einbau | b78ce7d |
 | Einbau Planer/Timing/DRL | M3 | erledigt, gemergt (über Viewer) | v2/muster-einbau | 7633e16 |
-| Musterszenarien, `scripts/verify_muster.py`, SPEC-Nachtrag | M3 | gebaut (Runner GRÜN, 11 Szenarien), Gegenprüfung läuft | v2/muster-einbau | 91268f7 |
+| Musterszenarien (12× S4, 2× S5), `scripts/verify_muster.py`, `docs/muster/SPEC-NACHTRAG-MUSTER.md` | M3 | erledigt, gemergt (Runner GRÜN, 14/14) | v2/muster-einbau | ff4cab3 |
 | Viewer: Musterwahl im Ablauf, Schichtvorschau des Teils, Legende, Kennzahlen (e2e 15/15, 3×) | M4 | erledigt, gemergt | v2/muster-viewer | eba6f5f |
 | Katalog-Generator `scripts/muster_katalog.py` (Vorschau-Kennzahlen, Bilder) | M5 | erledigt, gemergt (Neulauf nach M3 nötig) | v2/muster-katalog | 5755006+ |
 | Vorschau-Laufzeit (metrics): Fugenwand 1200×200 146 → 70 ms; Wellen noch 120–380 ms | M4 | erledigt, gemergt; Wellen offen | v2/muster-perf | 81a874f |
@@ -52,10 +52,22 @@ Die erste Zeile setzt nur das Skript.
    diagonal (42 mm), Mitre-Ecken haben Radius ≈ 7,6 mm < w/2, und der Verbinder Schale 0 → 1 läuft
    23 mm neben der Außenraupe. Vorschlag: G9 prüft M1–M7 hart nur bei Teilen mit Musterparametern und
    berichtet sie sonst.
+3. **G3-Abdeckung auch beim Grundmuster mit `alternate`.** „Schalen“ mit gerundeten Ecken (r = w, nötig für
+   M6) erreicht auf S1 94,4 % < 95 % (Agent M3.1). Mit `corner_radius_mm = 22,5` wären es 95,5 % bei
+   M6-Warnung (Radius < w). Belegt im Runner: Spalte „Abdeckung: einwand“ für schalen_alternate (94,4 %),
+   fugenwand_raute (64,6 %), gurt (88,6 %), gurt_300 (62,7 %), versetzt (88,1 %).
 
 ## Weichen für den Nutzer
 
-(gebündelt, je mit Empfehlung)
+(gebündelt, je mit Empfehlung; Entwurf, wird im Morgenbericht zusammengefasst)
+
+1. **Gate G9 und Abdeckungsregel (Einwände 1–3):** Empfehlung: G9 aus `docs/muster/SPEC-NACHTRAG-MUSTER.md`
+   übernehmen; bei Teilen mit Muster ersetzt G9 (M3 überhangfrei, M5 im Teil) die G3-Abdeckung, die nur noch
+   berichtet wird. Ohne Muster bleibt G3 unverändert.
+2. **Standard-Schichtfolge:** Empfehlung `alternate` (senkrechter Schichtwechsel, 1 Strang je Schicht, gleiche
+   Planerzeit wie S1), erst nach Entscheidung 1, weil sonst G3-Abdeckung 94,4 % < 95 %.
+3. **S2 ohne Öffnungen:** `examples/Building-Architecture.ifc` hat keine Öffnungen; S5 ist synthetisch
+   (`scripts/muster_s5_ifc.py`). Empfehlung: ein Beispiel-IFC mit Fenster/Tür ins Repo, damit G4 Öffnungen prüft.
 
 ## Protokoll
 
@@ -145,3 +157,13 @@ Die erste Zeile setzt nur das Skript.
   1 Strang je Schicht und Insel, 100 % senkrechte Schichtwechsel (S5: 97 %, Inselwechsel), d_min 10,83 mm,
   G3 grün bis auf die Abdeckung (Einwand 1), G5 grün, M1–M7 grün. S5 mit Fugenwand: belegt nicht machbar (M3).
 - M5-Workflow: Testdrucke und O1 parallel (je mit Gegenprüfung), danach Katalog final.
+
+### 2026-10-21 00:30 M3 abgeschlossen (Session start)
+- Einbau gemergt: Szenarien S4 (12) und S5 (2, synthetische Fensterwand 600×200×400, Fenster x 180–420,
+  z 150–400), Runner mit harter Musterprobe (`pattern_applied`) und frischen Berichten, SPEC-Nachtrag
+  (§5.7, §10, G9, Szenarien, ARTEFAKTE). Gegenprüfung fand im Runner falsches Grün durch alte Berichte und
+  im DRL-Emitter ein Zusammenfassen von Zielen trotz Drehung; beides behoben.
+- Sehnenfehler der Trajektorie gegen die Sollkurve: Sinus 0,493 mm, Fugenwand 0,483 mm (≤ 0,5 mm, knapp).
+- S1 ohne Muster bitgleich (Toolpath, DRL, Trajektorie bis auf nicht-deterministische Witness-Punkte bei
+  Gleichstand, schon vor M3 so).
+- Wellen-Laufzeittest mit Lastschutz wie der Fugenwand-Test. ruff grün, `pytest core verify_muster`: 920 grün.
