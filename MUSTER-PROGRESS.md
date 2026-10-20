@@ -15,8 +15,8 @@ Die erste Zeile setzt nur das Skript.
 | K Kern `core/src/roboprint/patterns/` (Schnittstelle, alternate, Schalen, metrics M1–M7, Vorschau, Presets) | M1 | erledigt, gemergt (63 Tests grün) | v2/muster-kern | 074763c |
 | O Orakel `verify_muster/` mit Selbsttests (58) | M1 | erledigt, gemergt | v2/muster-orakel | 4b50b13 |
 | F Fugenwand (Foto, O2): Gurt gespiegelt, Gurt versetzt, Rautenkette; Presets, Bilder, Doku | M1/M2 | erledigt, gemergt | v2/muster-fugenwand | f20f439 |
-| 2D-Musterersteller: API `POST /api/patterns/preview`, CLI `pattern-preview`, Web-Reiter „Muster“ – Priorität 3 | M3/M4 | läuft (wf_3c365435-7f4: Backend → Web) | v2/muster-ersteller | |
-| I-Wellen (Sinus, Zickzack gerundet, Trapez/Mäander) | M2 | läuft (wf_3c365435-7f4) | v2/muster-wellen | |
+| 2D-Musterersteller: API `/api/patterns*`, CLI `pattern-preview`, Web-Reiter „Muster“ (e2e 11/11) | M3/M4 | erledigt, gemergt | v2/muster-ersteller | 5f0f769 |
+| I-Wellen (Sinus, Zickzack gerundet, Trapez, Mäander) | M2 | erledigt, gemergt | v2/muster-wellen | d3bceca |
 | I-Mehrfach (Doppelwelle/Kettenglied, Waben, Fermat) | M2 | läuft (wf_3c365435-7f4) | v2/muster-mehrfach | |
 | Outfill O1/O3 (nur wenn Zeit; O2 = Fugenwand) | M2 | offen | v2/muster-outfill | |
 | Topologie (Öffnungen, Inseln, Laibungsstege, Naht, Übergänge) | M2 | läuft (wf_3c365435-7f4) | v2/muster-topologie | |
@@ -96,3 +96,11 @@ Die erste Zeile setzt nur das Skript.
   Empfehlung des Agenten: Rautenkette, Feldlänge 300 mm, r = w (1,21 l je m und Schicht, Schalen 1,28 l).
   Gurtvarianten brauchen bei r = w mindestens 230 mm Wanddicke; bei 200 mm nur mit r ≈ 21 mm (M6-Warnung).
 - Nach Merge: ruff grün, `pytest core verify_muster -n 2`: 449 bestanden, 2 übersprungen.
+
+### 2026-10-20 20:15 Wellen und Musterersteller gemergt (Session start)
+- Infill-Wellen `sinus`, `zickzack`, `trapez`, `maeander` (role infill) mit Kernänderung `shell_chain(open_end)`.
+- Musterersteller: Reiter „Muster“ in der Kopfzeile (`/?view=muster`), Regler aus ParamSpecs, Entprellung 120 ms,
+  SVG-Vorschau mit Folgeschicht, Kontakten und Verstößen, Presets speichern, SVG-Export; API und CLI.
+  Vorschau-Laufzeit 70–110 ms bei 600×200 (Ziel 100 ms knapp), bei langen Modulen darüber – Kosten in `metrics`.
+- Nach Merge ein Testkonflikt (Preset-Reihenfolge) behoben. ruff grün, `pytest core verify_muster`: 592 grün,
+  Web lint/typecheck/test (141) grün.
