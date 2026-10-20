@@ -118,11 +118,21 @@ def _min_dist(a: np.ndarray, b: np.ndarray) -> float:
     return float(cKDTree(b).query(a)[0].min())
 
 
-def _dropped_note(shell: int, params: PatternParams, length: float) -> dict[str, Any]:
-    """meta-Hinweis, wenn Schalen ab `shell` als Restring entfallen."""
+def _dropped_note(shell: int, params: PatternParams, length: float | None) -> dict[str, Any]:
+    """meta-Hinweis, wenn Schalen ab `shell` entfallen: als Restring (`length` = Ringlänge) oder
+    weil der Offset-Ring leer ist (`length` None: die Schale passt gar nicht in die Insel)."""
+    if length is None:
+        return {
+            "from_shell": shell,
+            "count": params.shells - shell,
+            "reason": "kein_ring",
+            "hint": f"Schale {shell} passt nicht in die Insel (Offset {(shell + 0.5) * params.w:.1f} mm "
+            f"bei w = {params.w:g} mm ergibt keinen Ring) und entfällt mit allen inneren Schalen",
+        }
     return {
         "from_shell": shell,
         "count": params.shells - shell,
+        "reason": "restring",
         "ring_length_mm": round(length, 2),
         "hint": f"Schale {shell} ist nur ein Restring ({length:.1f} mm < π·w = "
         f"{MIN_RING_W * params.w:.1f} mm) und entfällt mit allen inneren Schalen",
@@ -283,6 +293,8 @@ def shell_chain(
         if s == 0 and ring0 is not None:
             m = np.asarray(ring0, float)
         if m is None:
+            if s > 0:  # Offset-Ring leer: Schale passt nicht (Hinweis wie beim Restring)
+                dropped = _dropped_note(s, p, None)
             break
         if s > 0 and Loop(m).length < MIN_RING_W * p.w:
             # Rückfall: Restring (z. B. in der Innenecke eines L-Querschnitts, wo der Offset nur

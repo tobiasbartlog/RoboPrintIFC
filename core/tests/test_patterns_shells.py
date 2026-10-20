@@ -121,3 +121,18 @@ def test_layer_invariant_cache_shares_geometry():
     paths = pt.plan_pattern(sec)
     assert paths[0].segments[0].points is paths[2].segments[0].points
     assert not paths[0].segments[0].points.flags.writeable
+
+
+@pytest.mark.parametrize(
+    "name,w,shells,size",
+    [("schalen", 40, 3, (600, 200)), ("sinus", 35, 3, (1200, 150)), ("waben", 40, 3, (600, 180))],
+)
+def test_missing_offset_ring_reports_dropped_shells(name, w, shells, size):
+    """Passt eine Schale gar nicht mehr (Offset-Ring leer), steht das wie beim Restring in
+    meta.shells_dropped mit Hinweis, statt die Schalenzahl still zu verringern."""
+    d = pt.preview({"pattern": name, "params": {"bead_width_mm": w, "shells": shells}}, size)
+    m = d["paths"][0]["meta"]
+    assert m["shells"] < shells
+    note = m["shells_dropped"]
+    assert note["from_shell"] == m["shells"] and note["count"] == shells - m["shells"]
+    assert "passt nicht" in note["hint"]
