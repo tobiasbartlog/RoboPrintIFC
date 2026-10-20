@@ -173,3 +173,23 @@ def test_ohne_muster_kein_psi_hold(monkeypatch) -> None:
     monkeypatch.setattr(plan_mod, "solve_ring", spy)
     plan_part(_box(200, 100, 20), "box", PlannerParams())
     assert seen and all(s is None for s in seen)
+
+
+@pytest.mark.parametrize(("overrides", "want"), [({}, False), ({"layer_order": "alternate"}, True)])
+def test_double_paar_werkzeug_link4_nur_mit_muster(overrides, want) -> None:
+    """Mit Muster kennt das Double das Paar Werkzeugkoerper <-> link_4 (sonst Nachplanung mit der
+    echten Welt an der Oberkante von S1); ohne Muster bleibt es unveraendert (S1-S3 bitgleich)."""
+    from roboprint import frames
+    from roboprint.assets import REPO_ROOT
+    from roboprint.planner import _setup, slice_params
+    from roboprint.slicer import slice_part
+
+    params = from_overrides(overrides, 50.0)
+    mesh = _box(300, 200, 20)
+    sliced = slice_part(mesh, slice_params(params))
+    _, _, screen, *_ = _setup(
+        mesh, sliced, frames.Placement(0.0, -50.0, 0.0), params, REPO_ROOT, lambda *a: object()
+    )
+    owners = {(screen.bodies[i].owner, screen.bodies[j].owner) for i, j in screen._pairs}
+    assert ((4, 7) in owners) is want
+    assert (0, 7) in owners  # die bisherigen Paare bleiben
