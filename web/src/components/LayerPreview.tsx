@@ -3,6 +3,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import type { PartLayerPath, PartPatternLayer } from '../contracts';
 import { num, segmentStyle } from '../state/patterns';
 import { useAppStore } from '../state/storeContext';
+import { ErrorNote } from './common';
 
 /** Pfeile entlang eines Segments: etwa alle `ARROW_EVERY_MM`, mindestens einer. */
 const ARROW_EVERY_MM = 120;
@@ -215,6 +216,7 @@ export function LayerPreview({ partId }: { partId: string }) {
               onChange={setLayer}
               label={(v) => `Schicht ${v + 1}`}
               aria-label="Schicht wählen"
+              thumbLabel="Schicht wählen"
               data-testid="layer-slider"
             />
             <ActionIcon variant="default" size="sm" aria-label="Nächste Schicht" disabled={shown >= last} onClick={() => setLayer(shown + 1)} data-testid="layer-next">
@@ -223,9 +225,7 @@ export function LayerPreview({ partId }: { partId: string }) {
           </Group>
         ) : null}
         {error ? (
-          <Text size="xs" c="red" data-testid="layer-error">
-            Die Schicht konnte nicht geladen werden. Lauf neu rechnen oder die Verbindung prüfen. ({error})
-          </Text>
+          <ErrorNote message="Die Schicht konnte nicht geladen werden. Lauf neu rechnen oder die Verbindung prüfen." detail={error} testid="layer-error" />
         ) : null}
         {data ? (
           <>

@@ -233,11 +233,15 @@ export function createAppStore(api: ApiPort, opts: StoreOptions = {}): AppStore 
           }
         } catch (e) {
           if (token !== jobToken) return;
+          // 422: Die API lehnt Parameter oder Musterwahl schon beim Anlegen ab; die Verbindung ist in Ordnung.
+          const rejected = (e as { status?: unknown } | null)?.status === 422;
           set((s) => ({
             job: {
               ...s.job,
               state: null,
-              error: 'Die Rechnung konnte nicht gestartet oder verfolgt werden. Verbindung prüfen und erneut versuchen.',
+              error: rejected
+                ? 'Die Einstellungen wurden abgelehnt. Druckmuster oder Parameter ändern und erneut starten.'
+                : 'Die Rechnung konnte nicht gestartet oder verfolgt werden. Verbindung prüfen und erneut versuchen.',
               errorDetail: errText(e),
             },
           }));

@@ -7,6 +7,15 @@ export function patternKindColors(p: ScenePalette): Record<string, string> {
   return { infill: p.infill, web: p.web, outfill: p.outfill };
 }
 
+/**
+ * Farben der Bahnlinien mit Muster: Musterarten wie die Raupen, Schalen in der Teilfarbe (wie ihre
+ * Raupen und wie die Legende „Schalen“). Nur Verbinder behalten die Bahnfarbe; sonst sähen die Schalen
+ * in „Zerlegen & prüfen“, wo nur die Bahn zu sehen ist, wie Verbinder aus.
+ */
+export function lineKindColors(p: ScenePalette): Record<string, string> {
+  return { ...patternKindColors(p), outer: p.part, inner: p.part, hole: p.part };
+}
+
 /** RGB-Zuordnung (0..1) für Vertexfarben: Musterarten aus `colors`, alles andere `fallback`. */
 export function kindColorFn(colors: Record<string, string>, fallback: string): KindColor {
   const cache = new Map<string, readonly [number, number, number]>();

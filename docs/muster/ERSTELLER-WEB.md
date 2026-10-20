@@ -87,8 +87,12 @@ kommen aus dem fertigen Lauf.
 - **Farben:** Segmentarten haben in der 2D-Vorschau, der Legende und der 3D-Ansicht dieselben Farben
   (Außenschale blau, Innenschale cyan, Laibung türkis, Infill rosa, Steg grün, Außenfeld violett).
   In 3D färben sich Bahn und Raupen nur, wenn das Teil Musterarten (`infill`, `web`, `outfill`)
-  enthält; Schalen behalten die Teilfarbe, damit Läufe ohne Muster unverändert aussehen. Die Legende
-  oben links in der 3D-Ansicht erscheint ebenfalls nur dann.
+  enthält; Läufe ohne Muster sehen unverändert aus. Mit Muster tragen die Schalen in Raupe und Bahn
+  die Teilfarbe (Legende „Schalen“), nur Verbinder bleiben in der Bahnfarbe. Die Legende oben links in
+  der 3D-Ansicht erscheint ebenfalls nur dann.
+- **Fehler:** Lehnt die API die Wahl ab (422), nennt die Meldung die Handlung („Druckmuster oder
+  Parameter ändern“), die Meldung der API steht im ausklappbaren Detail. Ein Ladefehler der
+  Schichtvorschau erscheint ebenso. Der Schichtregler trägt den Namen „Schicht wählen“.
 
 ### Tests
 
@@ -103,3 +107,6 @@ kommen aus dem fertigen Lauf.
   3D-Legende; „Für Lauf verwenden“; Preset-id an die echte API. Screenshots
   `web/e2e/screenshots/muster-ablauf-*.png`, `muster-schicht.png`, `muster-3d.png`,
   `muster-fuer-lauf.png`.
+- Gegenprüfung M4: `core/tests/test_patterns_registry_threads.py`. Der erste Katalogabruf aus zwei
+  Threads lieferte nur „schalen“ (`load_families` setzte das Geladen-Kennzeichen vor den Importen);
+  `muster-ablauf.spec.ts` scheiterte daran in 3 von 5 Läufen. Danach e2e 3 × 15/15 grün.

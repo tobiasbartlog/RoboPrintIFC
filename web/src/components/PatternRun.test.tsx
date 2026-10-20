@@ -1,4 +1,4 @@
-import { configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../App';
 import type { PatternInfo } from '../contracts';
 import { createFakeApi } from '../state/fakeApi';
@@ -11,8 +11,9 @@ vi.setConfig({ testTimeout: 30_000 });
 configure({ asyncUtilTimeout: 15_000 });
 
 /** Ablauf mit Musterwahl gegen die Fake-APIs: geprüft wird die Anbindung, nicht die Geometrie. */
-function setup() {
+function setup(tweak?: (api: ReturnType<typeof createFakeApi>) => void) {
   const api = createFakeApi({ mode: 'ok', polls: 2 });
+  tweak?.(api);
   const jobs: { params: Record<string, unknown> }[] = [];
   const start = api.startJob.bind(api);
   api.startJob = async (projectId, request) => {
@@ -117,6 +118,45 @@ describe('Musterwahl im Ablauf', () => {
     const second = screen.getByTestId('layer-path').querySelector('[data-kind]');
     expect(second?.getAttribute('data-kind')).toBe('infill');
     expect(screen.getByTestId('layer-prev')).toBeEnabled();
+  });
+});
+
+describe('Fehlerzustände und Bedienbarkeit', () => {
+  it('422 beim Anlegen: Klartext mit Handlung, die Meldung der API liegt im Detail', async () => {
+    setup((api) => {
+      api.startJob = () => Promise.reject(Object.assign(new Error('Muster-Preset „weg“ nicht gefunden. Anderes Muster wählen.'), { status: 422 }));
+    });
+    await toDecompose();
+    fireEvent.click(screen.getByTestId('start-job'));
+    const note = await screen.findByTestId('job-error');
+    expect(note).toHaveTextContent('Die Einstellungen wurden abgelehnt. Druckmuster oder Parameter ändern');
+    expect(note).not.toHaveTextContent('Verbindung prüfen');
+    expect(screen.getByTestId('job-error-detail')).toHaveTextContent('Muster-Preset „weg“ nicht gefunden');
+  });
+
+  it('Schichtvorschau: Schieberegler mit Namen, Ladefehler in Nutzersprache mit ausklappbarem Detail', async () => {
+    let fail = false;
+    setup((api) => {
+      const layer = api.patternLayer.bind(api);
+      api.patternLayer = (runId, partId, n) => (fail && n > 0 ? Promise.reject(new Error('HTTP 500: Traceback')) : layer(runId, partId, n));
+    });
+    await toDecompose();
+    fireEvent.click(screen.getByTestId('start-job'));
+    await screen.findByTestId('layer-preview-svg');
+    expect(screen.getByRole('slider', { name: 'Schicht wählen' })).toBeInTheDocument();
+    fail = true;
+    fireEvent.click(screen.getByTestId('layer-next'));
+    const note = await screen.findByTestId('layer-error');
+    expect(note).toHaveTextContent('Die Schicht konnte nicht geladen werden. Lauf neu rechnen');
+    expect(screen.getByTestId('layer-error-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('layer-error-detail')).toHaveTextContent('HTTP 500: Traceback');
+  });
+
+  it('Schichtfolge „Standard“ mit gespeichertem Muster nennt die Folge der Vorlage, nicht pauschal „wechselnd“', async () => {
+    const { store } = setup();
+    await toDecompose();
+    act(() => store.getState().replacePatternChoice({ ...store.getState().patternChoice, pattern_preset: 'mein_muster' }));
+    expect(screen.getByTestId('pattern-choice')).toHaveTextContent('Standard: Schichtfolge des gespeicherten Musters.');
   });
 });
 

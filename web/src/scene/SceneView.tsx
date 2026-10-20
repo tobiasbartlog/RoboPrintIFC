@@ -7,7 +7,7 @@ import type { URDFRobot } from 'urdf-loader';
 import { ContactOverlay } from './ContactOverlay';
 import { PacedRender } from './PacedRender';
 import { Part } from './Part';
-import { patternKindColors } from './kindColors';
+import { lineKindColors, patternKindColors } from './kindColors';
 import { PrintedStrand } from './PrintedStrand';
 import { Robot } from './Robot';
 import { Tool } from './Tool';
@@ -97,6 +97,7 @@ export function SceneView({
   const obstacle = obstacleVisible && tintActive ? (sample.pair?.[1] ?? null) : null;
   const contactLink = tintActive ? (sample.pair?.[0] ?? null) : null;
   const kindColors = useMemo(() => patternKindColors(palette), [palette]);
+  const lineColors = useMemo(() => lineKindColors(palette), [palette]);
   const printedHit = obstacle === 'printed' ? contactColor : null;
   // Die Raupen der laufenden Schicht liegen ueber printed.layers * h: Hindernis nur, wenn k hoeher reicht.
   const strandHit = printedHit && printed && sample && sample.layer > printed.layers ? printedHit : null;
@@ -228,7 +229,7 @@ export function SceneView({
                 printed={printed}
                 doneColor={palette.toolpathDone}
                 todoColor={palette.toolpathTodo}
-                kindColors={kindColors}
+                kindColors={lineColors}
               />
             )}
           </>

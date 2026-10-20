@@ -128,7 +128,9 @@ export function PatternChoice() {
                 ? 'Gleich: jede Schicht in derselben Richtung, der Schichtwechsel läuft schräg.'
                 : choice.layer_order === 'alternate'
                   ? 'Wechselnd: jede zweite Schicht läuft rückwärts, der Schichtwechsel ist ein reiner Hub nach oben.'
-                  : 'Standard: mit Muster wechselnd, der Schichtwechsel ist ein reiner Hub nach oben.'}
+                  : choice.pattern_preset
+                    ? 'Standard: Schichtfolge des gespeicherten Musters.'
+                    : 'Standard: mit Muster wechselnd, der Schichtwechsel ist ein reiner Hub nach oben.'}
           </Text>
         </Stack>
 
