@@ -4,6 +4,7 @@
     python scripts/verify_muster.py --fast                nur Szenarien mit expect.muster.fast = true
     python scripts/verify_muster.py --scenario S4_muster_sinus S5_muster_oeffnung
     python scripts/verify_muster.py --no-run              vorhandene Läufe nur neu prüfen
+    python scripts/verify_muster.py --scenario X --merge  Ergebnis in den vorhandenen Bericht einfügen
 
 Je Szenario (Laufordner `runs/verify_muster/<id>`):
 
@@ -189,7 +190,10 @@ def run_metrics(run: Path) -> dict[str, Any]:
         "waypoints": sum(m["waypoints"] for m in tps),
         "samples": samples,
         "print_time_s": round(dauer, 1),
-        "planner_runtime_s": t.get("plan"),
+        # Mit Zerlegung (IFC) plant die Zerlegung die Teile; dann zaehlen die Teilzeiten `<teil>.plan`
+        "planner_runtime_s": t.get("plan") or round(sum(v for k, v in t.items() if k.endswith(".plan")), 3),
+        "plan_final_check_s": round(sum(v for k, v in t.items() if k.endswith(".plan_final_check")), 3),
+        "decompose_s": t.get("decompose"),
         "total_runtime_s": t.get("total"),
     }
 
@@ -419,6 +423,13 @@ def table_row(e: dict[str, Any]) -> str:
     return " ".join(cells)
 
 
+def merge_entries(old: Any, new: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Alte Eintraege (anderer Szenarien) behalten, neue ersetzen gleichnamige; Reihenfolge nach Name."""
+    fresh = {e["name"] for e in new}
+    kept = [e for e in (old or {}).get("scenarios", []) if isinstance(e, dict) and e.get("name") not in fresh]
+    return sorted(kept + new, key=lambda e: (not e["name"].startswith("S4"), e["name"]))
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--scenario", nargs="+", metavar="ID", help="nur diese Szenarien (ID oder Pfad)")
@@ -430,16 +441,25 @@ def main(argv: list[str] | None = None) -> int:
         help="Prozesse fuer run-scenario, check_run und fake_drcf (Standard 2)",
     )
     ap.add_argument("--no-run", action="store_true", help="vorhandene Laufordner nur neu pruefen")
+    ap.add_argument(
+        "--merge",
+        action="store_true",
+        help="Eintraege anderer Szenarien aus dem vorhandenen report.json behalten",
+    )
     args = ap.parse_args(argv)
 
     scen = find_scenarios(args.scenario, args.fast)
     OUT.mkdir(parents=True, exist_ok=True)
     t0 = time.monotonic()
     entries = [run_scenario(p, max(1, args.jobs), args.no_run) for p in scen]
+    if args.merge:
+        entries = merge_entries(_load(OUT / "report.json"), entries)
     all_green = bool(entries) and all(e["status"] == "gruen" for e in entries)
     report = {
         "created": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-        "mode": "fast" if args.fast else ("partial" if args.scenario else "full"),
+        "mode": "merged"
+        if args.merge
+        else ("fast" if args.fast else ("partial" if args.scenario else "full")),
         "all_green": all_green,
         "seconds": round(time.monotonic() - t0, 1),
         "rules": {

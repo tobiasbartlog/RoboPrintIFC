@@ -272,5 +272,41 @@ Objekt in `params`), `shells`. Unbekannte Muster oder widersprüchliche Kombinat
 ## Ergebnis des Runners (M3.3)
 
 <!-- ERGEBNIS:BEGIN -->
-(wird nach dem Lauf eingetragen)
+Lauf vom 20.10.2026, 20:50–21:45, `python scripts/verify_muster.py` in zwei Teilläufen (3 + 11
+Szenarien, `--jobs 2`, VM mit anderen Agenten geteilt, Last 7–15; Zeiten schwanken deshalb um
+±50 %), Bericht zusammengeführt in `runs/verify_muster/report.json`: **alle 14 Szenarien grün**
+(13 machbar wie erwartet, 1 belegt nicht machbar wie erwartet).
+
+| Szenario | Ergebnis | d_min mm | Stränge je Schicht | senkrechte Wechsel | Druckzeit s | Planer s | Lauf s | G3 ohne Abdeckung | Abdeckung min | G5 | M1–M7 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| S4_muster_schalen_alternate | machbar | 10,83 | 1 | 39/39 (100 %) | 1032 | 92,7 | 97,4 | grün | 94,4 % (Einwand) | grün | grün |
+| S4_muster_fugenwand_raute | machbar | 10,83 | 1 | 39/39 | 979 | 250,4 | 258,3 | grün | 64,6 % (Einwand) | grün | grün |
+| S4_muster_fugenwand_gurt | machbar | 10,83 | 1 | 39/39 | 1431 | 55,6 | 61,7 | grün | 88,6 % (Einwand) | grün | grün |
+| S4_muster_fugenwand_gurt_300 | machbar | 10,83 | 1 | 39/39 | 1543 | 100,7 | 106,6 | grün | 62,7 % (Einwand) | grün | grün |
+| S4_muster_fugenwand_versetzt | machbar | 10,83 | 1 | 39/39 | 1424 | 87,0 | 92,5 | grün | 88,1 % (Einwand) | grün | grün |
+| S4_muster_sinus | machbar | 10,83 | 1 | 39/39 | 1250 | 106,0 | 111,2 | grün | 94,6 % (Einwand) | grün | grün |
+| S4_muster_zickzack | machbar | 10,83 | 1 | 39/39 | 1248 | 45,1 | 50,3 | grün | 94,6 % (Einwand) | grün | grün |
+| S4_muster_trapez | machbar | 10,83 | 1 | 39/39 | 1259 | 49,2 | 54,3 | grün | 94,6 % (Einwand) | grün | grün |
+| S4_muster_maeander | machbar | 10,83 | 1 | 39/39 | 1275 | 47,6 | 52,8 | grün | 94,6 % (Einwand) | grün | grün |
+| S4_muster_fermat | machbar | 10,83 | 1 | 39/39 | 1423 | 51,3 | 57,4 | grün | 95,5 % | grün | grün |
+| S4_muster_doppelwelle_300 | machbar | 10,83 | 1 | 39/39 | 1619 | 63,1 | 69,1 | grün | 95,3 % | grün | grün |
+| S4_muster_waben_300 | machbar | 10,83 | 1 | 39/39 | 1693 | 58,3 | 64,9 | grün | 95,3 % | grün | grün |
+| S5_muster_oeffnung (`topologie`) | machbar | 10,83 | 1–2 (= Inseln) | 38/39 (1 Inselwechsel, ausgenommen) | 1016 | 52,6 | 138,5 | grün | 77,0 % (Einwand) | grün | grün |
+| S5_muster_oeffnung_fugenwand | belegt nicht machbar (M3) | 10,83 | 1–2 | 38/39 | 946 | 43,6 | 134,9 | grün | 64,6 % (Einwand) | grün | rot: M3, 16 429 mm² Überhang in Schicht 15 über Schicht 14 |
+
+Anmerkungen:
+- „Planer s“ = `summary.timings_s.plan` (bei S5 Summe der Teilzeiten `<teil>.plan`; die Zerlegung
+  braucht dort zusätzlich ≈ 130 s). „Lauf s“ = Wanduhr von `run-scenario`. Ein früherer Probelauf
+  von S5_muster_oeffnung unter Last 15 brauchte 919 s, davon 535 s in der Abschlussprüfung
+  (`plan_final_check`); im Runner 138,5 s. Die Streuung kommt aus der Last bzw. einer Nachplanung,
+  nicht aus dem Muster; eine Laufzeitgrenze ist für G9 deshalb nicht vorgeschlagen.
+- d_min = 10,83 mm in allen Läufen, gleich wie S1 ohne Muster: Die engste Stelle liegt nicht im
+  Musterpfad. Der unabhängige Prüfer bestätigt d ≥ 10,00 mm (untere Schranke).
+- S5: Die Brüstung (Schichten 0–14) ist ein Strang; ab Schicht 15 je Pfeiler ein Schichtpfad
+  (2 Stränge je Schicht, 27 Stränge im Teil). Der eine nicht senkrechte Wechsel ist 14 → 15
+  (Inselzahl 1 → 2, nach M4 ausgenommen).
+- Warnungen (nicht hart): M6 in allen Läufen (Radius < w an Haken, Wenden oder Eckbögen), M4
+  (Naht am Rand) bei `fermat` 19 und bei S5 12.
+- Die G3-Abdeckung ist das einzige G3-Kriterium, das bei Mustern verfehlt wird (Gate-Einwand 1);
+  alle anderen G3-Kriterien, G5 und M1–M7 sind in allen machbaren Szenarien grün.
 <!-- ERGEBNIS:END -->
