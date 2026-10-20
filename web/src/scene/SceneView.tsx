@@ -7,6 +7,7 @@ import type { URDFRobot } from 'urdf-loader';
 import { ContactOverlay } from './ContactOverlay';
 import { PacedRender } from './PacedRender';
 import { Part } from './Part';
+import { PrintedStrand } from './PrintedStrand';
 import { Robot } from './Robot';
 import { Tool } from './Tool';
 import { ToolpathLines } from './ToolpathLines';
@@ -14,6 +15,7 @@ import { Workstation } from './Workstation';
 import { DEFAULT_ASSET_BASE, assetUrl, packageBase, urdfUrl } from './assets';
 import { mat4FromRows } from './math';
 import { useScenePalette } from './palette';
+import { strandLayout } from './strand';
 import { tcpFromScene } from './tcp';
 import { JOINT_NAMES, flangeOf } from './urdf';
 import type { Pose7, SceneApi, SceneSample, SceneViewProps } from './types';
@@ -55,8 +57,9 @@ function Lights() {
 }
 
 /**
- * 3D-Szene (mm, Z oben): Roboter aus der URDF, Doosantisch, Teil mit Schnittebene, Werkzeug am
- * Flansch, Kontaktanzeige. Alles ist eine reine Funktion der Props; die Uhr liegt ausserhalb.
+ * 3D-Szene (mm, Z oben): Roboter aus der URDF, Doosantisch, Teil mit Schnittebene, gedruckter
+ * Strang der laufenden Schicht, Werkzeug am Flansch, Kontaktanzeige. Alles ist eine reine Funktion
+ * der Props; die Uhr liegt ausserhalb.
  */
 export function SceneView({
   run,
@@ -81,11 +84,20 @@ export function SceneView({
   const ready = robotReady && tableReady && toolReady;
 
   const T_WB = useMemo(() => (scene ? mat4FromRows(scene.workstation.T_WB) : null), [scene]);
+  const toolpath = loaded?.toolpath ?? null;
+  const progress = loaded?.progress ?? null;
+  const layout = useMemo(() => (toolpath ? strandLayout(toolpath, progress) : null), [toolpath, progress]);
+  // Angezeigt wird der Druckfortschritt; ohne ihn (aeltere Aufrufer) der Kollisions-Druckstand k.
+  const printed = sample?.printed ?? null;
+  const shownLayers = sample ? (printed ? printed.layers : sample.layer) : null;
   const q = sample?.q ?? HOME_Q;
   const tintActive = sample && (sample.status === 'collision' || sample.status === 'warn');
   const contactColor = sample?.status === 'collision' ? palette.danger : palette.warn;
   const obstacle = obstacleVisible && tintActive ? (sample.pair?.[1] ?? null) : null;
   const contactLink = tintActive ? (sample.pair?.[0] ?? null) : null;
+  const printedHit = obstacle === 'printed' ? contactColor : null;
+  // Die Raupen der laufenden Schicht liegen ueber printed.layers * h: Hindernis nur, wenn k hoeher reicht.
+  const strandHit = printedHit && printed && sample && sample.layer > printed.layers ? printedHit : null;
 
   const tint = useMemo(() => {
     const m = new Map<string, Color>();
@@ -189,17 +201,28 @@ export function SceneView({
                 part={loaded.part}
                 stlUrl={loaded.stlUrl}
                 layerHeightMm={scene.params.layer_height_mm}
-                layer={sample ? sample.layer : null}
+                layer={shownLayers}
+                obstacleLayer={sample ? sample.layer : null}
                 color={palette.part}
                 ghostColor={palette.ghost}
-                highlight={obstacle === 'printed' ? contactColor : null}
+                highlight={printedHit}
                 onError={onError}
               />
             )}
-            {loaded?.toolpath && showToolpath && (
+            {layout && toolpath && printed && (
+              <PrintedStrand
+                layout={layout}
+                printed={printed}
+                widthMm={toolpath.bead_width_mm}
+                heightMm={toolpath.layer_height_mm}
+                color={palette.part}
+                highlight={strandHit}
+              />
+            )}
+            {layout && showToolpath && (
               <ToolpathLines
-                toolpath={loaded.toolpath}
-                layer={sample ? sample.layer : null}
+                layout={layout}
+                printed={printed}
                 doneColor={palette.toolpathDone}
                 todoColor={palette.toolpathTodo}
               />

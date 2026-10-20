@@ -1,5 +1,4 @@
 import { Matrix4, Plane, Quaternion, Vector3 } from 'three';
-import type { Toolpath } from '../contracts';
 import type { Mat4Rows, Pose7 } from './types';
 
 /** Zeilenweise 4x4 aus dem Artefakt nach three (intern spaltenweise). */
@@ -29,8 +28,9 @@ export function matrixToPose7(m: Matrix4): Pose7 {
 }
 
 /**
- * Hoehe der Schnittebene im Frame P (mm). `layer[i]` im Artefakt ist die Anzahl k der fertigen
- * Schichten (spec/ARTEFAKTE.md), gedruckt ist also z_P <= k * h. Ohne Schicht (null): alles gedruckt.
+ * Hoehe der Schnittebene im Frame P (mm) fuer k fertige Schichten: gedruckt ist z_P <= k * h
+ * (spec/ARTEFAKTE.md). k ist der Druckfortschritt (`progress.ts`) oder, fuer das Hindernis, der
+ * Kollisions-Druckstand `layer[i]`. Ohne Schicht (null): alles gedruckt.
  */
 export function clipHeightMm(layer: number | null | undefined, layerHeightMm: number, nLayers: number): number {
   if (layer === null || layer === undefined || !Number.isFinite(layer)) return Infinity;
@@ -43,62 +43,7 @@ export function clipPlaneInW(zClip: number, T_WP: Matrix4): Plane {
   return new Plane(new Vector3(0, 0, -1), zClip).applyMatrix4(T_WP);
 }
 
-/**
- * Alle Linienstuecke der Bahn einmal, nach Schicht sortiert. `splitAt(k)` ist die Anzahl der
- * Punkte (Vertices) aller Schichten < k: fertig ist [0, splitAt(k)), offen der Rest. So genuegt
- * bei einem Schichtwechsel ein drawRange statt einer neuen Geometrie.
- */
-export interface LayeredSegments {
-  positions: Float32Array;
-  splitAt: (k: number) => number;
-}
-
-export function layeredRingSegments(tp: Toolpath): LayeredSegments {
-  const byLayer = new Map<number, Toolpath['rings']>();
-  for (const ring of tp.rings) {
-    const list = byLayer.get(ring.layer);
-    if (list) list.push(ring);
-    else byLayer.set(ring.layer, [ring]);
-  }
-  const layers = [...byLayer.keys()].sort((a, b) => a - b);
-  const parts = layers.map((l) => ringSegments({ ...tp, rings: byLayer.get(l) ?? [] }, () => true));
-  const positions = new Float32Array(parts.reduce((a, p) => a + p.length, 0));
-  // ends[j]: Vertex-Ende der Schicht layers[j].
-  const ends: number[] = [];
-  let off = 0;
-  for (const p of parts) {
-    positions.set(p, off);
-    off += p.length;
-    ends.push(off / 3);
-  }
-  const splitAt = (k: number): number => {
-    // Erste Schicht j mit layers[j] >= k (binaere Suche); alles davor ist fertig.
-    let lo = 0;
-    let hi = layers.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if ((layers[mid] ?? Infinity) < k) lo = mid + 1;
-      else hi = mid;
-    }
-    return lo === 0 ? 0 : (ends[lo - 1] ?? 0);
-  };
-  return { positions, splitAt };
-}
-
-/** Linienstuecke (Punktpaare, flach) der Ringe, deren Schicht `keep` besteht. */
-export function ringSegments(tp: Toolpath, keep: (layer: number) => boolean): Float32Array {
-  const out: number[] = [];
-  for (const ring of tp.rings) {
-    if (!keep(ring.layer)) continue;
-    const w = ring.waypoints;
-    const n = w.length;
-    const last = ring.closed ? n : n - 1;
-    for (let i = 0; i < last; i++) {
-      const a = w[i];
-      const b = w[(i + 1) % n];
-      if (!a || !b) continue;
-      out.push(a[0], a[1], a[2], b[0], b[1], b[2]);
-    }
-  }
-  return new Float32Array(out);
+/** Schnittebene in W: behalten wird z_P >= zLow (Unterkante eines Bands). */
+export function clipPlaneAboveInW(zLow: number, T_WP: Matrix4): Plane {
+  return new Plane(new Vector3(0, 0, 1), -zLow).applyMatrix4(T_WP);
 }

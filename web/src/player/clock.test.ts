@@ -1,4 +1,6 @@
 import type { Trajectory } from '../contracts';
+import { printProgress } from '../scene/progress';
+import { buildTrajectory, twoShellToolpath } from '../scene/__tests__/strandFixture';
 import { collisionRanges, debugSnapshot, kindSegments, layerSegments, sampleAt, sceneSample, segments, statusSegments } from './clock';
 
 type Tr = Pick<Trajectory, 't_s' | 'status' | 'd_mm' | 'pair' | 'witness' | 'layer' | 'kind' | 'tcp'>;
@@ -155,5 +157,23 @@ describe('sceneSample', () => {
     const s = sceneSample(tr, 3);
     expect(s).toMatchObject({ q: [3, 0, 0, 0, 0, 0], layer: 1, status: 'collision', pair: ['tool_body', 'printed'], d_mm: -5 });
     expect(sceneSample(tr, 99)).toBeNull();
+    expect(s?.printed).toBeNull();
+  });
+
+  it('trägt mit Fortschritt den Druckstand der Anzeige, getrennt vom Kollisions-k', () => {
+    const tp = twoShellToolpath(1, false);
+    const tr = buildTrajectory(tp, false);
+    const progress = printProgress(tr, tp.rings);
+    // Travel nach der Aussenschale: k = 1 (Pruefung), gedruckt ist erst ein Ring der Schicht 0.
+    const i = tr.kind.indexOf('lift');
+    expect(sceneSample(tr, i, progress)).toMatchObject({ layer: 1, printed: { layers: 0, pos: 1 } });
+  });
+});
+
+describe('Verbinder', () => {
+  it('erscheint als eigene Bewegungsart zwischen zwei Druckbereichen', () => {
+    const tp = twoShellToolpath(1, true);
+    const tr = buildTrajectory(tp, true);
+    expect(kindSegments(tr).map((x) => x.value)).toEqual(['transfer', 'lower', 'approach', 'print', 'link', 'print', 'retract', 'lift']);
   });
 });

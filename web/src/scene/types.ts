@@ -1,4 +1,5 @@
 import type { PartArtifact, Scene, Toolpath } from '../contracts';
+import type { PrintedState, PrintProgress } from './progress';
 
 /**
  * Einheiten der 3D-Szene: Millimeter, Z oben (wie die Artefakte, SPEC §2). Es gibt keine
@@ -19,7 +20,13 @@ export type SceneStatus = 'ok' | 'warn' | 'collision' | 'unreachable';
 export interface SceneSample {
   q: readonly number[];
   tcp: readonly number[];
+  /** Kollisions-Druckstand k (Artefakt `layer[i]`): Hindernis der Pruefung, nicht die Anzeige. */
   layer: number;
+  /**
+   * Was bis zu diesem Sample gedruckt ist (`progress.ts`); daraus zeigt die Szene Volumen und Strang.
+   * Fehlt es, zeigt das Teil k Schichten (`layer`).
+   */
+  printed?: PrintedState | null;
   status: SceneStatus;
   /** [Glied, Hindernis] des kritischen Paars, z. B. ['link_3', 'printed']. */
   pair: readonly [string, string] | null;
@@ -34,6 +41,8 @@ export interface LoadedPart {
   /** Absolute oder relative URL von part.stl (Frame P). */
   stlUrl: string;
   toolpath?: Toolpath | null;
+  /** Druckfortschritt der Trajektorie (`printProgress`), fuer Strang und Volumen. */
+  progress?: PrintProgress | null;
 }
 
 /** Geladener Lauf: scene.json plus die Teile, die der Viewer zeigen kann. */

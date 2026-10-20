@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { PartArtifact, Scene, Toolpath, Trajectory } from '../contracts';
+import { printProgress } from './progress';
 import { SceneView } from './SceneView';
 import type { LoadedRun, SceneApi, SceneSample } from './types';
 
@@ -39,7 +40,8 @@ function App() {
         getJson<Trajectory>(`${base}/parts/${partId}/trajectory.json`),
       ]);
       setTraj(trajectory);
-      setRun({ scene, parts: { [partId]: { part, toolpath, stlUrl: `${base}/parts/${partId}/part.stl` } } });
+      const progress = printProgress(trajectory, toolpath.rings);
+      setRun({ scene, parts: { [partId]: { part, toolpath, progress, stlUrl: `${base}/parts/${partId}/part.stl` } } });
     })().catch((e) => console.error(e));
   }, [base, partId]);
 
@@ -52,6 +54,7 @@ function App() {
       q: traj.q[index]!,
       tcp: traj.tcp[index]!,
       layer: traj.layer[index]!,
+      printed: run?.parts[partId]?.progress?.at(index) ?? null,
       status: traj.status[index]!,
       pair: traj.pair[index] ?? null,
       witness: traj.witness[index] ?? null,

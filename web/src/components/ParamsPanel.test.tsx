@@ -27,7 +27,7 @@ describe('ParamsPanel', () => {
     expect(groupOpen('layer')).toBe(false);
     expect(screen.getByTestId('param-summary-layer')).toHaveTextContent('10 mm · 30 mm · 2 Schalen');
     expect(screen.getByTestId('param-summary-control')).toHaveTextContent('DRL v2');
-    expect(screen.getByTestId('param-hidden-note')).toHaveTextContent('12 weitere Parameter unter „Alle“');
+    expect(screen.getByTestId('param-hidden-note')).toHaveTextContent('10 weitere Parameter unter „Alle“');
     expect(screen.queryByTestId('params-reset-all')).toBeNull();
     expect(screen.getByTestId('param-assumption-t_tot_s')).toHaveTextContent('vorläufig');
   });

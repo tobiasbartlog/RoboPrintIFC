@@ -26,9 +26,9 @@ const group = (id: ParamGroupId) => PARAM_GROUPS.find((g) => g.id === id)!;
 const keysOf = (defs: ParamDef[]) => defs.map((d) => d.key);
 
 describe('Gruppenzuordnung', () => {
-  it('ordnet jeden der 23 Parameter genau einer bekannten Gruppe zu', () => {
-    expect(PARAMS).toHaveLength(23);
-    expect(new Set(keysOf([...PARAMS])).size).toBe(23);
+  it('ordnet jeden der 24 Parameter genau einer bekannten Gruppe zu', () => {
+    expect(PARAMS).toHaveLength(24);
+    expect(new Set(keysOf([...PARAMS])).size).toBe(24);
     const ids = new Set(PARAM_GROUPS.map((g) => g.id));
     for (const d of PARAMS) expect(ids.has(d.group)).toBe(true);
     for (const g of PARAM_GROUPS) expect(PARAMS.some((d) => d.group === g.id)).toBe(true);
@@ -41,7 +41,7 @@ describe('Gruppenzuordnung', () => {
       module: ['module_height_max_mm', 'spot_x_mm', 'spot_y_mm'],
       speed: ['v_print_mm_s', 'v_travel_mm_s'],
       pump: ['v_pump_v', 't_tot_s'],
-      motion: ['z_lift_mm', 'approach_mm', 'r_blend_mm', 'tau_max_deg'],
+      motion: ['link_max_mm', 'z_lift_mm', 'approach_mm', 'r_blend_mm', 'tau_max_deg'],
       clearance: ['d_hard_mm', 'd_target_mm', 'd_target_printed_mm', 'r_free_mm'],
       planning: ['psi_step_deg', 'step_mm', 'dq_max_rad'],
       control: ['dialect', 'tcp_name'],
@@ -53,7 +53,8 @@ describe('Gruppenzuordnung', () => {
     expect(DEFAULT_PARAMS.dialect).toBe('v2');
     expect(DEFAULT_PARAMS.module_height_max_mm).toBe(400);
     expect([DEFAULT_PARAMS.spot_x_mm, DEFAULT_PARAMS.spot_y_mm]).toEqual([0, -50]);
-    expect(Object.keys(DEFAULT_PARAMS)).toHaveLength(23);
+    expect(DEFAULT_PARAMS.link_max_mm).toBe(60);
+    expect(Object.keys(DEFAULT_PARAMS)).toHaveLength(24);
   });
 
   it('bleibt für den Kerntest test_web_default_params_accepted lesbar', () => {
@@ -67,8 +68,31 @@ describe('Gruppenzuordnung', () => {
   });
 });
 
+describe('Strang (Verbinder statt Abheben je Ring)', () => {
+  it('zeigt Verbinder, Abhebehöhe und An-/Abfahrt grundlegend unter „Bewegung“', () => {
+    const motion = groupViews('basic', '', DEFAULT_PARAMS).find((v) => v.group.id === 'motion')!;
+    expect(keysOf(motion.params)).toEqual(['link_max_mm', 'z_lift_mm', 'approach_mm']);
+    expect(motion.summary).toBe('60 mm · 30 mm · 20 mm');
+  });
+
+  it('beschreibt Verbinder, Travel und Pumpen-Vorlauf im Klartext', () => {
+    const link = byKey('link_max_mm');
+    expect(link).toMatchObject({ label: 'Verbinder bis', unit: 'mm', default: 60, step: 5, group: 'motion', basic: true });
+    expect(secondaryLine(link, DEFAULT_PARAMS)).toBe('0 = jeder Ring einzeln mit Abheben');
+    expect(secondaryLine(link, { ...DEFAULT_PARAMS, link_max_mm: 0 })).toBe('Standard 60 mm');
+    expect(secondaryLine(byKey('z_lift_mm'), DEFAULT_PARAMS)).toMatch(/nur zwischen Strängen/);
+    expect(secondaryLine(byKey('approach_mm'), DEFAULT_PARAMS)).toMatch(/nur zwischen Strängen/);
+    expect(byKey('t_tot_s').label).toBe('Pumpen-Vorlauf am Strangbeginn');
+  });
+
+  it('findet den Verbinder über die Suche', () => {
+    expect(keysOf(visibleParams('basic', 'verbinder'))).toEqual(['link_max_mm']);
+    expect(keysOf(visibleParams('basic', 'vorlauf'))).toEqual(['t_tot_s']);
+  });
+});
+
 describe('Sichtbarkeit je Modus', () => {
-  it('zeigt unter „Grundlegend“ 11 von 23 Parametern', () => {
+  it('zeigt unter „Grundlegend“ 14 von 24 Parametern', () => {
     expect(keysOf(visibleParams('basic', ''))).toEqual([
       'layer_height_mm',
       'bead_width_mm',
@@ -78,15 +102,18 @@ describe('Sichtbarkeit je Modus', () => {
       'shells',
       'v_print_mm_s',
       'v_travel_mm_s',
+      'link_max_mm',
+      'z_lift_mm',
+      'approach_mm',
       'v_pump_v',
       't_tot_s',
       'dialect',
     ]);
-    expect(visibleParams('all', '')).toHaveLength(23);
+    expect(visibleParams('all', '')).toHaveLength(24);
   });
 
   it('blendet Gruppen ohne grundlegende Parameter aus', () => {
-    expect(groupViews('basic', '', DEFAULT_PARAMS).map((v) => v.group.id)).toEqual(['layer', 'module', 'speed', 'pump', 'control']);
+    expect(groupViews('basic', '', DEFAULT_PARAMS).map((v) => v.group.id)).toEqual(['layer', 'module', 'speed', 'pump', 'motion', 'control']);
     expect(groupViews('all', '', DEFAULT_PARAMS).map((v) => v.group.id)).toEqual(PARAM_GROUPS.map((g) => g.id));
     const control = groupViews('basic', '', DEFAULT_PARAMS).find((v) => v.group.id === 'control')!;
     expect(keysOf(control.params)).toEqual(['dialect']);
@@ -103,12 +130,12 @@ describe('Sichtbarkeit je Modus', () => {
 
 describe('versteckte Änderungen', () => {
   it('zählt die Parameter, die nur unter „Alle“ stehen', () => {
-    expect(hiddenInfo('basic', '', DEFAULT_PARAMS)).toEqual({ count: 12, changed: 0, changedGroups: [] });
+    expect(hiddenInfo('basic', '', DEFAULT_PARAMS)).toEqual({ count: 10, changed: 0, changedGroups: [] });
   });
 
   it('zählt geänderte versteckte Parameter und nennt ihre Gruppen', () => {
     const values = { ...DEFAULT_PARAMS, d_hard_mm: 15, r_free_mm: 50, tcp_name: 'X', v_print_mm_s: 80 };
-    expect(hiddenInfo('basic', '', values)).toEqual({ count: 12, changed: 3, changedGroups: ['clearance', 'control'] });
+    expect(hiddenInfo('basic', '', values)).toEqual({ count: 10, changed: 3, changedGroups: ['clearance', 'control'] });
     expect(changedKeys(values)).toHaveLength(4);
   });
 
@@ -136,7 +163,7 @@ describe('Suche', () => {
   it('ignoriert den Modus und verlangt jedes Wort', () => {
     expect(keysOf(visibleParams('basic', 'soll druckstand'))).toEqual(['d_target_printed_mm']);
     expect(visibleParams('all', 'gibt es nicht')).toEqual([]);
-    expect(visibleParams('basic', '   ')).toHaveLength(11);
+    expect(visibleParams('basic', '   ')).toHaveLength(14);
     expect(matchesSearch(byKey('tcp_name'), 'steuerung')).toBe(true);
   });
 
@@ -153,7 +180,7 @@ describe('Kurzfassung und Werte', () => {
     expect(sum('layer')).toBe('10 mm · 30 mm · 2 Schalen');
     expect(sum('speed')).toBe('80 · 250 mm/s');
     expect(sum('pump')).toBe('5 V · 3 s');
-    expect(sum('motion')).toBe('30 mm · 20 mm · 2 mm · 0°');
+    expect(sum('motion')).toBe('60 mm · 30 mm · 20 mm · 2 mm · 0°');
     expect(sum('planning')).toBe('15° · 20 mm · 0,3 rad');
     expect(groupSummary(group('control'), [byKey('dialect')], v)).toBe('DRL v2');
     expect(sum('control')).toBe('DRL v2 · FGC_30GUT');
@@ -181,8 +208,9 @@ describe('Kurzfassung und Werte', () => {
   it('zeigt bei Änderung den Standard, sonst den Hinweis', () => {
     expect(secondaryLine(byKey('module_height_max_mm'), { ...DEFAULT_PARAMS, module_height_max_mm: 600 })).toBe('Standard 400 mm');
     expect(secondaryLine(byKey('bead_width_mm'), DEFAULT_PARAMS)).toBe('Düse 30gut');
-    expect(secondaryLine(byKey('t_tot_s'), DEFAULT_PARAMS)).toBe('vorläufig');
+    expect(secondaryLine(byKey('t_tot_s'), DEFAULT_PARAMS)).toBe('Totzeit Pumpe → Düse, einmal je Strang');
     expect(secondaryLine(byKey('t_tot_s'), { ...DEFAULT_PARAMS, t_tot_s: 4 })).toBe('Standard 3 s');
+    expect(secondaryLine(byKey('r_blend_mm'), DEFAULT_PARAMS)).toBeNull();
     expect(secondaryLine(byKey('step_mm'), DEFAULT_PARAMS)).toBeNull();
   });
 

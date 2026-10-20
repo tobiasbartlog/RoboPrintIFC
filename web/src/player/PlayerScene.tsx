@@ -74,7 +74,10 @@ export function PlayerScene() {
 
   const active = pb && pb.partId === partId ? pb : null;
   const index = active ? sampleAt(active.trajectory.t_s, t) : -1;
-  const sample = useMemo(() => (active && index >= 0 ? sceneSample(active.trajectory, index) : null), [active, index]);
+  const sample = useMemo(
+    () => (active && index >= 0 ? sceneSample(active.trajectory, index, active.loaded.parts[active.partId]?.progress) : null),
+    [active, index],
+  );
 
   useEffect(() => {
     if (focus) sceneApi.current?.focusOn(focus.p);
