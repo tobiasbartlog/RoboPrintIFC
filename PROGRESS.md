@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-20T14:13:00+02:00 · Session: Cloud (Abnahmelauf) · Phase: P6, Cloud-verify Druckplatz
+Herzschlag: 2026-10-20T14:22:00+02:00 · Session: Cloud (Abnahmelauf) · Phase: P6, Druckplatz abgenommen
 
 # PROGRESS — Nachtlauf v2
 
@@ -657,3 +657,26 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   58 s statt ~101 s, da nur noch ein Platz geprüft wird). Orakel-d_min_lb unverändert 11,85 mm (vorher ≥ 10,01 mm).
 - Geprüft auf Stand 0720722. Der SPEC-Commit aee7519 kam während des Laufs; er ändert nur SPEC-Text und die
   Beschreibung von S1, keine Schwelle und keine Szenario-Eingabe, daher kein erneuter Lauf.
+
+### 2026-10-20 14:22 Giebelwand mit Modulhöhe höchstens 1000 mm am Druckplatz, Orakel-Bestätigung (Cloud, 4 vCPU)
+- Szenario `/tmp/giebel_spot_h1000.json`: Kopie S2, `id` = `giebel_spot_h1000`, Wand `1AQAupaRP1txwK1AGiN61V`,
+  `module_height_max_mm` = 1000, `expect` = {}, `limits.wall_time_s` = 10⁶. Stand 8e03d03 (Code wie 0720722).
+- **Lauf: 345 s, Exit 0** (vorher 1095 s mit Platzierungssuche; Windows 410 s). Zerlegung 335 s, davon Höhensuche
+  136 s, Export 9 s.
+- **12 Teile, alle `machbar`, alle bei (0, −50) mm, Gier 0**: 9 × 600 × 200 × 910 mm (r0–r2), 3 × 600 × 200 ×
+  895,7 mm (Oberreihe r3, schräge Oberkante). Höchstes Modul 910 mm (`bbox_P`). d_min (Planer) 10,83 mm, 0 Kollisionen,
+  0 unerreichbar.
+- **Orakel `verify.check_run`: BESTANDEN (0 Fehler, 70 s).** 2 Vertreter voll geprüft, die übrigen 10 inhaltsgleich
+  (`same_as`, Hash):
+
+| Vertreter | Samples | Kollisionen | d_min_lb Orakel | Abdeckung min | max. Schritt TCP / q |
+|---|---|---|---|---|---|
+| r0_c0 (910 mm, für r0–r2) | 105 296 | 0 | 11,85 mm | 99,52 % | 4,07 mm / 0,0049 rad |
+| r3_c0 (896 mm, für r3) | 95 920 | 0 | 11,85 mm | 98,38 % | 4,07 mm / 0,0049 rad |
+
+- Bahnabweichung ≤ 1,1·10⁻¹¹ mm, Achsabweichung ≤ 2,4·10⁻⁶°. Das Orakel weicht nicht ab; jedes Modul ist bestätigt.
+- Zusatzlauf auf einer Kopie mit den S2-Erwartungen (prüft Wand, Tischplatte und Basis): Volumen der Teile
+  1 269 264 902 mm³ gegen IFC 1 269 264 935 mm³, Überlappung 0, kein Fehler zu Tischplatte, Basis, Eignung oder
+  Überhang. Die einzigen 3 Fehler betreffen die bewusst weggelassenen übrigen Wände („fehlt in summary.walls“).
+- Gegenüber der Seitenlage (−450, 250)/(−625, 300), 90° (Orakel-d_min_lb 11,85/11,04 mm) liegt der Abstand am
+  Druckplatz jetzt für beide Vertreter bei 11,85 mm.
