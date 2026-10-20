@@ -1,0 +1,369 @@
+{
+  "$defs": {
+    "PatternInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "family": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "layer_invariant": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "items": {
+            "$ref": "#/$defs/PatternParamSpec"
+          },
+          "type": "array"
+        },
+        "role": {
+          "enum": [
+            "full",
+            "outfill",
+            "infill"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "role",
+        "label",
+        "description",
+        "family",
+        "layer_invariant",
+        "params"
+      ],
+      "title": "PatternInfo",
+      "type": "object"
+    },
+    "PatternOutlineBox": {
+      "additionalProperties": false,
+      "description": "Rechteckiger Querschnitt, Ursprung in der Mitte (x ∈ [−L/2, L/2], y ∈ [−d/2, d/2]).",
+      "properties": {
+        "length_mm": {
+          "exclusiveMinimum": 0,
+          "maximum": 20000,
+          "type": "number"
+        },
+        "thickness_mm": {
+          "exclusiveMinimum": 0,
+          "maximum": 2000,
+          "type": "number"
+        }
+      },
+      "required": [
+        "length_mm",
+        "thickness_mm"
+      ],
+      "title": "PatternOutlineBox",
+      "type": "object"
+    },
+    "PatternOutlinePolygon": {
+      "additionalProperties": false,
+      "description": "Beliebiger Querschnitt als Polygon (Frame P, mm) mit optionalen Löchern.",
+      "properties": {
+        "holes": {
+          "items": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "polygon": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "polygon",
+        "holes"
+      ],
+      "title": "PatternOutlinePolygon",
+      "type": "object"
+    },
+    "PatternParamSpec": {
+      "additionalProperties": false,
+      "description": "Regler eines Parameters (deutsche Beschriftung, Bereich, Art).",
+      "properties": {
+        "choices": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "help": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "float",
+            "int",
+            "choice",
+            "bool"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "step": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "label",
+        "default",
+        "unit",
+        "minimum",
+        "maximum",
+        "step",
+        "kind",
+        "choices",
+        "help"
+      ],
+      "title": "PatternParamSpec",
+      "type": "object"
+    },
+    "PatternPreset": {
+      "additionalProperties": false,
+      "description": "Benanntes Muster (Preset-Datei, Schema siehe `roboprint.patterns.preview`).",
+      "properties": {
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "outline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PatternOutlineBox"
+            },
+            {
+              "$ref": "#/$defs/PatternOutlinePolygon"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "name",
+        "pattern",
+        "params",
+        "outline",
+        "description"
+      ],
+      "title": "PatternPreset",
+      "type": "object"
+    },
+    "PatternPresetEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "preset": {
+          "$ref": "#/$defs/PatternPreset"
+        },
+        "source": {
+          "enum": [
+            "builtin",
+            "user"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "preset"
+      ],
+      "title": "PatternPresetEntry",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Antwort von `GET /api/patterns`: Kernregler, alle Muster mit Reglern, gespeicherte Presets.",
+  "properties": {
+    "base_patterns": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "core_params": {
+      "items": {
+        "$ref": "#/$defs/PatternParamSpec"
+      },
+      "type": "array"
+    },
+    "patterns": {
+      "items": {
+        "$ref": "#/$defs/PatternInfo"
+      },
+      "type": "array"
+    },
+    "presets": {
+      "items": {
+        "$ref": "#/$defs/PatternPresetEntry"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "core_params",
+    "base_patterns",
+    "patterns",
+    "presets"
+  ],
+  "title": "PatternCatalog",
+  "type": "object"
+}

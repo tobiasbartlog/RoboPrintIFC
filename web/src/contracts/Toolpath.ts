@@ -7,14 +7,14 @@ export interface Toolpath {
   bead_width_mm: number;
   layer_height_mm: number;
   part_id: string;
-  pattern?: PatternInfo | null;
+  pattern?: ToolpathPattern | null;
   rings: Ring[];
   schema_version: "2";
 }
 /**
  * Druckmuster eines Teils (opt-in, docs/muster/ARTEFAKT-FORMAT.md); nur zur Beschriftung.
  */
-export interface PatternInfo {
+export interface ToolpathPattern {
   infill: string;
   layer_order: "same" | "alternate";
   outfill: string;

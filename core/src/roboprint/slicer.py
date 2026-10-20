@@ -44,7 +44,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
 
 from roboprint import slicer_patterns
-from roboprint.contracts import PatternInfo, Ring, Toolpath
+from roboprint.contracts import Ring, Toolpath, ToolpathPattern
 
 #: Düsenachse nach unten, X_T = X_W (psi = 0): Drehung um 180 deg um X_W.
 NOZZLE_DOWN_QUAT = (0.0, 1.0, 0.0, 0.0)
@@ -300,6 +300,6 @@ def to_toolpath(sliced: SlicedPart, T_WP: np.ndarray, part_id: str) -> Toolpath:
                 waypoints=poses,
             )
         )
-    pattern = PatternInfo.model_validate(sliced.pattern) if sliced.pattern is not None else None
+    pattern = ToolpathPattern.model_validate(sliced.pattern) if sliced.pattern is not None else None
     return Toolpath(part_id=part_id, layer_height_mm=sliced.layer_height_mm,
                     bead_width_mm=sliced.bead_width_mm, rings=rings, pattern=pattern)

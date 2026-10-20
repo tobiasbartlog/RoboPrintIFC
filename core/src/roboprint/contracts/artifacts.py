@@ -164,7 +164,7 @@ class Ring(ContractModel):
         return self
 
 
-class PatternInfo(ContractModel):
+class ToolpathPattern(ContractModel):
     """Druckmuster eines Teils (opt-in, docs/muster/ARTEFAKT-FORMAT.md); nur zur Beschriftung."""
 
     layer_order: LayerOrder
@@ -179,7 +179,7 @@ class Toolpath(ArtifactModel):
     bead_width_mm: float
     rings: list[Ring]
     # Nur bei Teilen mit Muster; fehlt sonst ganz in der Datei (ohne Muster bitgleich zu vorher)
-    pattern: PatternInfo | None = Field(default=None, exclude_if=lambda v: v is None)
+    pattern: ToolpathPattern | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 # --------------------------------------------------------------------------- trajectory

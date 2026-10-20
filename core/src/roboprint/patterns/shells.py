@@ -46,6 +46,7 @@ from typing import Any
 
 import numpy as np
 from scipy.spatial import cKDTree
+from shapely.geometry import LineString
 
 from roboprint.patterns.geometry import (
     Loop,
@@ -177,10 +178,62 @@ def clear_end(loop: Loop, t_from: float, trans: np.ndarray, w: float) -> float:
     return float(ts[max(int(bad[0]) - 1, 0)])
 
 
-def shell_chain(ctx: IslandContext, ring0: np.ndarray | None = None, ring0_kind: str = "outer") -> IslandPlan:
+def _transition_gap(ctx: IslandContext, ring: Loop, start: float, trans: np.ndarray) -> float | None:
+    """Kleinster Abstand der S-Kurve am Ende eines Einzelrings zum Ringanfang, oder None, wenn die
+    Raupe aus der Insel ⊕ 1 mm ragt (M5) oder näher als (1 − ε)·w − CLEAR_TOL_MM kommt (M2; die
+    Feinkurve liegt bis 0,1 mm innerhalb der späteren Abtastung, deren Sehnen nach innen schneiden)."""
+    w = ctx.params.w
+    if LineString(trans).buffer(w / 2.0).difference(ctx.region.buffer(1.0)).area > 1.0:
+        return None
+    gap = _min_dist(densify(trans, 1.0), densify(ring.sub(start, start + 4.0 * w), 1.0))
+    return gap if gap >= (1.0 - ctx.params.eps) * w - CLEAR_TOL_MM else None
+
+
+def close_single(
+    ctx: IslandContext, ring: Loop, start: float, virtuals: list[Loop]
+) -> tuple[float, np.ndarray, float, bool]:
+    """Ende eines Einzelrings mit S-Kurve auf die gedachte Bahn, die die Wand am Ringanfang schließt.
+
+    Die S-Kurve zielt auf den Punkt der gedachten Bahn neben ring(start + δ). δ = 0 trifft bei der
+    Eck-Naht die Ecke unter 45° (das Infill bräuchte dann eine Kehre R ≤ 15,9 mm bis zur Raupe der
+    Außenschale), δ = 1,5·w die anschließende Gerade: ein Viertelbogen R = 1,5·w = 45 mm, der den
+    Ringstart in 30,4 mm berührt (S1). Gewählt wird das erste (Bahn, δ), dessen S-Kurve in der Insel
+    liegt, nicht überlappt und den Ringanfang berührt (≤ w + contact_tol); sonst die erste gültige.
+    Rückgabe (Ende auf `ring` als Bogenlänge, S-Kurve, ℓ, geschlossen)."""
+    p = ctx.params
+    first = None
+    for v in virtuals:
+        for delta in (1.5 * p.w, p.w, 2.0 * p.w, 0.5 * p.w, 0.0):
+            ell, trans, _ = lane_change(ring, v, start + delta, p, min_ell=delta + p.w)
+            gap = _transition_gap(ctx, ring, start, trans)
+            if gap is None:
+                continue
+            cand = (start + delta - ell, trans, ell - delta, gap <= p.w + p.contact_tol_mm)
+            if cand[3]:
+                return cand
+            first = first or cand
+    if first is not None:
+        return first
+    ell, trans, _ = lane_change(ring, virtuals[-1], start, p)
+    return start - ell, trans, ell, False
+
+
+def shell_chain(
+    ctx: IslandContext, ring0: np.ndarray | None = None, ring0_kind: str = "outer", open_end: bool = False
+) -> IslandPlan:
     """Alle Schalen der Insel als ein Strang (Richtung außen → innen).
 
     `ring0` ersetzt den Außenring der Schale 0 (Outfill-Rolle), `ring0_kind` ist dann `outfill`.
+    `open_end` (ein Infill folgt): Die innerste Schale endet vor ihrem Start, wie vor einem
+    Schalenwechsel auf die gedachte nächste Bahn (offset (Schalen + 0,5)·w = Rand des Infill-
+    Bands). Bei einer Schale folgt die S-Kurve auf diese Bahn (`close_single`); sie schließt die
+    Wand am Ringanfang (S1: Viertelbogen R = 45 mm, 30,4 mm vom Ringstart; mit dem Ziel direkt
+    neben der Eck-Naht wären es 38,8 mm, also 8,8 mm Durchgang, oder 25,4 mm an der M2-Grenze).
+    Bei mehreren Schalen endet der Strang ℓ vor dem Start der innersten, ohne S-Kurve, und das
+    Infill legt seinen Einlauf selbst (`ctx.entry`). Gründe: Ein geschlossener Einzelring lässt
+    keinen Abgang ohne Überfahren des Ringanfangs zu (M2). Bei mehreren Schalen endete die
+    innerste sonst mit der Spitze gegen die ankommende S-Kurve; jede Kehre mit Radius ≥ w/2 ins
+    Band käme ihr auf < (1 − ε)·w nahe (S1: 24,4 mm bei R = 15 mm). Ohne Infill ändert sich nichts.
     Rückgabe: IslandPlan mit `meta = {seam, clearance_mm, fallback, transitions_mm, shells}`."""
     p = ctx.params
     mains: list[np.ndarray] = []
@@ -199,25 +252,41 @@ def shell_chain(ctx: IslandContext, ring0: np.ndarray | None = None, ring0_kind:
     start, meta = choose_seam(loops[0], ctx.region, ctx.part_bounds, p)
     meta = {**meta, "shells": len(loops), "transitions_mm": []}
     segs: list[Segment] = []
-    if len(loops) == 1:
+    # gedachte nächste Bahn: konzentrisch (Eckradius r − w; + 0,5 mm, damit die Tangente in der
+    # Ecke bestimmt ist), sonst wie eine echte Schale gerundet (r)
+    virtuals: list[Loop] = []
+    for rad in dict.fromkeys((max(p.corner_radius - p.w, 0.0) + 0.5, p.corner_radius)) if open_end else ():
+        ext = [r for kd, r in offset_ring(ctx.region, (len(loops) + 0.5) * p.w, rad) if kd == "exterior"]
+        if ext:
+            virtuals.append(Loop(max(ext, key=lambda r: abs(_area(r)))))
+    virtual = virtuals[0] if virtuals else None
+    if len(loops) == 1 and virtual is None:
         pts = loops[0].sub(start, start)
         pts = _fine(pts, p, closed=True)
         segs.append(Segment(ring0_kind, 0, pts, closed=True, label="Schale 0"))
     head: np.ndarray | None = None
-    for k, lp in enumerate(loops if len(loops) > 1 else []):
+    for k, lp in enumerate(loops if len(loops) > 1 or virtual is not None else []):
         kind = ring0_kind if k == 0 else "inner"
         # Ende dieses Rings: frei von der ankommenden S-Kurve (head)
         t_end = start + lp.length if head is None else clear_end(lp, start, head, p.w)
-        if k < len(loops) - 1:
-            ell, trans, tb = lane_change(
-                lp, loops[k + 1], start, p, min_ell=start + lp.length - t_end, avoid=head
-            )
-            body = lp.sub(start, start - ell)
+        nxt = loops[k + 1] if k < len(loops) - 1 else virtual
+        if nxt is not None:
+            if nxt is virtual and len(loops) == 1:  # Einzelring: S-Kurve schließt die Wand
+                t_cut, trans, ell, closed = close_single(ctx, lp, start, virtuals)
+                tb = start
+                if not closed:
+                    meta["open_wall"] = True  # Spalt zwischen S-Kurve und Ringanfang
+            else:
+                ell, trans, tb = lane_change(lp, nxt, start, p, min_ell=start + lp.length - t_end, avoid=head)
+                t_cut = start - ell
+            body = lp.sub(start, t_cut)
             meta["transitions_mm"].append(round(ell, 2))
         else:
             body = lp.sub(start, t_end)
             trans, tb = None, start
         pts = body if head is None else np.vstack([head, body[1:]])
+        if nxt is not None and nxt is virtual and len(loops) == 1:  # Einzelring: Wand schließen
+            pts = np.vstack([pts, trans[1:]])
         segs.append(Segment(kind, k, _fine(pts, p), label=f"Schale {k}"))
         head, start = trans, tb
     # Ausweichfall: weitere Teile und Löcher anhängen (siehe Modul-Docstring)
