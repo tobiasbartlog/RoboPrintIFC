@@ -105,7 +105,9 @@ haben wie `sol` im Doosan-`ikin` (docs/doosan-drl.md).
 | Modul / Teil | ein Stück der Wand, das einzeln gedruckt wird | `Part` |
 | Platzierung | `T_SP` eines Moduls auf der Arbeitsfläche | `Placement` |
 | Druckbahn | geschlossener Ring einer Schale in einer Schicht, mit Pumpe an gedruckt | `PrintRing` |
-| Travel | Bewegung mit Pumpe aus: Abheben, Transfer, Absenken | `Travel` |
+| Verbinder | gedruckte Gerade vom Ende eines Rings zum Start des nächsten Rings, über Material, höchstens `link_max_mm` lang; beim Schichtwechsel steigt sie um h | `link` |
+| Strang | Folge von Ringen und Verbindern, die ohne Halt und mit durchgehend laufender Pumpe gedruckt wird | `Strand` |
+| Travel | Bewegung mit Pumpe aus zwischen zwei Strängen: Abheben, Transfer, Absenken | `Travel` |
 | Druckstand | bereits gedrucktes Material als Hindernis, wächst schichtweise | `PrintedVolume` |
 | Freizone | Düsenspitze im Radius r_free um den TCP. Sie wird nicht gegen den Druckstand geprüft | `nozzle_tip` |
 | Armstellung | IK-Zweig 0–7 | `branch` |
@@ -182,32 +184,53 @@ weiter die Abstände über alle Paare.
    gleichem Zweig und max|Δq| ≤ Δq_max.
    Kosten: gewichtete Gelenkdistanz + λ_d · max(0, d_target − d)/d_target + λ_ψ · |Δψ|.
 4. **Suche.** Dynamische Programmierung (Viterbi) je Ring. Zwischen Ringen und Schichten
-   verbindet die Travel-Planung (5.3). Die Zweigwahl für das ganze Teil wird bevorzugt
-   beibehalten, das ist eine weiche Strafe.
+   verbinden Verbinder oder die Travel-Planung (5.3). Die Zweigwahl für das ganze Teil wird
+   bevorzugt beibehalten, das ist eine weiche Strafe; innerhalb eines Strangs ist sie hart.
 5. **Verdichtung.** Die gewählte Folge wird so interpoliert, wie die Steuerung fährt:
-   - Druck und An-/Abfahrt als `movel`, kartesisch linear mit Orientierungs-Slerp. Die IK läuft
+   - Druck, Verbinder und An-/Abfahrt als `movel`, kartesisch linear mit Orientierungs-Slerp. Die IK läuft
      entlang der Bahn, jeweils der Lösung des Vorgängers am nächsten und im selben Zweig.
    - Transfers als `movej`, gelenklinear.
    - Abtastung, bis zwischen zwei Samples der TCP ≤ 5 mm wandert und max|Δq| ≤ 0,005 rad bleibt.
      Jedes Sample wird geprüft und bekommt einen Status.
 6. **Ergebnis:** `machbar`, wenn kein Sample `collision` oder `unreachable` hat, überall d ≥ d_hard
-   gilt und kein Zweigwechsel innerhalb eines Rings vorkommt. Sonst `nicht machbar` mit Ursache:
+   gilt und kein Zweigwechsel innerhalb eines Strangs vorkommt. Sonst `nicht machbar` mit Ursache:
    erstes kritisches Sample, Glied, Hindernis.
 
 Ein **Tesseract-Spike** in P1 (Timebox 60 min) prüft, ob Descartes mit `sampleToolAxis` dieselbe
 Aufgabe für S1 schneller oder besser löst. Das Ergebnis kommt nach PROGRESS.md. Übernommen
 wird es nur hinter der Backend-Naht und nur, wenn G3 dadurch nicht schlechter wird.
 
-### 5.3 Travel
+### 5.3 Strang und Travel
 
-Die Folge von Ringende zu Ringstart besteht aus drei Stücken:
+*Nutzerentscheidung 20.10.2026 (durchgehender Strang):* Lehm verlangt eine kontinuierliche
+Bewegung bei gleichbleibendem Materialfluss. Ringe werden deshalb, wo es geht, zu einem Strang
+verbunden. Die Pumpe läuft im Strang durch, der Roboter hält im Strang nicht an.
+
+**Verbinder.** Der Slicer setzt `link_next = true` an Ring r, wenn alle Bedingungen gelten:
+- `link_max_mm` > 0, und Ring r + 1 gehört zum selben Teil und liegt in Schicht L(r) oder L(r) + 1.
+- Der waagrechte Abstand vom letzten Wegpunkt von r zum ersten Wegpunkt von r + 1 ist ≤ `link_max_mm`.
+- Die waagrechte Projektion dieser Geraden liegt im Querschnitt der Schicht L(r + 1) und, beim
+  Schichtwechsel, auch im Querschnitt der Schicht L(r). Ein Verbinder führt nie über eine Öffnung.
+
+Der Verbinder ist die Gerade vom letzten Wegpunkt von r zum ersten Wegpunkt von r + 1, als
+`movel` mit v_print und laufender Pumpe. Beim Schichtwechsel steigt er dabei um h. Die
+Reihenfolge der Ringe ändert sich nicht (je Schicht Schale 0 vor Schale 1, innerhalb einer
+Schale nächster Nachbar).
+
+**Strang im Planer.** Ein Verbinder verlangt denselben Zweig in r, im Verbinder und in r + 1.
+Der Planer plant Ring r + 1 dann mit diesem Zweig. Geht das nicht (unerreichbar, d < d_hard,
+Zweigwechsel nötig), trennt er den Strang an dieser Stelle und plant einen Travel. Maßgeblich ist
+die Trajektorie: Ein Strang endet, wo nach `print` ein `retract` folgt.
+
+**Travel** gibt es nur zwischen Strängen (Ende eines Strangs zum Start des nächsten). Er besteht
+aus drei Stücken:
 1. Abheben senkrecht um z_lift über die Oberkante des aktuellen Druckstands, als `movel`.
 2. Transfer als `movej` zwischen den Gelenklösungen über Endpunkt und Startpunkt.
 3. Absenken senkrecht auf den Ringstart, als `movel`.
 
 Ist der Transfer nicht frei, wird ein Zwischenpunkt höher und mittig darüber eingefügt.
-Bleibt er unfrei, wird die Zweigwahl gewechselt, und zwar nur hier. Jeder Travel wird wie Druck
-dicht geprüft.
+Bleibt er unfrei, wird die Zweigwahl gewechselt, und zwar nur hier. Jeder Travel und jeder
+Verbinder wird wie Druck dicht geprüft.
 
 ### 5.4 Zerlegung (`decompose`, Modus Modul)
 
@@ -232,9 +255,12 @@ dicht geprüft.
 
 ### 5.5 Zeitparametrierung (`timing`)
 
-- Druck: konstante Bahngeschwindigkeit v_print.
+- Druck: konstante Bahngeschwindigkeit v_print. Ein Strang (alle `print`- und `link`-Samples
+  ohne Unterbrechung) ist ein Abschnitt mit einem Trapezprofil: Rampen nur am Strangbeginn und
+  -ende, an Ringgrenzen im Strang keine.
 - Travel: v_travel kartesisch bzw. Gelenkgeschwindigkeit innerhalb der Grenzen.
 - Trapezprofile.
+- Pumpen-Vorlauf t_tot: einmal je Strang am Strangbeginn (Stillstand, Pumpe an, `wait(t_tot)`).
 
 Die Zeiten dienen der Wiedergabe und der Druckzeitschätzung. Geprüft wird geometrisch.
 
@@ -244,14 +270,16 @@ Jedes Detail mit Beleg steht in `docs/doosan-drl.md`. Für den Emitter verbindli
 - **Prolog:** `set_velx`/`set_accx`/`set_velj`/`set_accj` mit Werten aus §10; `set_tcp(<tcp_name>)`;
   `set_singularity_handling(DR_VAR_VEL)`; `set_mode_analog_output(ch=1, mod=DR_ANALOG_VOLTAGE)`;
   danach `movej(posj(home))`.
-- **Je Ring:**
+- **Je Strang** (§5.3):
   1. `movej(posj(q_über_start))` als Transfer
-  2. `movel` absenken
+  2. `movel` absenken und anfahren
   3. `set_analog_output(ch=1, val=V_pump)` und `wait(t_tot)`
-  4. Druck-`movel` je Wegpunkt mit `radius = r_blend` und `ra = DR_MV_RA_DUPLICATE`. Im Dialekt v3
+  4. Druck-`movel` je Wegpunkt aller Ringe des Strangs und je ein `movel` für jeden Verbinder,
+     alle mit `radius = min(r_blend, ½ der angrenzenden Segmente)` und `ra = DR_MV_RA_DUPLICATE`,
+     auch an den Ringgrenzen. Nur das letzte `movel` des Strangs hat `radius = 0`. Im Dialekt v3
      sind statt der Einzelbefehle `movesx`-Blöcke mit ≤ 100 Punkten und `vel_opt = DR_MVS_VEL_CONST` erlaubt.
   5. `set_analog_output(ch=1, val=0)`
-  6. `movel` abheben
+  6. `movel` abfahren und abheben
 - **Posen:** `posx` kartesisch in mm und Grad, Euler ZYZ (A, B, C) mit R = Rz(A)·Ry(B)·Rz(C),
   `ref = DR_BASE`. Gelenkziele `posj` in Grad, Doosan-Konvention.
 - **Bezug:** Bewegungsziele kommen ausschließlich aus der geplanten Trajektorie, also aus genau dem
@@ -275,11 +303,11 @@ Jedes Detail mit Beleg steht in `docs/doosan-drl.md`. Für den Emitter verbindli
     part.json             part_id, wall_id, T_LP, T_SP, T_WP, Bounding-Box in P,
                           Volumen, Status machbar/nicht machbar + Ursache
     part.stl              Teil-Solid in Frame P, mm
-    toolpath.json         Schichthöhe h, Ringe: layer, shell, kind, Wegpunkte als TCP-Posen in W
-                          [x, y, z, qw, qx, qy, qz]
+    toolpath.json         Schichthöhe h, Ringe: layer, shell, kind, link_next, Wegpunkte als
+                          TCP-Posen in W [x, y, z, qw, qx, qy, qz]
     trajectory.json       Arrays gleicher Länge N:
                             t_s[N], q[N][6] (rad, Doosan), tcp[N][7] (W), layer[N], ring[N],
-                            kind[N] ∈ {print, approach, retract, lift, transfer, lower},
+                            kind[N] ∈ {print, link, approach, retract, lift, transfer, lower},
                             branch[N], status[N], d_mm[N] (null bei unreachable),
                             pair[N] = [glied, hindernis] | null, witness[N] = [[x,y,z],[x,y,z]] | null
                           sowie summary: n, n_ok, n_warn, n_collision, n_unreachable, d_min_mm,
@@ -357,7 +385,8 @@ DRL-Programms und in `summary.json`.
 | z_lift | 30 mm über Druckstand-Oberkante | A |
 | An- und Abfahrt | senkrecht 20 mm | A |
 | V_pump | 5,0 V konstant auf AO 1 (`pump_a`) | A |
-| t_tot | 3,0 s Verweilzeit am Ringstart | A, provisorisch |
+| t_tot | 3,0 s Pumpen-Vorlauf am Strangbeginn (Totzeit Pumpensignal → Düse); einmal je Strang | A, provisorisch |
+| link_max_mm | 60 mm, längster Verbinder (§5.3); 0 schaltet Verbinder ab | Nutzer 20.10.2026 |
 | r_blend | min(2 mm, ½ Segmentlänge) | A |
 | d_hard | 10 mm, hartes Abnahmekriterium | A |
 | d_target | 50 mm (`safety_min_distance_mm` der Workstation) | |
@@ -380,9 +409,9 @@ und importieren `roboprint` nicht.
 |---|---|---|
 | **G1 Kinematik** | `roboprint.robot` gegen Pinocchio auf der URDF | 2000 Zufalls-q in den Grenzen: Positionsfehler < 0,01 mm, Rotationsfehler < 1e-6 rad. 2000 Zufallsposen: Jede IK-Lösung erfüllt die FK auf 0,01 mm, und die erzeugende Lösung ist in der Menge enthalten (modulo 2π). Home-Pose gültig. |
 | **G2 Kollision** | `roboprint.collision` gegen Coal auf Roh-Meshes (URDF-Kollisionsmeshes, Werkzeug-STL, Tisch-STL, Teil-STL) | 500 Zufallsposen in der Szene S1 mit halb gedrucktem Teil: roboprint ist konservativ, d_rp ≤ d_coal + 1 mm auf jeder Pose. Wo \|d_coal\| > 12 mm, stimmt das Vorzeichen überein. Wo beide ≥ 0, gilt \|d_rp − d_coal\| ≤ 12 mm. Konservativ werden darf über Aufblasen der Näherungsgeometrie. |
-| **G3 Referenzmodul** | Lauf S1 vom unabhängigen Prüfer `verify/check_run.py` dicht nachgerechnet | 0 `collision`, 0 `unreachable`, d_min ≥ d_hard auf **jedem** Sample, auch Travel. Abtastdichte nach 5.2/5. TCP folgt dem Toolpath: Position ≤ 0,5 mm, Düsenachse ≤ τ_max + 0,1°. Kein Zweigwechsel in Ringen. Abdeckung je Schicht ≥ 95 % des Schalenbereichs (aus `part.stl` unabhängig geschnitten). Eigener Status = Prüferstatus. |
+| **G3 Referenzmodul** | Lauf S1 vom unabhängigen Prüfer `verify/check_run.py` dicht nachgerechnet | 0 `collision`, 0 `unreachable`, d_min ≥ d_hard auf **jedem** Sample, auch Travel. Abtastdichte nach 5.2/5. TCP folgt dem Toolpath: Position ≤ 0,5 mm, Düsenachse ≤ τ_max + 0,1°, Verbinder ≤ 0,5 mm neben ihrer Geraden und nur nach §5.3. Kein Zweigwechsel in einem Strang. Abdeckung je Schicht ≥ 95 % des Schalenbereichs (aus `part.stl` unabhängig geschnitten). Eigener Status = Prüferstatus. |
 | **G4 Beispiel-IFC** | Lauf S2 (alle Wände) und S3 (Negativfall) | S2: Jede geeignete Wand ist vollständig zerlegt (Volumen der Teile = Wandvolumen ± 0,5 %, Überlappung ≤ 0,1 %), jedes Teil besteht alle G3-Kriterien, liegt auf der Arbeitsfläche und schneidet die Roboterbasis nicht. Jede ungeeignete Wand hat einen Grund, der die Regel aus 5.4/1 tatsächlich erfüllt. Überhang-Regel eingehalten. S3: Der eigene Status meldet `collision`, und der Prüfer bestätigt ≥ 1 Kollisionssample. |
-| **G5 DRL** | `verify/fake_drcf` führt jedes `program.v2.drl` und `program.v3.drl` aus S1 und S2 aus | Läuft ohne Fehler. Nur Befehle und Signaturen, die laut `docs/doosan-drl.md` im Dialekt existieren. AO-Kanal ∈ {1, 2}, 0–10 V. vel/acc in den Grenzen. `movesx` ≤ 100 Punkte, `r_blend` ≤ ½ Segment. Jedes `posj` ist das geplante q (≤ 0,001°). Jedes `posx` entspricht der FK des geplanten q (≤ 0,1 mm, ≤ 0,05°) bei unabhängiger ZYZ-Umrechnung. Pumpe ist nur in Druckringen an. |
+| **G5 DRL** | `verify/fake_drcf` führt jedes `program.v2.drl` und `program.v3.drl` aus S1 und S2 aus | Läuft ohne Fehler. Nur Befehle und Signaturen, die laut `docs/doosan-drl.md` im Dialekt existieren. AO-Kanal ∈ {1, 2}, 0–10 V. vel/acc in den Grenzen. `movesx` ≤ 100 Punkte, `r_blend` ≤ ½ Segment. Jedes `posj` ist das geplante q (≤ 0,001°). Jedes `posx` entspricht der FK des geplanten q (≤ 0,1 mm, ≤ 0,05°) bei unabhängiger ZYZ-Umrechnung. Pumpe ist nur in Strängen an (`print`, `link`), schaltet nur im Stillstand am Strangbeginn ein und nur am Strangende aus. |
 | **G6 Viewer** | `npm --prefix web run e2e` (Playwright, startet API und Web mit den Läufen S1 und S3) | Glückspfad: Projekt → Wand → „Zerlegen & prüfen“ → alle Teile grün → Wiedergabe → Export. Kollisionspfad S3: Liste „Kollisionen (n > 0)“; Klick pausiert bei t, das betroffene Glied ist hervorgehoben, das Hindernis sichtbar. Uhr-Invariante an 50 Zufalls-t: \|tcpRendered − tcpArtifact\| ≤ 1 mm, Status passt zum Sample. Screenshots unter `web/e2e/screenshots/`. |
 | **G7 Laufzeit** | gemessen durch `verify` auf der Cloud-VM (4 vCPU) | S1 ≤ 180 s, S2 ≤ 1800 s |
 | **G8 Qualität** | Lint, Typen, Unit-Tests | `ruff check core verify`, `pytest core`, `npm --prefix web run lint`, `run typecheck`, `run test`: alle grün |

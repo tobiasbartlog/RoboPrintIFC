@@ -14,6 +14,7 @@ export interface Ring {
   closed: boolean;
   kind: "outer" | "inner" | "hole";
   layer: number;
+  link_next: boolean;
   shell: number;
   waypoints: [number, number, number, number, number, number, number][];
 }
