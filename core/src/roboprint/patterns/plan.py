@@ -119,7 +119,7 @@ def build_island(
                 raise ValueError(f"Outfill {out.name!r} muss einen geschlossenen Ring liefern")
             kind0 = "outfill"
         meta["outfill"] = o.meta
-    plan = shell_chain(ctx, ring0, kind0)
+    plan = shell_chain(ctx, ring0, kind0, open_end=inf is not None)
     plan.meta.update(meta)
     if inf is not None and plan.segments:
         last = plan.segments[-1].points
