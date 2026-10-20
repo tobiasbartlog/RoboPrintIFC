@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, fields, replace
 from typing import Any
 
@@ -58,9 +59,25 @@ class PlannerParams:
     lambda_link: float = 1.0
     # Travel: Hoehen des Zwischenpunkts ueber dem Druckstand (SPEC §5.3)
     via_heights_mm: tuple[float, ...] = (150.0, 300.0, 500.0)
+    # Druckmuster (opt-in, docs/muster/ARTEFAKT-FORMAT.md). Alle auf dem Standard: Slicer wie bisher
+    # (SPEC §5.1). `pattern_params` ist ein JSON-Objekt als Text (sortierte Schluessel), damit die
+    # Parameter hashbar bleiben und in summary.params passen; `pattern_preset` ein Pfad zu einem
+    # Preset-JSON (roboprint.patterns.load_preset), relativ zum Repo oder absolut.
+    layer_order: str = "same"
+    infill_pattern: str = "none"
+    outfill_pattern: str = "none"
+    pattern_params: str = ""
+    pattern_preset: str = ""
 
     def __post_init__(self) -> None:
         check_spot(self.spot_x_mm, self.spot_y_mm)
+        if self.layer_order not in LAYER_ORDERS:
+            raise ValueError(f"layer_order = {self.layer_order!r}, erlaubt {LAYER_ORDERS}")
+
+    @property
+    def uses_pattern(self) -> bool:
+        """True, wenn ein Musterparameter vom Standard abweicht (Slicer plant dann mit Muster)."""
+        return any(getattr(self, k) != v for k, v in PATTERN_DEFAULTS.items())
 
     @property
     def psi_grid(self) -> np.ndarray:
@@ -72,8 +89,31 @@ class PlannerParams:
         for k, v in asdict(self).items():
             if isinstance(v, tuple):
                 continue
+            if k in PATTERN_DEFAULTS and v == PATTERN_DEFAULTS[k]:
+                continue  # Muster opt-in: ohne Muster bleibt summary.params wie bisher
             out[k] = float(v) if isinstance(v, int) and not isinstance(v, bool) else v
         return out
+
+
+LAYER_ORDERS = ("same", "alternate")
+#: Musterparameter und ihre Standardwerte (= kein Muster, Verhalten wie SPEC §5.1)
+PATTERN_DEFAULTS: dict[str, str] = {
+    "layer_order": "same",
+    "infill_pattern": "none",
+    "outfill_pattern": "none",
+    "pattern_params": "",
+    "pattern_preset": "",
+}
+
+
+def pattern_params_json(value: Any) -> str:
+    """`pattern_params` aus Szenario oder API (Objekt oder JSON-Text) als kanonischer JSON-Text."""
+    if value is None or value == "":
+        return ""
+    obj = json.loads(value) if isinstance(value, str) else value
+    if not isinstance(obj, dict):
+        raise ValueError("pattern_params muss ein Objekt sein")
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False) if obj else ""
 
 
 # Rastfeld des Druckplatzes in S (mm): x quer zum Roboter, y zum Roboter hin positiv. Gemessen am
@@ -130,5 +170,10 @@ def from_overrides(overrides: dict[str, Any] | None, d_target_mm: float | None =
         if key not in names:
             raise ValueError(f"Unbekannter Parameter im Szenario: {k}")
         cur = getattr(p, key)
-        upd[key] = type(cur)(v) if not isinstance(cur, tuple) else tuple(v)
+        if key == "pattern_params":
+            upd[key] = pattern_params_json(v)
+        elif isinstance(v, dict):
+            raise ValueError(f"Parameter {k}: Objekt nur bei pattern_params erlaubt")
+        else:
+            upd[key] = type(cur)(v) if not isinstance(cur, tuple) else tuple(v)
     return replace(p, **upd)

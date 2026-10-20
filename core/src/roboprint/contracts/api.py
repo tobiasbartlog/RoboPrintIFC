@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from ._types import ContractModel, ParamValue, PlannerMode
+from ._types import ContractModel, PlannerMode, ScenarioParamValue
 from .artifacts import WallEntry
 
 
@@ -46,7 +46,7 @@ class ProjectInfo(ContractModel):
 
 class JobCreate(ContractModel):
     wall_id: str
-    params: dict[str, ParamValue] = Field(default_factory=dict)
+    params: dict[str, ScenarioParamValue] = Field(default_factory=dict)
     planner_mode: PlannerMode = "collision_aware"
 
 

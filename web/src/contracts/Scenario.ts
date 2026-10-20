@@ -13,7 +13,13 @@ export interface Scenario {
   limits: ScenarioLimits;
   mode: string;
   params: {
-    [k: string]: number | string | boolean;
+    [k: string]:
+      | number
+      | string
+      | boolean
+      | {
+          [k: string]: number | string | boolean | number[];
+        };
   };
   placement_override: PlacementOverride | null;
   planner_mode: "collision_aware" | "ignore_collision";

@@ -1,5 +1,54 @@
 {
   "$defs": {
+    "PatternInfo": {
+      "additionalProperties": false,
+      "description": "Druckmuster eines Teils (opt-in, docs/muster/ARTEFAKT-FORMAT.md); nur zur Beschriftung.",
+      "properties": {
+        "infill": {
+          "type": "string"
+        },
+        "layer_order": {
+          "enum": [
+            "same",
+            "alternate"
+          ],
+          "type": "string"
+        },
+        "outfill": {
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              }
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "layer_order",
+        "infill",
+        "outfill",
+        "params"
+      ],
+      "title": "PatternInfo",
+      "type": "object"
+    },
     "Ring": {
       "additionalProperties": false,
       "properties": {
@@ -10,7 +59,10 @@
           "enum": [
             "outer",
             "inner",
-            "hole"
+            "hole",
+            "infill",
+            "web",
+            "outfill"
           ],
           "type": "string"
         },
@@ -61,6 +113,17 @@
     },
     "part_id": {
       "type": "string"
+    },
+    "pattern": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PatternInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "rings": {
       "items": {

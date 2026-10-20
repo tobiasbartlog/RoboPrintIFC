@@ -54,6 +54,11 @@ def slice_params(params: PlannerParams) -> SliceParams:
         params.step_mm,
         params.approach_mm,
         params.link_max_mm,
+        params.layer_order,
+        params.infill_pattern,
+        params.outfill_pattern,
+        params.pattern_params,
+        params.pattern_preset,
     )
 
 
@@ -242,7 +247,8 @@ def truncate_plan(pp: PartPlan, n_layers: int, params: PlannerParams) -> PartPla
     rings = list(pp.sliced.rings[:r_cut])
     if rings and rings[-1].link_next:
         rings[-1] = replace(rings[-1], link_next=False)
-    sliced = SlicedPart(pp.sliced.layer_height_mm, pp.sliced.bead_width_mm, n_layers, rings)
+    sp = pp.sliced
+    sliced = SlicedPart(sp.layer_height_mm, sp.bead_width_mm, n_layers, rings, sp.pattern)
     path = truncate(pp.path, _prefix_len(pp.path, pp.sliced, n_layers), params)
     return replace(pp, sliced=sliced, path=path)
 

@@ -62,3 +62,66 @@ Verbinder der Länge 0 in derselben Schicht ausgibt, sondern zu einem Ring zusam
   (Lage, Länge, Art `joint` | `node` | `shell`).
 - Vorschau-Ausgabe des Kerns (für API, CLI und Viewer, ohne Roboter): je Schicht die Polylinien je
   Segmentart, Start und Ende, Kontakte, Regelverstöße M1–M7 und Kennzahlen, als JSON.
+
+## Nachtrag M3: Slicer und Vertrag (M3.1)
+
+Umgesetzt in `core/src/roboprint/slicer_patterns.py` (vom Slicer aufgerufen) und den Verträgen.
+
+**Verbinder der Länge 0 in derselben Schicht sind gültig.** Geprüft mit dem unabhängigen Prüfer
+`python -m verify.check_run` (nur aufgerufen, nicht geändert) an zwei Läufen auf dem Quader
+600 × 200 × 60 mm (6 Schichten, Standard-Druckplatz):
+
+| Lauf | Ringe | Verbinder | längster Verbinder | Ablauf-, Verbinder-, Pfadfehler | `verify_muster` | `fake_drcf` |
+|---|---|---|---|---|---|---|
+| `layer_order = alternate` (2 Schalen) | 12 | 11 (6 in der Schicht, 5 Schichtwechsel) | 9·10⁻¹³ mm | keine | GRÜN (M1–M7) | v2/v3 ok |
+| Preset `fugenwand.json` (Rautenkette) | 42 | 41 | 0,0 mm | keine | GRÜN (M1–M7) | v2/v3 ok |
+
+Einziger Fehler beider Läufe ist die G3-Abdeckung (94,4 % bzw. 64,6 % < 95 %), siehe
+Gate-Einwand 1 in `MUSTER-PROGRESS.md`. Die Bedingungen des Prüfers für einen Verbinder
+(`verify/oracle/strand_rules.py`): Schichtsprung 0 oder 1; waagrechte Länge ≤ `link_max_mm`;
+Projektion (bei Länge 0 ein Punkt) im Querschnitt ± 1 mm; jedes `link`-Sample ≤ 0,5 mm neben der
+Strecke; **mindestens ein `link`-Sample** direkt zwischen `print r` und `print r + 1`
+(Ablaufregel) und `link_next = true` an Ring r. Der heutige Planer erzeugt für einen Verbinder der
+Länge 0 in der Schicht ein `link`-Sample und für den senkrechten Schichtwechsel drei (Z-Hub um h).
+
+**Gewählte Form:**
+- Je Schichtpfad werden die Segmente in Druckreihenfolge zu Ringen. Stößt ein Segment (Verbinder
+  ≤ 10⁻⁶ mm) an ein Segment **gleicher** `kind`, sind beide ein Ring. Segmente **verschiedener**
+  `kind` bleiben eigene Ringe, verbunden durch einen Verbinder der Länge 0 (`link_next = true`).
+  So bleibt die Segmentart im Toolpath und in der Trajektorie (`ring`) sichtbar; ein Zusammenfassen
+  verschiedener Arten ist nicht nötig. `shell` ist die Schale des ersten Segments eines Rings.
+- `closed = true` genau dann, wenn der letzte Wegpunkt den ersten trifft (≤ 10⁻⁶ mm, dann exakt
+  gleich gesetzt), sonst `closed = false`. Beispiel: Schalenkette mit S-Kurve = zwei offene Ringe;
+  eine Schale je Seite = ein geschlossener Ring.
+- Wegpunkte: alle Punkte der Mustersegmente bleiben erhalten (Kurven sind schon dicht, Sehnenfehler
+  ≤ 0,5 mm); Stücke länger als `step_mm` werden wie bisher gleichmäßig unterteilt, doppelte
+  Punkte entfallen.
+- `link_next` zwischen allen aufeinanderfolgenden Ringen nach derselben Regel wie ohne Muster
+  (`slicer.link_allowed`, SPEC §5.3). Mit `alternate` liegen Ende von L und Anfang von L + 1
+  waagrecht übereinander (≤ 10⁻⁹ mm, Fall `Point`): senkrechter Schichtwechsel. Mit `same` bleibt
+  der Schichtwechsel ein gewöhnlicher (diagonaler) Verbinder, wenn er ≤ `link_max_mm` ist.
+  Ändert sich der Querschnitt (`restart` im Kern), entscheidet dieselbe Regel (Verbinder oder Travel).
+- `link_max_mm = 0` schaltet auch die Musterverbinder ab (jeder Ring ein eigener Strang, M1 verletzt;
+  so gewollt, damit die Bedeutung des Parameters gleich bleibt).
+
+**Vertrag** (`core/src/roboprint/contracts`, Schemas `web/src/contracts/schemas`, TS-Typen):
+- `Ring.kind` ∈ {outer, inner, hole, infill, web, outfill}; `closed = false` braucht ≥ 2 Wegpunkte.
+- `Toolpath.pattern` = `{layer_order, infill, outfill, params}` nur bei Teilen mit Muster; ohne
+  Muster fehlt der Schlüssel ganz (Datei bitgleich, Test `test_default_s1_toolpath_bit_identical`).
+  `params` enthält die musterspezifischen Werte und die Kernwerte, die vom Standard abweichen.
+- Szenario- und Job-`params` erlauben genau ein Objekt: `pattern_params`. Alle anderen Werte
+  bleiben skalar.
+
+**Szenario-Parameter** (alle opt-in; fehlen alle, schneidet der Slicer wie bisher):
+`layer_order` (`same` | `alternate`), `infill_pattern`, `outfill_pattern` (`none` | Mustername),
+`pattern_params` (Objekt, z. B. `{"field_length_mm": 250, "corner_radius_mm": 22.5}`),
+`pattern_preset` (Pfad zu einem Preset-JSON, relativ zum Repo, z. B.
+`core/src/roboprint/patterns/presets/fugenwand.json` oder `docs/muster/presets/fugenwand_gurt.json`),
+`shells` (wie bisher). Rangfolge: Preset → Szenariowerte, die vom Standard abweichen →
+`pattern_params`. w, h, `step_mm` und `link_max_mm` kommen immer aus dem Szenario. Unbekannte
+Muster oder widersprüchliche Kombinationen (z. B. Fugenwand plus Infill) sind ein Fehler beim Start.
+
+**summary.json und DRL:** `summary.params` führt die Musterparameter nur, wenn sie gesetzt sind
+(`pattern_params` als JSON-Text, damit `params` skalar bleibt). `summary.assumptions` bekommt dann
+eine Zeile „Druckmuster (opt-in, A): Schichtfolge …, Infill …, Outfill …, Parameter …“, der
+DRL-Kopf einen Block „A Schichtfolge / A Muster / A Muster-Preset / A Musterparameter“.

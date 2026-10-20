@@ -20,7 +20,7 @@ export type { ProjectInfo } from './ProjectInfo';
 export type { BoxSource, IfcSource, PlacementOverride, Scenario, ScenarioLimits } from './Scenario';
 export type { Scene, SceneParams, SceneRobot, SceneTool, SceneWorkstation } from './Scene';
 export type { PartEntry, Provenance, Summary, WallEntry } from './Summary';
-export type { Ring, Toolpath } from './Toolpath';
+export type { PatternInfo, Ring, Toolpath } from './Toolpath';
 export type { Trajectory, TrajectorySummary } from './Trajectory';
 
 /** Literale, die der Viewer als eigene Typen braucht. */

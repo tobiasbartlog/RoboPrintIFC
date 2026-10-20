@@ -127,6 +127,10 @@ def format_posj(q: np.ndarray) -> str:
 # --------------------------------------------------------------------------- Parameter
 
 
+#: Laufparameter der Druckmuster (summary.params, nur wenn gesetzt), eigener Block im Programmkopf
+PATTERN_KEYS = ("layer_order", "infill_pattern", "outfill_pattern", "pattern_preset", "pattern_params")
+
+
 @dataclass(frozen=True)
 class DrlParams:
     """Emitter-Parameter (SPEC §10). Felder mit Kommentar "A" sind Annahmen fuer den Programmkopf."""
@@ -287,7 +291,18 @@ def _header(pp: PlannedPart, dialect: str, steps: list[Step]) -> list[str]:
         "                              Position (134, 0, 73) mm, 90 deg um Flansch-Y)",
         f"  A Dialekt                   {dialect} (Firmware am Teach Pendant pruefen)",
     ]
-    known = {f.name for f in fields(DrlParams)}
+    pattern = {k: pp.run_params[k] for k in PATTERN_KEYS if k in pp.run_params}
+    if pattern:  # Druckmuster (opt-in, docs/muster/ARTEFAKT-FORMAT.md); ohne Muster keine Zeile
+        lines += [
+            f"  A Schichtfolge              {pattern.get('layer_order', 'same')} (Druckmuster, opt-in)",
+            f"  A Muster                    Infill {pattern.get('infill_pattern', 'none')}, "
+            f"Outfill {pattern.get('outfill_pattern', 'none')}",
+        ]
+        if "pattern_preset" in pattern:
+            lines.append(f"  A Muster-Preset             {pattern['pattern_preset']}")
+        if "pattern_params" in pattern:
+            lines.append(f"  A Musterparameter          {pattern['pattern_params']}")
+    known = {f.name for f in fields(DrlParams)} | set(PATTERN_KEYS)
     extra = {k: v for k, v in pp.run_params.items() if k not in known}
     if extra:
         lines.append("Weitere Laufparameter: " + ", ".join(f"{k}={v}" for k, v in sorted(extra.items())))
