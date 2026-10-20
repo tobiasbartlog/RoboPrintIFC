@@ -127,7 +127,7 @@ schmale Schnittstelle. Die Abhängigkeiten zeigen nur nach unten.
 | `slicer` | Schichten, Schalenringe, Ringstart, An- und Abfahrt | `slice_part(part, params) -> Toolpath` |
 | `collision` | Kollisionswelt: Glieder, Werkzeugkörper, Düsenspitze, Boden, Tisch, Druckstand, Selbstkollision; Abstand je Pose | `World.distance(q, layer) -> Contact` |
 | `planner` | Ladder-Graph über (Zweig × ψ × τ) je Wegpunkt, Travel-Planung, dichte Gelenktrajektorie | `plan_part(...) -> PlannedPart` |
-| `decompose` | Eignung, Modulraster, Platzierungssuche, Planer im Loop | `decompose_wall(...) -> list[Part]` |
+| `decompose` | Eignung, Modulraster, Druckplatz, Planer im Loop | `decompose_wall(...) -> list[Part]` |
 | `timing` | Zeitparametrierung unter Gelenk- und Bahngrenzen | `time_parametrize(...)` |
 | `drl` | Emitter für die Dialekte v2/v3 | `emit(planned_part, dialect) -> str` |
 | `pipeline` | Szenario ausführen, Laufordner schreiben, Fortschritt melden | `run_scenario(path, out)` |
@@ -215,10 +215,14 @@ dicht geprüft.
 2. **Überhang-Regel.** Jede Oberkante einer Öffnung (Sturzlinie) muss auf einer horizontalen
    Schnittebene liegen. So entsteht in keinem Modul ein Überhang über Luft.
 3. **Machbarkeitsfunktion.** H*(Breite) ist die größte Modulhöhe, die der Planer für einen
-   Vollquader Breite × T × H bei bester Platzierung als machbar einstuft. Gesucht wird per
-   Bisektion auf 10 mm genau, mit Cache über (Breite, T, Höhe). Platzierungssuche: θ ∈ {0°, 90°, 180°, 270°},
-   (x, y) auf einem 25-mm-Raster innerhalb der Arbeitsfläche, ohne Überschneidung mit der
-   Roboterbasis; Ziel ist das maximale d_min.
+   Vollquader Breite × T × H am Druckplatz als machbar einstuft. Gesucht wird per
+   Bisektion auf 10 mm genau, mit Cache über (Breite, T, Höhe).
+   **Druckplatz** (Nutzerentscheidung 20.10.2026): Alle Module eines Laufs stehen am selben Platz
+   (x, y) in S mit θ = 0°, also mit der langen Seite zum Roboter. Standard ist (0, −50) mm, 50 mm vor
+   der Tischmitte auf der Roboterachse. Erlaubt sind nur Rastpunkte x ∈ [−200, 200] mm,
+   y ∈ [−250, 0] mm im 50-mm-Raster (§10). Es gibt keine Platzierungssuche. Passt ein Teil am
+   Druckplatz nicht auf die Arbeitsfläche oder schneidet es die Roboterbasis, ist es nicht machbar.
+   Geht ein Modul dort nicht, wird es niedriger oder kleiner geschnitten, nie gedreht oder verschoben.
 4. **Raster.**
    - Spalten gleicher Breite b ≤ b_max, gewählt aus {300, 400, …, 1200} mm.
    - Reihen von unten nach oben mit Höhe ≤ H*(b); Pflicht-Schnitte aus Regel 2 gehen vor.
@@ -304,7 +308,8 @@ Jedes Detail mit Beleg steht in `docs/doosan-drl.md`. Für den Emitter verbindli
   - `collision_aware`: Normalfall.
   - `ignore_collision`: IK nur nach Grenzen und Gelenknähe. Die Prüfung und Statusvergabe
     danach läuft trotzdem vollständig.
-- `placement_override`: feste Platzierung (x, y in S, yaw), keine Suche.
+- `placement_override`: feste Platzierung (x, y in S, yaw) statt des Druckplatzes, für Quader und
+  Zerlegung, ohne Rastpunkt-Prüfung (S3).
 - `expect`: Erwartung für G3/G4.
 
 ## 8 API (FastAPI, für `web/`)
@@ -364,6 +369,7 @@ DRL-Programms und in `summary.json`.
 | Δq_max | 0,3 rad je Wegpunktkante | |
 | tcp_name | `FGC_30GUT`, muss am Teach Pendant angelegt sein | A |
 | Dialekt | `v2` | Nutzer: Firmware vermutlich 2.x, Update geplant |
+| Druckplatz | (0, −50) mm in S, θ = 0°; Rastpunkte x −200…200 mm, y −250…0 mm im 50-mm-Raster (`spot_x_mm`, `spot_y_mm`) | Nutzer 20.10.2026 |
 
 ## 11 Abnahme-Gates
 

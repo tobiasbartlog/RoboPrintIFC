@@ -671,7 +671,7 @@ def decompose_wall(
 ) -> list[Part]:
     """Zerlegt eine Wand in Module (SPEC §5.4) und liefert `list[Part]`.
 
-    `feasible(part_mesh_P)` ist die volle Pruefung je Teil (Planer mit Platzierungssuche);
+    `feasible(part_mesh_P)` ist die volle Pruefung je Teil (Planer am Druckplatz);
     `prefeasible` optional eine schnellere Vorpruefung fuer die H*-Bisektion. Ungeeignete Wand:
     leere Liste (Grund ueber `wall_eligibility`). Teile, die auch nach Verfeinerung nicht machbar
     sind, bleiben mit Status `nicht machbar` und Ursache in der Liste. Weitere Schluesselwoerter

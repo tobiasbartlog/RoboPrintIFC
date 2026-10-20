@@ -1,5 +1,5 @@
 import { MantineProvider } from '@mantine/core';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { createFakeApi } from '../state/fakeApi';
 import { createAppStore, type AppStore } from '../state/store';
 import { StoreProvider } from '../state/storeContext';
@@ -76,5 +76,35 @@ describe('ParamsPanel', () => {
     setup();
     fireEvent.click(screen.getByTestId('param-group-module'));
     expect(screen.getByTestId('param-module-layers')).toHaveTextContent('Ergibt bis zu 40 Schichten je Modul.');
+  });
+
+  it('wählt den Druckplatz in der Draufsicht und setzt ihn zurück', () => {
+    const store = setup();
+    fireEvent.click(screen.getByTestId('param-group-module'));
+    const field = screen.getByTestId('spot-field');
+    expect(screen.getByTestId('spot-desc')).toHaveTextContent('50 mm vor der Tischmitte, mittig · 535 mm vor der Roboterachse · Standard, empfohlen');
+    fireEvent.keyDown(field, { key: 'ArrowRight' });
+    fireEvent.keyDown(field, { key: 'ArrowDown' });
+    expect([store.getState().params.spot_x_mm, store.getState().params.spot_y_mm]).toEqual([50, -100]);
+    expect(screen.getByTestId('spot-desc')).toHaveTextContent('100 mm vor der Tischmitte, 50 mm rechts · 585 mm vor der Roboterachse');
+    expect(screen.getByTestId('spot-picker')).toHaveAttribute('data-changed', 'true');
+    expect(screen.getByTestId('param-group-changed-module')).toHaveTextContent('1 geändert');
+    expect(screen.getByTestId('params-changed-count')).toHaveTextContent('1 geändert');
+    // Klick links oben auf das Feld: nächster Rastpunkt ist die linke hintere Ecke (Tischmitte, 200 mm links)
+    field.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1680, height: 1330, right: 1680, bottom: 1330, x: 0, y: 0, toJSON: () => ({}) });
+    const down = createEvent.pointerDown(field, { pointerId: 1 });
+    Object.defineProperties(down, { clientX: { value: 0 }, clientY: { value: 0 } }); // jsdom kennt kein PointerEvent
+    fireEvent(field, down);
+    expect([store.getState().params.spot_x_mm, store.getState().params.spot_y_mm]).toEqual([-200, 0]);
+    fireEvent.click(screen.getByTestId('spot-reset'));
+    expect([store.getState().params.spot_x_mm, store.getState().params.spot_y_mm]).toEqual([0, -50]);
+    expect(screen.queryByTestId('spot-reset')).toBeNull();
+  });
+
+  it('findet den Druckplatz über die Suche und zeigt ihn einmal', () => {
+    setup();
+    fireEvent.change(screen.getByTestId('param-search'), { target: { value: 'druckplatz' } });
+    expect(screen.getByTestId('param-search-result')).toHaveTextContent('2 Treffer');
+    expect(screen.getAllByTestId('spot-picker')).toHaveLength(1);
   });
 });

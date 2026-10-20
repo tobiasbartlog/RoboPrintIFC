@@ -7,6 +7,8 @@
  * Klammer dazwischen), und die Standardwerte von `tcp_name` und `dialect` stehen je auf einer eigenen Zeile
  * in `STRING_DEFAULTS`. Nur die Zahlendefinitionen tragen die Eigenschaft für den Schlüssel als Literal.
  */
+import { describeSpot, type Spot } from './spot';
+
 export type ParamValue = number | string | boolean;
 export type ParamValues = Record<string, ParamValue>;
 
@@ -46,6 +48,8 @@ export interface NumParamDef extends BaseParamDef {
   unit: string;
   default: number;
   step: number;
+  /** Koordinate des Druckplatzes; das Panel zeigt beide zusammen als Draufsicht (`SpotPicker`). */
+  spot?: 'x' | 'y';
 }
 
 export interface TextParamDef extends BaseParamDef {
@@ -87,6 +91,28 @@ export const NUM_PARAMS: NumParamDef[] = [
     hint: 'Lehm unter Eigengewicht; niedriger, wenn der Roboter höher nicht kollisionsfrei druckt',
     group: 'module',
     basic: true,
+  },
+  {
+    key: 'spot_x_mm',
+    label: 'Druckplatz seitlich',
+    unit: 'mm',
+    default: 0,
+    step: 50,
+    assumption: false,
+    group: 'module',
+    basic: true,
+    spot: 'x',
+  },
+  {
+    key: 'spot_y_mm',
+    label: 'Druckplatz Tiefe',
+    unit: 'mm',
+    default: -50,
+    step: 50,
+    assumption: false,
+    group: 'module',
+    basic: true,
+    spot: 'y',
   },
   {
     key: 'shells',
@@ -190,6 +216,13 @@ export function isChanged(def: ParamDef, values: ParamValues): boolean {
   return values[def.key] !== def.default;
 }
 
+/** Anzahl geänderter Einstellungen unter `defs`; die beiden Koordinaten des Druckplatzes zählen als eine. */
+export function countChanged(defs: readonly ParamDef[], values: ParamValues): number {
+  const changed = defs.filter((d) => isChanged(d, values));
+  const spots = changed.filter((d) => d.kind === 'number' && d.spot).length;
+  return changed.length - Math.max(0, spots - 1);
+}
+
 /** Stabiler Fingerabdruck für den Veraltet-Vergleich. */
 export function paramsKey(values: ParamValues): string {
   return JSON.stringify(
@@ -240,7 +273,7 @@ export function groupViews(mode: ParamMode, query: string, values: ParamValues):
   return PARAM_GROUPS.flatMap((group) => {
     const params = visible.filter((d) => d.group === group.id);
     if (!params.length) return [];
-    return [{ group, params, changed: params.filter((d) => isChanged(d, values)).length, summary: groupSummary(group, params, values) }];
+    return [{ group, params, changed: countChanged(params, values), summary: groupSummary(group, params, values) }];
   });
 }
 
@@ -279,9 +312,20 @@ export function formatValue(def: ParamDef, value: ParamValue): string {
   return String(value) || 'leer';
 }
 
-/** Kurzfassung einer zugeklappten Gruppe: „10 mm · 30 mm · 2 Schalen“, „100 · 250 mm/s“, „DRL v2“. */
+/** Druckplatz aus den Werten (fehlende Koordinate: Standard). */
+export function spotOf(values: ParamValues): Spot {
+  const x = values.spot_x_mm ?? DEFAULT_PARAMS.spot_x_mm;
+  const y = values.spot_y_mm ?? DEFAULT_PARAMS.spot_y_mm;
+  return { x: typeof x === 'number' ? x : 0, y: typeof y === 'number' ? y : 0 };
+}
+
+/** Kurzfassung einer zugeklappten Gruppe: „10 mm · 30 mm · 2 Schalen“, „100 · 250 mm/s“, „DRL v2“.
+ * Die beiden Koordinaten des Druckplatzes stehen zusammen als „Platz 50 mm vor der Tischmitte, mittig“. */
 export function groupSummary(group: ParamGroup, defs: ParamDef[], values: ParamValues): string {
-  const pieces = defs.map((d) => {
+  const firstSpot = defs.find((d) => d.kind === 'number' && d.spot);
+  const shown = defs.filter((d) => !(d.kind === 'number' && d.spot) || d === firstSpot);
+  const pieces = shown.map((d) => {
+    if (d === firstSpot) return { value: `Platz ${describeSpot(spotOf(values))}`, suffix: '', unit: '' };
     const v = values[d.key] ?? d.default;
     if (d.kind === 'number') return { value: typeof v === 'number' ? num(v) : String(v), suffix: unitSuffix(d), unit: d.unit };
     if (d.kind === 'choice') return { value: `${d.short ?? d.label} ${formatValue(d, v)}`, suffix: '', unit: '' };

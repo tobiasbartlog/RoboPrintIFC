@@ -26,9 +26,9 @@ const group = (id: ParamGroupId) => PARAM_GROUPS.find((g) => g.id === id)!;
 const keysOf = (defs: ParamDef[]) => defs.map((d) => d.key);
 
 describe('Gruppenzuordnung', () => {
-  it('ordnet jeden der 21 Parameter genau einer bekannten Gruppe zu', () => {
-    expect(PARAMS).toHaveLength(21);
-    expect(new Set(keysOf([...PARAMS])).size).toBe(21);
+  it('ordnet jeden der 23 Parameter genau einer bekannten Gruppe zu', () => {
+    expect(PARAMS).toHaveLength(23);
+    expect(new Set(keysOf([...PARAMS])).size).toBe(23);
     const ids = new Set(PARAM_GROUPS.map((g) => g.id));
     for (const d of PARAMS) expect(ids.has(d.group)).toBe(true);
     for (const g of PARAM_GROUPS) expect(PARAMS.some((d) => d.group === g.id)).toBe(true);
@@ -38,7 +38,7 @@ describe('Gruppenzuordnung', () => {
     const groups = Object.fromEntries(PARAM_GROUPS.map((g) => [g.id, keysOf(PARAMS.filter((d) => d.group === g.id))]));
     expect(groups).toEqual({
       layer: ['layer_height_mm', 'bead_width_mm', 'shells'],
-      module: ['module_height_max_mm'],
+      module: ['module_height_max_mm', 'spot_x_mm', 'spot_y_mm'],
       speed: ['v_print_mm_s', 'v_travel_mm_s'],
       pump: ['v_pump_v', 't_tot_s'],
       motion: ['z_lift_mm', 'approach_mm', 'r_blend_mm', 'tau_max_deg'],
@@ -52,14 +52,15 @@ describe('Gruppenzuordnung', () => {
     expect(DEFAULT_PARAMS.tcp_name).toBe('FGC_30GUT');
     expect(DEFAULT_PARAMS.dialect).toBe('v2');
     expect(DEFAULT_PARAMS.module_height_max_mm).toBe(400);
-    expect(Object.keys(DEFAULT_PARAMS)).toHaveLength(21);
+    expect([DEFAULT_PARAMS.spot_x_mm, DEFAULT_PARAMS.spot_y_mm]).toEqual([0, -50]);
+    expect(Object.keys(DEFAULT_PARAMS)).toHaveLength(23);
   });
 
   it('bleibt für den Kerntest test_web_default_params_accepted lesbar', () => {
     // Gleiche regulären Ausdrücke wie core/tests/test_api.py.
     const src = readFileSync(resolve(__dirname, 'params.ts'), 'utf-8');
     const parsed: Record<string, number | string> = {};
-    for (const m of src.matchAll(/key: '(\w+)'[^}]*?default: ([\d.]+)/g)) parsed[m[1]!] = Number(m[2]);
+    for (const m of src.matchAll(/key: '(\w+)'[^}]*?default: (-?[\d.]+)/g)) parsed[m[1]!] = Number(m[2]);
     for (const m of src.matchAll(/^\s+(tcp_name|dialect): '([^']*)'/gm)) parsed[m[1]!] = m[2]!;
     expect(Object.keys(parsed)).toHaveLength(src.split("key: '").length - 1 + 2);
     expect(parsed).toEqual(DEFAULT_PARAMS);
@@ -67,11 +68,13 @@ describe('Gruppenzuordnung', () => {
 });
 
 describe('Sichtbarkeit je Modus', () => {
-  it('zeigt unter „Grundlegend“ 9 von 21 Parametern', () => {
+  it('zeigt unter „Grundlegend“ 11 von 23 Parametern', () => {
     expect(keysOf(visibleParams('basic', ''))).toEqual([
       'layer_height_mm',
       'bead_width_mm',
       'module_height_max_mm',
+      'spot_x_mm',
+      'spot_y_mm',
       'shells',
       'v_print_mm_s',
       'v_travel_mm_s',
@@ -79,7 +82,7 @@ describe('Sichtbarkeit je Modus', () => {
       't_tot_s',
       'dialect',
     ]);
-    expect(visibleParams('all', '')).toHaveLength(21);
+    expect(visibleParams('all', '')).toHaveLength(23);
   });
 
   it('blendet Gruppen ohne grundlegende Parameter aus', () => {
@@ -133,7 +136,7 @@ describe('Suche', () => {
   it('ignoriert den Modus und verlangt jedes Wort', () => {
     expect(keysOf(visibleParams('basic', 'soll druckstand'))).toEqual(['d_target_printed_mm']);
     expect(visibleParams('all', 'gibt es nicht')).toEqual([]);
-    expect(visibleParams('basic', '   ')).toHaveLength(9);
+    expect(visibleParams('basic', '   ')).toHaveLength(11);
     expect(matchesSearch(byKey('tcp_name'), 'steuerung')).toBe(true);
   });
 
@@ -154,6 +157,13 @@ describe('Kurzfassung und Werte', () => {
     expect(sum('planning')).toBe('15° · 20 mm · 0,3 rad');
     expect(groupSummary(group('control'), [byKey('dialect')], v)).toBe('DRL v2');
     expect(sum('control')).toBe('DRL v2 · FGC_30GUT');
+  });
+
+  it('fasst den Druckplatz als eine Angabe zusammen', () => {
+    const sum = (v: typeof DEFAULT_PARAMS) => groupSummary(group('module'), PARAMS.filter((d) => d.group === 'module'), v);
+    expect(sum(DEFAULT_PARAMS)).toBe('400 mm · Platz 50 mm vor der Tischmitte, mittig');
+    expect(sum({ ...DEFAULT_PARAMS, spot_x_mm: 200, spot_y_mm: 0 })).toBe('400 mm · Platz Tischmitte, 200 mm rechts');
+    expect(groupSummary(group('module'), [byKey('spot_y_mm')], DEFAULT_PARAMS)).toBe('Platz 50 mm vor der Tischmitte, mittig');
   });
 
   it('setzt die Kurzfassung in groupViews aus den gezeigten Parametern', () => {

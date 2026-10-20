@@ -18,19 +18,21 @@ import {
 import { useState, type CSSProperties } from 'react';
 import {
   assumptionText,
-  changedKeys,
+  countChanged,
   groupViews,
   hiddenInfo,
   isChanged,
   layersPerModule,
   normalizeSearch,
   secondaryLine,
+  PARAMS,
   type ParamDef,
   type ParamMode,
   type ParamValues,
 } from '../state/params';
 import { useAppStore } from '../state/storeContext';
 import { GroupIcon, ResetIcon, SearchIcon } from './ParamIcons';
+import { SpotPicker } from './SpotPicker';
 
 /**
  * Bereich „Druckeinstellungen“ (SPEC §10) wie bei Kunststoff-Slicern: Kategorien als Akkordeon,
@@ -218,7 +220,7 @@ export function ParamsPanel() {
   const views = groupViews(mode, query, params);
   const hits = views.reduce((n, v) => n + v.params.length, 0);
   const hidden = hiddenInfo(mode, query, params);
-  const nChanged = changedKeys(params).length;
+  const nChanged = countChanged(PARAMS, params);
   const layers = layersPerModule(params);
 
   function changeQuery(q: string) {
@@ -316,9 +318,12 @@ export function ParamsPanel() {
                 </Accordion.Control>
                 <Accordion.Panel>
                   <Stack gap="xs">
-                    {v.params.map((d) => (
-                      <ParamRow key={d.key} def={d} values={params} />
-                    ))}
+                    {v.params.map((d) => {
+                      if (d.kind !== 'number' || !d.spot) return <ParamRow key={d.key} def={d} values={params} />;
+                      // beide Koordinaten zusammen als eine Draufsicht, an der Stelle der ersten sichtbaren
+                      const first = v.params.find((p) => p.kind === 'number' && p.spot);
+                      return d === first ? <SpotPicker key="spot" values={params} /> : null;
+                    })}
                     {v.group.id === 'module' && layers !== null ? (
                       <Text size="xs" c="dimmed" pl={LABEL_INDENT} data-testid="param-module-layers">
                         Ergibt bis zu {layers.toLocaleString('de-DE')} Schichten je Modul.

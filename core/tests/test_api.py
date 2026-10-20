@@ -132,10 +132,33 @@ def test_job_rejects_unknown_param(client):
     assert r.status_code == 422 and "pump_voltage_v" in r.text
 
 
+def test_job_rejects_spot_off_grid(client):
+    """Der Druckplatz muss ein Rastpunkt sein (50-mm-Raster, nie zum Roboter hin)."""
+    pid = make_project(client)
+    r = client.post(f"/api/projects/{pid}/jobs", json={"wall_id": "W1", "params": {"spot_y_mm": 100.0}})
+    assert r.status_code == 422 and "Rastpunkt" in r.text
+
+
+def test_web_spot_grid_matches_core():
+    """Die Draufsicht im Viewer zeigt dasselbe Rastfeld, das der Kern annimmt."""
+    from roboprint.planner import params as pp
+
+    src = (ROOT / "web" / "src" / "state" / "spot.ts").read_text(encoding="utf-8")
+    assert float(re.search(r"SPOT_STEP_MM = (-?[\d.]+);", src).group(1)) == pp.SPOT_STEP_MM
+    for name, want in (("X", pp.SPOT_X_RANGE_MM), ("Y", pp.SPOT_Y_RANGE_MM)):
+        m = re.search(rf"SPOT_{name}_RANGE_MM[^=]*= \[(-?[\d.]+), (-?[\d.]+)\]", src)
+        assert m is not None and (float(m.group(1)), float(m.group(2))) == want
+    defaults = pp.PlannerParams()
+    params = (ROOT / "web" / "src" / "state" / "params.ts").read_text(encoding="utf-8")
+    for key in ("spot_x_mm", "spot_y_mm"):
+        m = re.search(rf"key: '{key}'[^}}]*?default: (-?[\d.]+)", params)
+        assert m is not None and float(m.group(1)) == getattr(defaults, key)
+
+
 def test_web_default_params_accepted(client):
     """Der Viewer schickt bei jedem Job alle Parameter aus `web/src/state/params.ts` mit."""
     src = (ROOT / "web" / "src" / "state" / "params.ts").read_text(encoding="utf-8")
-    params: dict = {k: float(v) for k, v in re.findall(r"key: '(\w+)'[^}]*?default: ([\d.]+)", src)}
+    params: dict = {k: float(v) for k, v in re.findall(r"key: '(\w+)'[^}]*?default: (-?[\d.]+)", src)}
     params |= dict(re.findall(r"^\s+(tcp_name|dialect): '([^']*)'", src, flags=re.M))
     assert len(params) == src.count("key: '") + 2
     pid = make_project(client)

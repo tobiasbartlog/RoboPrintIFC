@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-19T19:15:00+02:00 · Session: cloud-verify · Phase: P6 abgeschlossen, Höhensuche nachgeprüft
+Herzschlag: 2026-10-20T14:22:00+02:00 · Session: Cloud (Abnahmelauf) · Phase: P6, Druckplatz abgenommen
 
 # PROGRESS — Nachtlauf v2
 
@@ -581,3 +581,102 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   (Δ 3·10⁻⁸), Überlappung 0, kein Fehler zu Eignung oder Überhang. Die einzigen 3 Fehler betreffen die übrigen
   Wände des IFC, die das Szenario bewusst weglässt („fehlt in summary.walls“).
 - Damit ist H* ≥ 910 mm für 600 × 200 mm unabhängig bestätigt; die Erwartung ~800 mm (Double-Plan) war zu vorsichtig.
+
+### 2026-10-20 13:30 Druckplatz statt Platzierungssuche (Nutzerentscheidung Tobias)
+- **Anlass:** „Die Wand wird neben dem Roboter an der Tischseite gedruckt. Lieber zentral vor dem Roboter.“ Die
+  Giebelwand stand bei (−450, 250) und (−625, 300) mm, 90° gedreht, also seitlich am Rand und mit der kurzen Seite
+  zum Roboter.
+- **Ursache:** `rank_placements` maß den kleinsten Vorauswahl-Abstand an wenigen Probewegpunkten. Über
+  `_CULL_MM` = 50 mm schätzt das Kugel-Double nur mit Hüllkugeln. Fast der ganze Tisch bekam deshalb denselben Score
+  (Quader 600 × 200 × 910: 49,9 bis 51,1 mm), und Rauschen entschied. Sieger war (650, 325) mm, 90°. Jedes Modul
+  suchte für sich, und `placement_override` galt nur für den Einzelquader.
+- **Messung** (Quader 600 × 200, Grenze 1000 mm, `scan_height` an genau einer Lage, Windows):
+
+| Lage (x, y) in S | vor J1 | Gier | H* | d_min | begrenzt durch |
+|---|---|---|---|---|---|
+| (0, +100) | 385 mm | 0° | 250 mm | 10,83 | link_4 im Druckstand (d = −3,6 mm) |
+| (0, 0) Tischmitte | 485 mm | 0° | 940 mm | 10,00 | tool_body ↔ link_4 ab Schicht 54 |
+| **(0, −50)** | 535 mm | 0° | **950 mm** | 10,83 | link_2 ↔ Druckstand, Schicht 96 |
+| (0, −100) / (0, −150) | 585 / 635 mm | 0° | 940 / 920 mm | 10,83 | link_2 bzw. Reichweite |
+| (0, −200) / (0, −250) | 685 / 735 mm | 0° | 880 / 850 mm | 10,83 | Reichweite |
+| (−400 / −200 / +200 / +400, −50) | | 0° | 810 / 950 / ≥ 1000 / 940 mm | 10,83 | Reichweite (rechts besser, TCP-Versatz) |
+| (0, 0) / (0, −200) | | 90° | 150 / 640 mm | 10,83 | tool_body ↔ link_4 / Zweigwechsel |
+| (−450, 250), alte Seitenlage | | 90° | 960 mm | 10,06 | Zweigwechsel |
+
+- **Entscheidungen (Grilling mit Tobias, alle Empfehlungen angenommen):** ein Druckplatz je Lauf für alle Module;
+  der Platz ist eine Eingabe der Zerlegung (Änderung → „veraltet“); keine Platzierungssuche mehr, auch nicht für S1;
+  Standard (0, −50) mm (gleiche Höhe wie die Mitte, aber ohne den knappen Kontakt am Handgelenk); Rastpunkte
+  x −200…200 × y −250…0 mm im 50-mm-Raster, nie zum Roboter hin; nur Gier 0; geht ein Modul nicht, wird es
+  niedriger oder kleiner, nie gedreht oder verschoben; kein Verschieben einzelner Module nach der Zerlegung (später
+  denkbar: mehrere Module nebeneinander, dann sind gedruckte Module Hindernisse).
+- **Kern:** `PlannerParams.spot_x_mm`/`spot_y_mm` (Standard 0/−50), geprüft in `__post_init__` gegen
+  `params.spot_grid()` (API: 422 „kein Rastpunkt“). `planner/placement.py`: `spot_placement`, `placement_score` (ein
+  Platz, Vorprüfung der H*-Bisektion); Rastersuche, `distinct`, `find_placement`, `rank_placements`,
+  `PartPlan.candidates` und `SphereWorld.with_placement` entfallen. `plan_part` und `scan_height` planen genau einen
+  Platz (ohne Angabe den Druckplatz, mit Prüfung von Tischplatte und Basis). `scenario_parts` reicht
+  `placement_override` an Vorprüfung, Höhensuche und Teilplanung durch.
+- **Viewer:** „Druckeinstellungen → Module“ zeigt den Druckplatz als Draufsicht (`SpotPicker`): Tisch, Roboter als
+  Kreis um J1, Kreuz in der Tischmitte, Ring am Standard, Rastpunkte, Modulumriss (Wanddicke × höchstens 600 mm).
+  Ziehen, Klick oder Pfeiltasten rasten ein, Home und der Reset-Knopf führen zum Standard. Der Platz zählt als eine
+  Änderung. Fokus beim Ziehen ohne Scrollen (sonst sprang das Feld unter dem Zeiger weg, e2e hat es gefunden).
+  Logik in `web/src/state/spot.ts`; `test_web_spot_grid_matches_core` koppelt das Rastfeld an den Kern.
+- **Läufe lokal (Windows, Stand dieses Eintrags):**
+
+| Lauf | vorher | jetzt |
+|---|---|---|
+| S1 | (−500, 325) bzw. (625, 150) 90°, d_min 10,83, ~230 s | (0, −50) 0°, machbar, d_min 10,83 mm, 0 coll/unreach, 72 s |
+| Giebelwand, Grenze 400 mm | 30 Teile à 370 (oben 296), 194 s | gleich, alle bei (0, −50), d_min 10,83 mm, 108 s |
+| Giebelwand, Grenze 1000 mm | 12 Teile 910/896, seitlich 90°, d_min 10,06, 801 s | gleich, alle bei (0, −50), d_min 10,83 mm, 410 s |
+
+- **Checks lokal:** ruff grün; pytest core -n 2: 174 passed, 6 skipped, 1 failed (`test_traversal_symlink`, Windows
+  ohne Symlink-Recht, wie bisher); web lint, typecheck, vitest 86 passed; e2e `params.spec.ts` 2 passed.
+- **SPEC:** §5.4/3 (Druckplatz statt Platzierungssuche), §7 (`placement_override` auch für die Zerlegung), §10
+  (Zeile Druckplatz) und Beschreibung S1 geändert; Tobias hat `spec/LOCKED` dafür kurz umbenannt, die Sperre steht
+  wieder.
+- **Offen:** Cloud-verify G1–G8 (Routine trig_01Mppn9LNZTtGyeKojKvzSkr; G3/G4/G7 mit neuen Platzierungen, Orakel
+  für S2 und die Giebelwand mit 1000 mm).
+
+### 2026-10-20 14:13 Cloud-verify Druckplatz
+- Anlass: Druckplatz statt Platzierungssuche (0720722). Cloud-VM 4 vCPU, Python `/opt/fgc-venv`, Branch `v2/druckplatz`.
+- Vorab: `pytest core -q -n 2` 221 passed, 2 skipped (339 s; `test_traversal_symlink` läuft hier grün); `ruff` grün;
+  web ci/lint/typecheck/test grün (86 Tests).
+- **Voller verify-Lauf: G1–G8 grün** (683 s gesamt, Bericht `runs/verify/report.json`), nichts zu beheben:
+
+| Gate | Ergebnis | Laufzeit | Kernzahlen |
+|---|---|---|---|
+| G1 | grün | 9,0 s | FK/IK gegen Pinocchio |
+| G2 | grün | 42,1 s | Kollisionsabstand gegen Coal |
+| G3 | grün | 31,9 s, check 25,6 s | S1 bei (0, −50) mm, Gier 0, machbar, d_min 10,83 mm, 0 coll/unreach; Orakel d_min_lb 11,85 mm, Abdeckung 99,52 % |
+| G4 | grün | S2 119,0 s, check 59,8 s; S3 44,1 s, check 67,2 s | S2 172 Teile, alle machbar, alle bei (0, −50) mm Gier 0, höchstes Modul 380 mm, d_min 10,83 mm; Orakel 4 Vertreter voll geprüft (Rest inhaltsgleich), d_min_lb 11,85 mm, 0 Kollisionen, Abdeckung ≥ 98,38 %, Tischplatte/Basis ohne Fehler; S3 bei (0, 330) nicht machbar, 75 783 Kollisionen, Orakel bestätigt 75 778 |
+| G5 | grün | 27,5 s | fake_drcf S1 und S2, 0 Fehler |
+| G6 | grün | 60,9 s | e2e grün inkl. `params.spec.ts` (Druckplatz); Screenshots unter `web/e2e/screenshots/` aktualisiert |
+| G7 | grün | — | S1 31,9 s (≤ 180), S2 119,0 s (≤ 1800) |
+| G8 | grün | 196,2 s | ruff, pytest core (177,6 s), web lint/typecheck/test |
+
+- Vergleich zum Lauf 2026-10-19 19:15: S1 93 → 32 s, S2 303 → 119 s (Zerlegung 99 s, Höhensuche je Wandgruppe
+  58 s statt ~101 s, da nur noch ein Platz geprüft wird). Orakel-d_min_lb unverändert 11,85 mm (vorher ≥ 10,01 mm).
+- Geprüft auf Stand 0720722. Der SPEC-Commit aee7519 kam während des Laufs; er ändert nur SPEC-Text und die
+  Beschreibung von S1, keine Schwelle und keine Szenario-Eingabe, daher kein erneuter Lauf.
+
+### 2026-10-20 14:22 Giebelwand mit Modulhöhe höchstens 1000 mm am Druckplatz, Orakel-Bestätigung (Cloud, 4 vCPU)
+- Szenario `/tmp/giebel_spot_h1000.json`: Kopie S2, `id` = `giebel_spot_h1000`, Wand `1AQAupaRP1txwK1AGiN61V`,
+  `module_height_max_mm` = 1000, `expect` = {}, `limits.wall_time_s` = 10⁶. Stand 8e03d03 (Code wie 0720722).
+- **Lauf: 345 s, Exit 0** (vorher 1095 s mit Platzierungssuche; Windows 410 s). Zerlegung 335 s, davon Höhensuche
+  136 s, Export 9 s.
+- **12 Teile, alle `machbar`, alle bei (0, −50) mm, Gier 0**: 9 × 600 × 200 × 910 mm (r0–r2), 3 × 600 × 200 ×
+  895,7 mm (Oberreihe r3, schräge Oberkante). Höchstes Modul 910 mm (`bbox_P`). d_min (Planer) 10,83 mm, 0 Kollisionen,
+  0 unerreichbar.
+- **Orakel `verify.check_run`: BESTANDEN (0 Fehler, 70 s).** 2 Vertreter voll geprüft, die übrigen 10 inhaltsgleich
+  (`same_as`, Hash):
+
+| Vertreter | Samples | Kollisionen | d_min_lb Orakel | Abdeckung min | max. Schritt TCP / q |
+|---|---|---|---|---|---|
+| r0_c0 (910 mm, für r0–r2) | 105 296 | 0 | 11,85 mm | 99,52 % | 4,07 mm / 0,0049 rad |
+| r3_c0 (896 mm, für r3) | 95 920 | 0 | 11,85 mm | 98,38 % | 4,07 mm / 0,0049 rad |
+
+- Bahnabweichung ≤ 1,1·10⁻¹¹ mm, Achsabweichung ≤ 2,4·10⁻⁶°. Das Orakel weicht nicht ab; jedes Modul ist bestätigt.
+- Zusatzlauf auf einer Kopie mit den S2-Erwartungen (prüft Wand, Tischplatte und Basis): Volumen der Teile
+  1 269 264 902 mm³ gegen IFC 1 269 264 935 mm³, Überlappung 0, kein Fehler zu Tischplatte, Basis, Eignung oder
+  Überhang. Die einzigen 3 Fehler betreffen die bewusst weggelassenen übrigen Wände („fehlt in summary.walls“).
+- Gegenüber der Seitenlage (−450, 250)/(−625, 300), 90° (Orakel-d_min_lb 11,85/11,04 mm) liegt der Abstand am
+  Druckplatz jetzt für beide Vertreter bei 11,85 mm.
