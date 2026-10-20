@@ -18,7 +18,7 @@ Die erste Zeile setzt nur das Skript.
 | 2D-Musterersteller: API `/api/patterns*`, CLI `pattern-preview`, Web-Reiter „Muster“ (e2e 11/11) | M3/M4 | erledigt, gemergt | v2/muster-ersteller | 5f0f769 |
 | I-Wellen (Sinus, Zickzack gerundet, Trapez, Mäander) | M2 | erledigt, gemergt | v2/muster-wellen | d3bceca |
 | I-Mehrfach (Doppelwelle, Waben, Fermat-Spirale) | M2 | erledigt, gemergt | v2/muster-mehrfach | d15cb95 |
-| Outfill O1 gewellte Außenschale (Backlog; O2 = Fugenwand) | M2 | läuft (wf_77155298-1fb) | v2/muster-o1 | |
+| Outfill O1 gewellte Außenschale (`aussenwelle`; bei 2 Schalen nur 2 mm Amplitude) | M2 | erledigt, gemergt | v2/muster-o1 | 7ec09d1 |
 | Topologie (Öffnungen, Inseln, Laibungsstege, Naht, Abschrägung) | M2 | erledigt, gemergt | v2/muster-topologie | 6bf2292 |
 | Einbau Slicer + Vertrag + Schema/TS | M3 | erledigt, gemergt (über Viewer) | v2/muster-einbau | b78ce7d |
 | Einbau Planer/Timing/DRL | M3 | erledigt, gemergt (über Viewer) | v2/muster-einbau | 7633e16 |
@@ -27,8 +27,9 @@ Die erste Zeile setzt nur das Skript.
 | Katalog-Generator `scripts/muster_katalog.py` (Vorschau-Kennzahlen, Bilder) | M5 | erledigt, gemergt (Neulauf nach M3 nötig) | v2/muster-katalog | 5755006+ |
 | Vorschau-Laufzeit (metrics): Fugenwand 1200×200 146 → 70 ms; Wellen noch 120–380 ms | M4 | erledigt, gemergt; Wellen offen | v2/muster-perf | 81a874f |
 | Wellen-Fix: Planung ≈ 2× schneller (Bestwert < 100 ms), Rückfall statt Absturz | M2 | erledigt, gemergt | v2/muster-wellenfix | 5b10474 |
-| Testdrucke je Muster (`docs/muster/testdrucke/`), danach Katalog final mit Roboterkennzahlen | M5 | läuft (wf_77155298-1fb) | v2/muster-testdrucke, v2/muster-katalog | |
-| Gegenprüfung und Härtung | M6 | offen | v2/muster | |
+| Testdrucke je Muster: 12 Testkörper, alle machbar, v2+v3 von fake_drcf akzeptiert (`docs/muster/testdrucke/`) | M5 | erledigt, gemergt | v2/muster-testdrucke | bf48e16 |
+| Katalog final mit Roboterkennzahlen | M5 | läuft (wf_77155298-1fb) | v2/muster-katalog | |
+| Gegenprüfung und Härtung (Finder → Verifikation → Fixes) | M6 | läuft | v2/muster-haertung | |
 | Kernfehler `shells.shell_chain`/`clear_end` stürzt bei Inseln < ~4·w ab (auch Grundmuster) | M6 | offen | v2/muster-haertung | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
 
@@ -167,3 +168,11 @@ Die erste Zeile setzt nur das Skript.
 - S1 ohne Muster bitgleich (Toolpath, DRL, Trajektorie bis auf nicht-deterministische Witness-Punkte bei
   Gleichstand, schon vor M3 so).
 - Wellen-Laufzeittest mit Lastschutz wie der Fugenwand-Test. ruff grün, `pytest core verify_muster`: 920 grün.
+
+### 2026-10-21 01:20 Testdrucke und O1 gemergt, M6 startet (Session start)
+- 12 Testkörper (10 Schichten) am Standard-Druckplatz, alle machbar, 1 Strang, 9/9 senkrechte Wechsel,
+  d_min 10,8 mm; Druckzeit 3,1–7,2 min, Material 5,2–12,6 l (Annahme w·h·Pfad). Empfohlen zuerst:
+  Rautenkette (4,2 min, 7,3 l), dann schalen_alternate als Referenz.
+- O1 `aussenwelle`: Bei 2 Schalen passt nur 2 mm Amplitude (Längenzuwachs 0,15 %), mit 1 Schale ohne Infill
+  8 mm (2,2–2,7 %). Für Sollbruchstellen bleibt O2 (Fugenwand) die Empfehlung.
+- ruff grün, `pytest core verify_muster`: 985 grün.
