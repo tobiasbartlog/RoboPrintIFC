@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import importlib
 import math
+import os
 import statistics
 import time
 from typing import Any
@@ -259,6 +260,10 @@ def test_preview_waves_below_100ms(shape):
             pt.preview(data, size)
             ts.append((time.perf_counter() - t) * 1e3)
         med, best = statistics.median(ts), min(ts)
+        # wie test_patterns_perf: nur auf einem nicht überlasteten Rechner bewerten
+        load = os.getloadavg()[0] if hasattr(os, "getloadavg") else 0.0
+        if load > (os.cpu_count() or 1):
+            pytest.skip(f"Rechner überlastet (Last {load:.1f}); {shape} {size}: Bestwert {best:.1f} ms")
         assert best < 100.0, f"{shape} {size}: Bestwert {best:.1f} ms (Median {med:.1f} ms)"
         assert med < 150.0, f"{shape} {size}: Median {med:.1f} ms"
 
