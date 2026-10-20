@@ -14,7 +14,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from shapely.geometry import MultiPolygon, Polygon, box
+from scipy.spatial import cKDTree
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon, box
 
 from roboprint import patterns as pt
 from roboprint.patterns.families import wellen
@@ -245,3 +246,145 @@ def test_oracle_verify_muster_green(tmp_path, shape, thickness, shells):
     cmd = [sys.executable, "-m", "verify_muster.check", str(tmp_path), "--no-trajectory"]
     res = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True, timeout=600)
     assert res.returncode == 0, res.stdout + res.stderr
+
+
+# --------------------------------------------------------------------------- Gegenprüfung
+# Unabhängige Nachrechnung mit shapely/numpy (nicht mit patterns.metrics): einfache Mittellinie,
+# Abstand nicht benachbarter Punkte, Umkreisradius der Polylinie, Kontakte, Zahlen von `measure`.
+
+
+def _dense(p, h):
+    out = [p[:1]]
+    for a, b in zip(p[:-1], p[1:], strict=True):
+        n = max(1, math.ceil(float(np.linalg.norm(b - a)) / h))
+        out.append(a + (b - a) * np.linspace(0, 1, n + 1)[1:, None])
+    return np.vstack(out)
+
+
+def _arc(p):
+    return np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(p, axis=0), axis=1))])
+
+
+def _circumradius(poly):
+    a, b, c = poly[:-2], poly[1:-1], poly[2:]
+    cr = np.abs((b - a)[:, 0] * (c - a)[:, 1] - (b - a)[:, 1] * (c - a)[:, 0])
+    num = np.linalg.norm(b - a, axis=1) * np.linalg.norm(c - b, axis=1) * np.linalg.norm(a - c, axis=1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        r = num / (2 * cr)
+    r[cr < 1e-9] = np.inf
+    return r
+
+
+def _independent(paths, sec, p):
+    lp = paths[0]
+    poly = lp.polyline()
+    w = p.w
+    d = _dense(poly, 0.25)
+    s = _arc(d)
+    pairs = cKDTree(d).query_pairs(1.2 * w, output_type="ndarray")
+    pairs = pairs[np.abs(s[pairs[:, 0]] - s[pairs[:, 1]]) > 2 * w]
+    clear = float(np.min(np.linalg.norm(d[pairs[:, 0]] - d[pairs[:, 1]], axis=1))) if len(pairs) else np.inf
+    shell = LineString(np.vstack([sg.points for sg in lp.segments[:-1]]))
+    di = _dense(lp.segments[-1].points, 0.5)
+    si = _arc(di)
+    dist = np.array([shell.distance(Point(q)) for q in di])
+    # Kontakte = lokale Minima des Abstands Infill → Schalen (nach dem Einlauf, s > 2·w)
+    k = np.flatnonzero((dist[1:-1] <= dist[:-2]) & (dist[1:-1] < dist[2:]) & (dist[1:-1] < 1.5 * w))
+    contacts = dist[1:-1][k[si[1:-1][k] > 2 * w]]
+    beads = [LineString(q.polyline()).buffer(w / 2) for q in paths]
+    overhang = max(
+        b.difference(a.buffer(p.delta_mm)).area for a, b in zip(beads[:-1], beads[1:], strict=True)
+    )
+    return {
+        "simple": LineString(poly).is_simple,
+        "clear": clear,
+        "rmin": float(_circumradius(poly).min()),
+        "contacts": contacts,
+        "length": LineString(poly).length,
+        "overhang": overhang,
+        "outside": beads[0].difference(sec[0].buffer(1.0)).area,
+    }
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize(("thickness", "shells"), CASES)
+def test_independent_recheck(shape, thickness, shells):
+    """Gegenprobe ohne metrics: einfach, kein Doppelmaterial, r ≥ w/2 hart, Kontakte in
+    [(1 − ε)·w, w + tol], kein Überhang, im Teil, und `measure` rechnet dieselben Zahlen."""
+    sec = _quader(thickness, 3)
+    p, paths, rep = _plan(shape, sec, shells=shells)
+    ind = _independent(paths, sec, p)
+    w = p.w
+    assert ind["simple"]
+    assert ind["clear"] >= (1 - p.eps) * w
+    assert ind["rmin"] >= w / 2
+    assert len(ind["contacts"]) and ind["contacts"].min() >= (1 - p.eps) * w
+    assert ind["contacts"].max() <= w + p.contact_tol_mm
+    assert ind["overhang"] < 1.0 and ind["outside"] < 1.0
+    m = rep.paths[0]
+    assert m.path_length_mm == pytest.approx(ind["length"], abs=0.5)
+    assert m.min_clearance_mm == pytest.approx(ind["clear"], abs=0.5)
+    assert m.min_radius_mm == pytest.approx(ind["rmin"], abs=0.5)
+    for a, b in zip(paths[:-1], paths[1:], strict=True):
+        assert np.allclose(a.polyline()[::-1], b.polyline(), atol=1e-6)
+        assert np.array_equal(a.end, b.start)
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize(("thickness", "shells"), [(200, 2), (300, 1)])
+def test_max_overlap_param_keeps_infill(shape, thickness, shells):
+    """Regler am Maximum (15 % = ε·w): Der Kontakt läge genau auf der M2-Grenze, das Infill entfiel
+    früher immer. Jetzt wird auf ε·w − 0,6 mm begrenzt (w = 30: 3,9 mm) und gemeldet."""
+    sec = _quader(thickness, 2)
+    p, paths, rep = _plan(shape, sec, shells=shells, contact_overlap_pct=15.0)
+    meta = paths[0].meta["infill"]
+    assert "skipped" not in meta and meta["overlap_clamped"]
+    assert meta["overlap_mm"] == pytest.approx(3.9)
+    assert rep.ok
+    ind = _independent(paths, sec, p)
+    assert ind["clear"] >= (1 - p.eps) * p.w and ind["contacts"].min() >= (1 - p.eps) * p.w
+
+
+@pytest.mark.parametrize("shape", ("zickzack", "trapez", "maeander"))
+@pytest.mark.parametrize(("thickness", "shells", "w"), [(200, 1, 30.0), (300, 2, 30.0), (300, 2, 40.0)])
+def test_min_round_radius_stays_above_half_width(shape, thickness, shells, w):
+    """Rundungsradius am Reglerminimum 15 mm: Polylinienradius hart ≥ w/2 (früher 14,7 mm beim
+    Zickzack, nur dank 5 % Messtoleranz kein Fehler; bei w = 40 läge r = 15 < 20)."""
+    sec = _quader(thickness, 2)
+    p, paths, rep = _plan(shape, sec, shells=shells, round_radius_mm=15.0, bead_width_mm=w)
+    assert "skipped" not in paths[0].meta["infill"]
+    assert rep.ok
+    assert _independent(paths, sec, p)["rmin"] >= w / 2
+
+
+@pytest.mark.parametrize("shells", [1, 2])
+@pytest.mark.parametrize(
+    "geom",
+    [
+        box(-300, -100, 300, 100).difference(box(-20, 60, 20, 100)),
+        Polygon(
+            [
+                (-300, -100),
+                (300, -100),
+                (300, 100),
+                (100, 100),
+                (100, 400),
+                (-100, 400),
+                (-100, 100),
+                (-300, 100),
+            ]
+        ),  # fmt: skip
+    ],
+    ids=["kerbe", "L"],
+)
+def test_skipped_infill_keeps_shells_closed(geom, shells):
+    """Entfällt das Infill, bleibt der Schalenpfad der des Grundmusters (kein `open_end`): früher
+    fehlte ein Stück der innersten Schale (L, 2 Schalen: 836 mm² Raupe) bzw. die S-Kurve des
+    Einzelrings ragte an der Kerbe aus dem Teil (M5-Fehler)."""
+    sec = _prism(geom, 2)
+    p, paths, rep = _plan("sinus", sec, shells=shells)
+    assert "skipped" in paths[0].meta["infill"]
+    base = pt.plan_pattern(sec, pt.params_from_dict(shells=shells))
+    assert np.array_equal(paths[0].polyline(), base[0].polyline())
+    if shells == 1:  # Kerbe mit 2 Schalen: M5 schon im Grundmuster (Kern, nicht Wellen)
+        assert rep.ok
