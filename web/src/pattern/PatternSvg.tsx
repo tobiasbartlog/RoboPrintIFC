@@ -114,7 +114,7 @@ function PathLayer({ path, w, faint }: { path: PatternPath; w: number; faint: bo
   );
 }
 
-function ViolationMark({ v, w, selected }: { v: PatternViolation; w: number; selected: boolean }) {
+function ViolationMark({ v, w, selected, showLabel }: { v: PatternViolation; w: number; selected: boolean; showLabel: boolean }) {
   if (!v.at) return null;
   const error = v.severity === 'error';
   const color = error ? 'var(--mantine-color-red-6)' : 'var(--mantine-color-orange-6)';
@@ -124,11 +124,23 @@ function ViolationMark({ v, w, selected }: { v: PatternViolation; w: number; sel
       <circle cx={v.at[0]} cy={-v.at[1]} r={r} fill="none" strokeWidth={selected ? 4 : 2.5} strokeDasharray={error ? undefined : '5 3'} {...NON_SCALING} style={{ stroke: color }}>
         <title>{`${v.rule} ${RULE_TITLE[v.rule] ?? ''}: ${v.message}`}</title>
       </circle>
-      <text x={v.at[0]} y={-v.at[1] - r - 3} textAnchor="middle" fontSize={Math.max(w * 0.4, 9)} fontWeight={700} style={{ fill: color }}>
+      {showLabel ? (
+        <text x={v.at[0]} y={-v.at[1] - r - 3} textAnchor="middle" fontSize={Math.max(w * 0.4, 9)} fontWeight={700} style={{ fill: color }}>
         {v.rule}
-      </text>
+        </text>
+      ) : null}
     </g>
   );
+}
+
+/**
+ * Beschriftung eines Verstoßes weglassen, wenn ein früherer Verstoß derselben Regel näher als w liegt
+ * (sonst stapeln sich „M6M6“ unleserlich). Reine Darstellung: Kreis und Listeneintrag bleiben.
+ */
+function labelHidden(all: readonly PatternViolation[], i: number, w: number): boolean {
+  const v = all[i];
+  if (!v?.at) return false;
+  return all.slice(0, i).some((u) => u.rule === v.rule && u.at !== null && Math.hypot(u.at[0] - v.at![0], u.at[1] - v.at![1]) < w);
 }
 
 /**
@@ -180,7 +192,7 @@ export function PatternSvg({ preview, selectedViolation }: { preview: PatternPre
         </circle>
       ))}
       {preview.violations.map((v, i) => (
-        <ViolationMark key={i} v={v} w={w} selected={selectedViolation === i} />
+        <ViolationMark key={i} v={v} w={w} selected={selectedViolation === i} showLabel={selectedViolation === i || !labelHidden(preview.violations, i, w)} />
       ))}
     </svg>
   );

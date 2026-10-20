@@ -13,6 +13,7 @@ import { PlayerScene } from './player/PlayerScene';
 import { WallPreview } from './scene/WallPreview';
 import type { ApiPort } from './state/apiPort';
 import { selectApi } from './state/apiSelect';
+import { createFakePatternApi } from './state/fakePatternApi';
 import type { PatternApi } from './state/patternApi';
 import { PatternStoreProvider, usePatternStoreApi } from './state/patternContext';
 import { createPatternStore, type PatternStore } from './state/patternStore';
@@ -181,7 +182,11 @@ function Shell({ initialView }: { initialView: View }) {
 /** `api` und `store` sind für Tests austauschbar; ohne Angabe wählt `selectApi` (Query ?fake=1|ok). */
 export function App({ api, store, patternApi, patternStore, initialView }: { api?: ApiPort; store?: AppStore; patternApi?: PatternApi; patternStore?: PatternStore; initialView?: View } = {}) {
   const s = useMemo(() => store ?? createAppStore(api ?? selectApi()), [api, store]);
-  const ps = useMemo(() => patternStore ?? createPatternStore(patternApi ?? realPatternApi), [patternApi, patternStore]);
+  // Im Fake-Betrieb (`?fake=…`) auch für Muster die Fake-API, sonst zeigte der Reiter ohne Server nur Fehler.
+  const ps = useMemo(
+    () => patternStore ?? createPatternStore(patternApi ?? (new URLSearchParams(window.location.search).has('fake') ? createFakePatternApi() : realPatternApi)),
+    [patternApi, patternStore],
+  );
   return (
     <MantineProvider theme={theme} defaultColorScheme="light">
       <StoreProvider store={s}>

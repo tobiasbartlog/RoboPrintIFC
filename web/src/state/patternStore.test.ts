@@ -85,4 +85,60 @@ describe('patternStore', () => {
     expect(store.getState().params).toMatchObject({ field_length_mm: 240, bead_width_mm: 36 });
     expect(store.getState().outline.length_mm).toBe(900);
   });
+
+  it('unterscheidet Eingabefehler (422) von Serverfehlern und fordert auf Wunsch neu an', async () => {
+    const api = createFakePatternApi();
+    const store = createPatternStore(api, { debounceMs: 0 });
+    await store.getState().loadCatalog();
+    await vi.waitFor(() => expect(store.getState().preview).not.toBeNull());
+    const original = api.preview.bind(api);
+    api.preview = async () => {
+      throw Object.assign(new Error('Feldlänge zu kurz'), { status: 422 });
+    };
+    store.getState().setParam('bead_width_mm', 40);
+    await vi.waitFor(() => expect(store.getState().previewErrorStatus).toBe(422));
+    api.preview = async () => {
+      throw new TypeError('Failed to fetch');
+    };
+    store.getState().refresh();
+    await vi.waitFor(() => expect(store.getState().previewError).toBe('Failed to fetch'));
+    expect(store.getState().previewErrorStatus).toBeNull();
+    api.preview = original;
+    store.getState().refresh();
+    await vi.waitFor(() => expect(store.getState().previewError).toBeNull());
+    expect(store.getState().previewErrorStatus).toBeNull();
+    expect(store.getState().preview?.params.bead_width_mm).toBe(40);
+  });
+
+  it('refresh ersetzt eine noch entprellte Anfrage statt sie doppelt zu senden', async () => {
+    vi.useFakeTimers();
+    try {
+      const api = createFakePatternApi();
+      const store = createPatternStore(api, { debounceMs: 100 });
+      await store.getState().loadCatalog();
+      await vi.advanceTimersByTimeAsync(0);
+      const n = api.requests.length;
+      store.getState().setParam('bead_width_mm', 33);
+      store.getState().refresh();
+      await vi.advanceTimersByTimeAsync(300);
+      expect(api.requests.length).toBe(n + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('lädt den Katalog nach einem Fehler erneut', async () => {
+    const api = createFakePatternApi();
+    const getCatalog = api.getCatalog.bind(api);
+    api.getCatalog = async () => {
+      throw new TypeError('Failed to fetch');
+    };
+    const store = createPatternStore(api, { debounceMs: 0 });
+    await store.getState().loadCatalog();
+    expect(store.getState().catalogError).toBe('Failed to fetch');
+    api.getCatalog = getCatalog;
+    await store.getState().loadCatalog();
+    expect(store.getState().catalogError).toBeNull();
+    expect(store.getState().catalog).not.toBeNull();
+  });
 });

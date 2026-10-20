@@ -105,13 +105,22 @@ export function patternInfo(catalog: PatternCatalog | null, name: string): Patte
   return catalog?.patterns.find((p) => p.name === name) ?? null;
 }
 
-/** Wert eines Reglers: eigene Änderung, sonst der vom Kern gemeldete wirksame Wert, sonst der Standard. */
+/**
+ * Wert eines Reglers: eigene Änderung, sonst der Standard. Nur wenn die ParamSpec keinen Standard
+ * nennt (der Kern leitet ihn ab), gilt der vom Kern gemeldete wirksame Wert. Sonst zeigte ein
+ * zurückgesetzter Regler bis zur nächsten Antwort (oder nach einem Fehler dauerhaft) noch den
+ * alten Wert der letzten Vorschau.
+ */
 export function effectiveValue(spec: PatternParamSpec, overrides: PatternValues, reported: Record<string, PatternValue | undefined> | null): PatternValue {
   const own = overrides[spec.name];
   if (own !== undefined) return own;
-  const r = reported?.[spec.name];
-  if (r !== undefined && r !== null) return r;
-  return spec.default;
+  if (spec.default !== null) return spec.default;
+  return reported?.[spec.name] ?? null;
+}
+
+/** Liegt ein eingetippter Wert im Bereich? Zwischenstände beim Tippen (z. B. „2“ auf dem Weg zu 240) nicht senden. */
+export function inRange(v: number, min: number | null | undefined, max: number | null | undefined): boolean {
+  return Number.isFinite(v) && (min === null || min === undefined || v >= min) && (max === null || max === undefined || v <= max);
 }
 
 /** Anfrage an `POST /api/patterns/preview`. Es gehen nur die geänderten Regler mit. */

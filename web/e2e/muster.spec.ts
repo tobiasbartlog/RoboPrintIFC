@@ -1,3 +1,5 @@
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 
 /**
@@ -65,10 +67,25 @@ test('Musterersteller: wählen, ziehen, Vorschau ändert sich, speichern', async
 
   await page.screenshot({ path: shot('muster-regler') });
 
-  // Maße: Modullänge ändern, Vorschau bleibt gültig
+  // Maße: Modullänge ändern, die Vorschau zeigt den neuen Querschnitt (viewBox = Länge + 2 Rand)
+  const widthOf = async () => Number((await page.getByTestId('pattern-svg').getAttribute('viewBox'))!.split(' ')[2]);
+  const w600 = await widthOf();
   await page.getByTestId('pattern-length').fill('900');
+  await expect.poll(widthOf, { timeout: 10_000 }).toBeCloseTo(w600 + 300, 0);
   await expect(page.getByTestId('pattern-busy')).toHaveCount(0);
+  await expect(page.getByTestId('pattern-error')).toHaveCount(0);
+
+  // Server fällt aus: Klartext mit Handlung, letzte Vorschau bleibt, Neu-Anfordern hilft
+  await page.route('**/api/patterns/preview*', (route) => route.abort('connectionrefused'));
+  await page.getByTestId('pattern-length').fill('800');
+  await expect(page.getByTestId('pattern-error')).toHaveAttribute('data-kind', 'server');
   await expect(page.getByTestId('pattern-svg')).toBeVisible();
+  await page.unroute('**/api/patterns/preview*');
+  await page.getByTestId('pattern-retry').click();
+  await expect(page.getByTestId('pattern-error')).toHaveCount(0);
+  await expect.poll(widthOf, { timeout: 10_000 }).toBeCloseTo(w600 + 200, 0);
+  await page.getByTestId('pattern-length').fill('900');
+  await expect.poll(widthOf, { timeout: 10_000 }).toBeCloseTo(w600 + 300, 0);
 
   // Dunkelmodus bleibt lesbar
   await page.getByTestId('color-scheme-toggle').click();
@@ -83,8 +100,11 @@ test('Musterersteller: wählen, ziehen, Vorschau ändert sich, speichern', async
   await page.getByTestId('pattern-save-name').fill(name);
   await page.getByTestId('pattern-save-button').click();
   await expect(page.getByTestId('pattern-saved')).toContainText(name);
-  const presets = (await (await request.get('/api/patterns/presets')).json()) as { preset: { name: string; pattern: string } }[];
-  expect(presets.some((p) => p.preset.name === name && p.preset.pattern === info.name)).toBe(true);
+  const presets = (await (await request.get('/api/patterns/presets')).json()) as { id: string; source: string; preset: { name: string; pattern: string } }[];
+  const mine = presets.find((p) => p.preset.name === name && p.preset.pattern === info.name);
+  expect(mine).toBeDefined();
+  // Aufräumen: Die API kennt kein Löschen; eigene Presets liegen als <id>.json unter runs/presets.
+  if (mine?.source === 'user') rmSync(join(test.info().config.rootDir, '..', '..', 'runs', 'presets', `${mine.id}.json`), { force: true });
 
   // SVG-Export
   const download = page.waitForEvent('download');

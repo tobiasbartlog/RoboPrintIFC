@@ -1,5 +1,5 @@
-import { Alert, Badge, Box, Group, Loader, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
-import { useState } from 'react';
+import { Alert, Badge, Box, Button, Group, Loader, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { useEffect, useState } from 'react';
 import type { PatternPreview } from '../contracts';
 import { ErrorNote } from '../components/common';
 import { usePatternStore } from '../state/patternContext';
@@ -107,6 +107,7 @@ function Metrics({ preview }: { preview: PatternPreview }) {
       <Stat id="straight" label="Längste gerade Außenstrecke" value={mm(m.longest_straight_outer_mm, 0)} hint="je kürzer, desto weniger Rissneigung" />
       <Stat id="radius" label="Kleinster Radius" value={mm(m.min_radius_mm, 1)} hint={`Ziel ≥ w = ${num(w, 0)} mm`} />
       <Stat id="clearance" label="Kleinster Strangabstand" value={mm(m.min_clearance_mm, 1)} />
+      <Stat id="coverage" label="Schalenabdeckung" value={`${num(m.shell_coverage * 100, 1)} %`} hint="Anteil des Schalenbereichs unter Raupen" />
       <Stat
         id="layer-change"
         label="Schichtwechsel"
@@ -141,7 +142,7 @@ function FitInfo({ preview }: { preview: PatternPreview }) {
   );
 }
 
-function Violations({ preview, selected, onSelect }: { preview: PatternPreview; selected: number | null; onSelect: (i: number | null) => void }) {
+function Violations({ preview, selected, onSelect, stale }: { preview: PatternPreview; selected: number | null; onSelect: (i: number | null) => void; stale: boolean }) {
   const v = preview.violations;
   const errors = v.filter((x) => x.severity === 'error').length;
   return (
@@ -149,8 +150,9 @@ function Violations({ preview, selected, onSelect }: { preview: PatternPreview; 
       <Group gap="xs">
         <Title order={5}>Musterregeln M1–M7</Title>
         {v.length === 0 ? (
-          <Badge color="green" variant="filled" data-testid="pattern-rules-ok">
-            alle eingehalten
+          // Grün nur für den aktuellen Stand: Rechnet der Kern noch oder schlug die Anfrage fehl, gilt das Ergebnis der alten Einstellung.
+          <Badge color={stale ? 'gray' : 'green'} variant={stale ? 'light' : 'filled'} data-testid="pattern-rules-ok" data-stale={stale}>
+            {stale ? 'alle eingehalten (letzte Vorschau)' : 'alle eingehalten'}
           </Badge>
         ) : (
           <Badge color={errors ? 'red' : 'orange'} variant="filled" data-testid="pattern-rules-bad">
@@ -166,6 +168,7 @@ function Violations({ preview, selected, onSelect }: { preview: PatternPreview; 
           component="button"
           type="button"
           onClick={() => onSelect(selected === i ? null : i)}
+          aria-pressed={selected === i}
           data-testid={`pattern-violation-${i}`}
           data-severity={x.severity}
           style={{
@@ -206,8 +209,14 @@ export function PatternWorkspace() {
   const preview = usePatternStore((s) => s.preview);
   const busy = usePatternStore((s) => s.busy);
   const error = usePatternStore((s) => s.previewError);
+  const errorStatus = usePatternStore((s) => s.previewErrorStatus);
   const catalogError = usePatternStore((s) => s.catalogError);
+  const loadCatalog = usePatternStore((s) => s.loadCatalog);
+  const refresh = usePatternStore((s) => s.refresh);
   const [selected, setSelected] = useState<number | null>(null);
+  // Die Auswahl ist ein Index in die Verstoßliste; mit jeder neuen Vorschau zeigt er auf etwas anderes.
+  useEffect(() => setSelected(null), [preview]);
+  const inputError = errorStatus === 400 || errorStatus === 422;
   return (
     <Box h="100%" style={{ overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }} data-testid="pattern-workspace" aria-busy={busy}>
       <Stack gap="sm">
@@ -227,15 +236,34 @@ export function PatternWorkspace() {
           ) : null}
         </Group>
         {catalogError ? (
-          <ErrorNote message="Der Musterkatalog konnte nicht geladen werden. Ist der Server gestartet?" detail={catalogError} testid="pattern-catalog-error" />
+          <Stack gap={4}>
+            <ErrorNote message="Der Musterkatalog konnte nicht geladen werden. Ist der Server gestartet? Danach „Katalog neu laden“." detail={catalogError} testid="pattern-catalog-error" />
+            <Button size="xs" variant="default" w="fit-content" onClick={() => void loadCatalog()} data-testid="pattern-catalog-retry">
+              Katalog neu laden
+            </Button>
+          </Stack>
         ) : null}
-        {error ? (
-          <Alert color="red" title="Diese Einstellung ergibt keine Vorschau" data-testid="pattern-error">
+        {error && inputError ? (
+          // 400/422: Die Meldung des Kerns ist deutscher Klartext zur Einstellung.
+          <Alert color="red" title="Diese Einstellung ergibt keine Vorschau" data-testid="pattern-error" data-kind="input">
             <Text size="sm">{error}</Text>
             <Text size="xs" c="dimmed">
-              Angezeigt bleibt die letzte gültige Vorschau. Regler zurücksetzen oder anders einstellen.
+              {preview ? 'Angezeigt bleibt die letzte gültige Vorschau. ' : ''}Regler zurücksetzen oder anders einstellen.
             </Text>
           </Alert>
+        ) : null}
+        {error && !inputError ? (
+          // Netz- oder Serverfehler: Klartext mit Handlung, die rohe Meldung nur ausklappbar.
+          <Stack gap={4} data-testid="pattern-error" data-kind="server">
+            <ErrorNote
+              message={`Der Server hat keine Vorschau geliefert. Ist er gestartet?${preview ? ' Angezeigt bleibt die letzte gültige Vorschau.' : ''}`}
+              detail={error}
+              testid="pattern-server-error"
+            />
+            <Button size="xs" variant="default" w="fit-content" onClick={refresh} data-testid="pattern-retry">
+              Vorschau neu anfordern
+            </Button>
+          </Stack>
         ) : null}
         {preview ? (
           <>
@@ -250,7 +278,7 @@ export function PatternWorkspace() {
             <Legend preview={preview} />
             <FitInfo preview={preview} />
             <Metrics preview={preview} />
-            <Violations preview={preview} selected={selected} onSelect={setSelected} />
+            <Violations preview={preview} selected={selected} onSelect={setSelected} stale={busy || error !== null} />
           </>
         ) : !error && !catalogError ? (
           <Text c="dimmed" data-testid="pattern-loading">

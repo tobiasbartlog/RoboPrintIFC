@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import type { PatternParamSpec } from '../contracts';
 import { ErrorNote, Reason } from '../components/common';
 import { usePatternStore, usePatternStoreApi } from '../state/patternContext';
-import { CHOICE_LABEL, effectiveValue, num, outlineOfBox, patternInfo, type PatternValue } from '../state/patterns';
+import { CHOICE_LABEL, effectiveValue, inRange, num, outlineOfBox, patternInfo, type PatternValue } from '../state/patterns';
 import { useAppStore } from '../state/storeContext';
 
 const ROLE_GROUP: Record<string, string> = {
@@ -44,9 +44,11 @@ function ParamControl({ spec }: { spec: PatternParamSpec }) {
       </ActionIcon>
     </Tooltip>
   );
+  // Zahlenfeld: echtes <label for>; Auswahl: Gruppe per aria-labelledby (SegmentedControl hat kein Eingabefeld mit id).
+  const labelProps = spec.kind === 'choice' ? ({ component: 'span', id: `${id}-label` } as const) : ({ component: 'label', htmlFor: `${id}-input` } as const);
   const head = (
     <Group justify="space-between" wrap="nowrap" gap={4}>
-      <Text component="label" htmlFor={`${id}-input`} size="sm" fw={changed ? 700 : 400} style={{ minWidth: 0 }}>
+      <Text {...labelProps} size="sm" fw={changed ? 700 : 400} style={{ minWidth: 0 }}>
         {spec.label}
         {spec.unit ? (
           <Text span c="dimmed" size="xs">
@@ -85,6 +87,8 @@ function ParamControl({ spec }: { spec: PatternParamSpec }) {
           data={spec.choices.map((c) => ({ value: String(c), label: CHOICE_LABEL[String(c)] ?? String(c) }))}
           value={String(value)}
           onChange={(v) => setParam(spec.name, typeof spec.choices[0] === 'number' ? Number(v) : v)}
+          role="radiogroup"
+          aria-labelledby={`${id}-label`}
           data-testid={`${id}-input`}
         />
         {help}
@@ -120,11 +124,13 @@ function ParamControl({ spec }: { spec: PatternParamSpec }) {
           step={step}
           min={spec.minimum ?? undefined}
           max={spec.maximum ?? undefined}
-          clampBehavior="strict"
+          // „blur“ statt „strict“: strict verwirft jeden Tastendruck außerhalb des Bereichs, bei
+          // Minimum 160 ließe sich „240“ nicht eintippen. Zwischenstände gehen nicht an den Kern.
+          clampBehavior="blur"
           allowDecimal={spec.kind === 'float'}
           decimalSeparator=","
           value={n}
-          onChange={(v) => typeof v === 'number' && setParam(spec.name, v)}
+          onChange={(v) => typeof v === 'number' && inRange(v, spec.minimum, spec.maximum) && setParam(spec.name, v)}
           rightSection={unitSuffix(spec.unit)}
           rightSectionWidth={spec.unit ? 30 : undefined}
           rightSectionPointerEvents="none"
@@ -185,7 +191,7 @@ function SizeSection() {
           hideControls
           clampBehavior="blur"
           value={outline.length_mm}
-          onChange={(v) => typeof v === 'number' && setOutline({ length_mm: v, source: 'free' })}
+          onChange={(v) => typeof v === 'number' && inRange(v, 100, 20000) && setOutline({ length_mm: v, source: 'free' })}
           data-testid="pattern-length"
         />
         <NumberInput
@@ -197,7 +203,7 @@ function SizeSection() {
           hideControls
           clampBehavior="blur"
           value={outline.thickness_mm}
-          onChange={(v) => typeof v === 'number' && setOutline({ thickness_mm: v, source: 'free' })}
+          onChange={(v) => typeof v === 'number' && inRange(v, 60, 2000) && setOutline({ thickness_mm: v, source: 'free' })}
           data-testid="pattern-thickness"
         />
       </Group>
@@ -211,7 +217,7 @@ function SizeSection() {
         step={1}
         clampBehavior="blur"
         value={layer}
-        onChange={(v) => typeof v === 'number' && setLayer(v)}
+        onChange={(v) => typeof v === 'number' && inRange(v, 0, 999) && setLayer(v)}
         data-testid="pattern-layer"
       />
     </Stack>
@@ -284,7 +290,8 @@ function ExportSection() {
             a.href = url;
             a.download = fileName;
             a.click();
-            URL.revokeObjectURL(url);
+            // Erst nach dem Start des Downloads freigeben (sofortiges Freigeben bricht ihn in Firefox ab).
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
           } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
           } finally {
@@ -309,6 +316,7 @@ export function PatternPanel() {
   const selectPattern = usePatternStore((s) => s.selectPattern);
   const selectPreset = usePatternStore((s) => s.selectPreset);
   const resetParams = usePatternStore((s) => s.resetParams);
+  const catalogError = usePatternStore((s) => s.catalogError);
   const info = patternInfo(catalog, pattern);
 
   const patternData = useMemo(() => {
@@ -338,9 +346,10 @@ export function PatternPanel() {
         value={catalog ? pattern : null}
         onChange={(v) => v && selectPattern(v)}
         disabled={!catalog}
-        placeholder={catalog ? undefined : 'Katalog wird geladen …'}
+        placeholder={catalog ? undefined : catalogError ? 'Katalog nicht geladen' : 'Katalog wird geladen …'}
         data-testid="pattern-select"
       />
+      <Reason text={!catalog && catalogError ? 'Ohne Musterkatalog ist keine Wahl möglich. Den Katalog über „Katalog neu laden“ in der Mitte erneut anfordern.' : null} testid="pattern-select-reason" />
       {info?.description ? (
         <Text size="xs" c="dimmed" data-testid="pattern-description">
           {info.description}

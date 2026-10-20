@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { PatternParamSpec } from '../contracts';
-import { buildRequest, contactStyle, effectiveValue, length, num, outlineOfBox, segmentStyle, seconds, spacingSummary, svgFileName } from './patterns';
+import { buildRequest, contactStyle, effectiveValue, inRange, length, num, outlineOfBox, segmentStyle, seconds, spacingSummary, svgFileName } from './patterns';
 
 const spec: PatternParamSpec = { name: 'a', label: 'A', default: 5, unit: 'mm', minimum: 1, maximum: 9, step: 1, kind: 'float', choices: [], help: '' };
 
 describe('patterns (Darstellungshilfen)', () => {
+  it('lässt Zwischenstände beim Tippen nicht durch', () => {
+    expect(inRange(2, 160, 300)).toBe(false);
+    expect(inRange(240, 160, 300)).toBe(true);
+    expect(inRange(400, 160, 300)).toBe(false);
+    expect(inRange(5, null, null)).toBe(true);
+    expect(inRange(Number.NaN, null, null)).toBe(false);
+  });
+
   it('formatiert deutsch und zeigt fehlende Werte als Strich', () => {
     expect(num(1234.5, 1)).toBe('1.234,5');
     expect(num(null)).toBe('–');
@@ -29,8 +37,12 @@ describe('patterns (Darstellungshilfen)', () => {
 
   it('Wert eines Reglers: Änderung vor Kernwert vor Standard', () => {
     expect(effectiveValue(spec, { a: 7 }, { a: 3 })).toBe(7);
-    expect(effectiveValue(spec, {}, { a: 3 })).toBe(3);
+    // Mit Standard gilt der Standard, nicht ein veralteter Wert der letzten Vorschau
+    expect(effectiveValue(spec, {}, { a: 3 })).toBe(5);
     expect(effectiveValue(spec, {}, null)).toBe(5);
+    // Ohne Standard (vom Kern abgeleitet) gilt der gemeldete Wert
+    expect(effectiveValue({ ...spec, default: null }, {}, { a: 3 })).toBe(3);
+    expect(effectiveValue({ ...spec, default: null }, {}, null)).toBeNull();
   });
 
   it('baut die Anfrage nur aus Änderungen und dem Querschnitt', () => {

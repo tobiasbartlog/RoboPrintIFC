@@ -20,6 +20,11 @@ export interface PatternState {
   /** Rechnet gerade (Anfrage unterwegs oder entprellt). */
   busy: boolean;
   previewError: string | null;
+  /**
+   * HTTP-Status des Vorschaufehlers: 400/422 heißt „Einstellung ungültig“ (Meldung des Kerns ist
+   * Klartext), alles andere (null = Netz) heißt „Server nicht erreichbar“.
+   */
+  previewErrorStatus: number | null;
   saved: PatternPresetEntry | null;
   saveError: string | null;
   loadCatalog: () => Promise<void>;
@@ -50,6 +55,11 @@ function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+function errorStatus(e: unknown): number | null {
+  const s = (e as { status?: unknown } | null)?.status;
+  return typeof s === 'number' ? s : null;
+}
+
 export function createPatternStore(api: PatternApi, opts: PatternStoreOptions = {}): PatternStore {
   const debounceMs = opts.debounceMs ?? 120;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -58,6 +68,7 @@ export function createPatternStore(api: PatternApi, opts: PatternStoreOptions = 
 
   const store: PatternStore = createStore<PatternState>((set, get) => {
     const run = () => {
+      if (timer) clearTimeout(timer);
       timer = null;
       controller?.abort();
       const ctl = new AbortController();
@@ -69,11 +80,11 @@ export function createPatternStore(api: PatternApi, opts: PatternStoreOptions = 
       api
         .preview(req, ctl.signal)
         .then((preview) => {
-          if (my === seq) set({ preview, previewError: null, busy: false });
+          if (my === seq) set({ preview, previewError: null, previewErrorStatus: null, busy: false });
         })
         .catch((e: unknown) => {
           if (my !== seq || ctl.signal.aborted) return;
-          set({ previewError: errorText(e), busy: false });
+          set({ previewError: errorText(e), previewErrorStatus: errorStatus(e), busy: false });
         });
     };
     const schedule = () => {
@@ -93,10 +104,12 @@ export function createPatternStore(api: PatternApi, opts: PatternStoreOptions = 
       preview: null,
       busy: false,
       previewError: null,
+      previewErrorStatus: null,
       saved: null,
       saveError: null,
       refresh: run,
       loadCatalog: async () => {
+        set({ catalogError: null });
         try {
           const catalog = await api.getCatalog();
           const known = catalog.patterns.some((p) => p.name === get().pattern);
