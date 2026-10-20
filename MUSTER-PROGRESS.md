@@ -20,12 +20,13 @@ Die erste Zeile setzt nur das Skript.
 | I-Mehrfach (Doppelwelle/Kettenglied, Waben, Fermat) | M2 | läuft (wf_3c365435-7f4) | v2/muster-mehrfach | |
 | Outfill O1/O3 (nur wenn Zeit; O2 = Fugenwand) | M2 | offen | v2/muster-outfill | |
 | Topologie (Öffnungen, Inseln, Laibungsstege, Naht, Abschrägung) | M2 | erledigt, gemergt | v2/muster-topologie | 6bf2292 |
-| Einbau Slicer + Vertrag + Schema/TS | M3 | läuft (wf_0e4879c6-203) | v2/muster-einbau | |
-| Einbau Planer/Timing/DRL | M3 | wartet (wf_0e4879c6-203) | v2/muster-einbau | |
+| Einbau Slicer + Vertrag + Schema/TS | M3 | erledigt (auf v2/muster-einbau, noch nicht gemergt) | v2/muster-einbau | b78ce7d |
+| Einbau Planer/Timing/DRL | M3 | gebaut, Gegenprüfung läuft (wf_0e4879c6-203) | v2/muster-einbau | 36ced12 |
 | Musterszenarien, `scripts/verify_muster.py`, SPEC-Nachtrag | M3 | wartet (wf_0e4879c6-203) | v2/muster-einbau | |
-| Viewer: Musterwahl, 2D-Vorschau, Legende, Kennzahlen | M4 | offen | v2/muster-viewer | |
+| Viewer: Musterwahl im Ablauf, Schichtvorschau des Teils, Legende, Kennzahlen | M4 | läuft (wf_eeffd1a6-6c2) | v2/muster-viewer | |
 | Katalog-Generator `scripts/muster_katalog.py` (Vorschau-Kennzahlen, Bilder) | M5 | erledigt, gemergt (Neulauf nach M3 nötig) | v2/muster-katalog | 5755006+ |
 | Vorschau-Laufzeit (metrics): Fugenwand 1200×200 146 → 70 ms; Wellen noch 120–380 ms | M4 | erledigt, gemergt; Wellen offen | v2/muster-perf | 81a874f |
+| Wellen-Fix: Planung < 100 ms, Absturz L-Querschnitt | M2 | läuft (wf_eeffd1a6-6c2) | v2/muster-wellenfix | |
 | Vergleich mit Roboterprüfung, MUSTERKATALOG final, Testdrucke | M5 | offen | v2/muster-katalog | |
 | Gegenprüfung und Härtung | M6 | offen | v2/muster | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
