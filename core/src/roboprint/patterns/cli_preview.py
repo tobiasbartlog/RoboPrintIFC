@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from roboprint.patterns.checks import check_outline, check_spec, flag_empty
 from roboprint.patterns.preview import load_preset, preview, preview_svg
 
 
@@ -41,12 +42,14 @@ def main(
 ) -> int:
     """Preset laden, Vorschau rechnen, SVG (und optional JSON) schreiben. Rückgabe: Exit-Code."""
     preset = load_preset(preset_path)
+    check_spec(preset)
     outline = None
     if length_mm is not None or thickness_mm is not None:
         if length_mm is None or thickness_mm is None:
             raise ValueError("--length und --thickness nur zusammen angeben")
         outline = {"length_mm": float(length_mm), "thickness_mm": float(thickness_mm)}
-    data = preview(preset, outline, layer=layer)
+    check_outline(outline if outline is not None else preset.get("outline"))
+    data = flag_empty(preview(preset, outline, layer=layer))
     if svg_path is not None:
         Path(svg_path).parent.mkdir(parents=True, exist_ok=True)
         Path(svg_path).write_text(preview_svg(data=data, width_px=width_px), encoding="utf-8")
@@ -84,6 +87,9 @@ def run(args: argparse.Namespace) -> int:
     """Argumente ausführen; ungültige Eingaben ergeben Exit-Code 2 mit Meldung."""
     if args.length is not None and args.length <= 0 or args.thickness is not None and args.thickness <= 0:
         print("Fehler: --length und --thickness müssen > 0 sein", file=sys.stderr)
+        return 2
+    if args.layer < 0 or args.width_px < 200 or args.width_px > 4000:
+        print("Fehler: --layer muss ≥ 0 und --width-px in [200, 4000] liegen (wie die API)", file=sys.stderr)
         return 2
     try:
         return main(

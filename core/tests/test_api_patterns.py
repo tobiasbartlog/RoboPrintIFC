@@ -118,7 +118,7 @@ def test_preview_from_preset_with_overrides(client):
 
 def test_preview_errors(client):
     r = client.post("/api/patterns/preview", json={"pattern": "gibt_es_nicht"})
-    assert r.status_code == 404
+    assert r.status_code == 422 and "Unbekanntes Muster" in r.json()["detail"]
     r = client.post("/api/patterns/preview", json={"params": {"bead_width_mm": -1}})
     assert r.status_code == 422
     r = client.post("/api/patterns/preview", json={"params": {"layer_order": "kreuz"}})
@@ -170,7 +170,7 @@ def test_preview_svg_post_and_get(client):
     ET.fromstring(r.text)
     assert client.get("/api/patterns/preview.svg", params={"params": "{kaputt"}).status_code == 422
     assert client.get("/api/patterns/preview.svg", params={"length_mm": 600}).status_code == 422
-    assert client.get("/api/patterns/preview.svg", params={"pattern": "nix"}).status_code == 404
+    assert client.get("/api/patterns/preview.svg", params={"pattern": "nix"}).status_code == 422
 
 
 # ----------------------------------------------------------------- Presets

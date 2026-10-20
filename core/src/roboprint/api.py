@@ -188,9 +188,11 @@ def create_app(
     `<runs_dir>/jobs/<job_id>/run`. `pipeline` ("modul:funktion") ist für Tests austauschbar.
     `presets_dir`: eigene Muster-Presets (`api_patterns`), Default `<runs_dir>/presets`.
     """
+    from fastapi.exceptions import RequestValidationError
+
     from roboprint import __version__
     from roboprint.api_jobs import DEFAULT_PIPELINE, JobManager
-    from roboprint.api_patterns import PresetStore, make_router
+    from roboprint.api_patterns import PresetStore, make_router, validation_error_handler
 
     root = (root or Path(__file__).resolve().parents[3]).resolve()
     runs_dir = Path(runs_dir)
@@ -210,6 +212,8 @@ def create_app(
     app.state.jobs = jobs
     app.state.presets = PresetStore(presets_dir)
     app.include_router(make_router(app.state.presets))
+    # NaN in einer Eingabe ließ den Standard-Handler beim Serialisieren abstürzen (500)
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
 
     # ------------------------------------------------------------------ health / examples
     @app.get("/api/health")

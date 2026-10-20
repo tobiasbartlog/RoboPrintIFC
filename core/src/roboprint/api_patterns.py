@@ -12,19 +12,29 @@
 Die Geometrie rechnet `roboprint.patterns` (SPEC §9: Der Viewer rechnet keine Fachlogik).
 Mitgelieferte Presets liegen in `roboprint/patterns/presets/` und sind schreibgeschützt; eigene
 Presets liegen in `presets_dir` (Standard `<runs>/presets`), je Preset eine Datei `<id>.json`.
+
+Fehler: 422 mit deutscher Meldung in `detail` (Text) für unbekanntes Muster oder Preset im Body,
+Regler außerhalb ihres Bereichs (Kern-ParamSpecs und die des Musters), unbekannte Parameter,
+ungültige Querschnitte und Formfehler (dann zusätzlich `errors` mit den Rohfehlern von pydantic).
+404 nur für `GET /api/patterns/presets/{id}`, 409 für das Überschreiben eines mitgelieferten Presets.
+Ein Querschnitt ohne druckbaren Pfad ist eine gültige Anfrage mit Regelfehler M1 (`ok = false`).
 """
 
 from __future__ import annotations
 
 import json
+import math
 import re
 import time
 import unicodedata
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import Response
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, Response
+from pydantic import ValidationError
 
 from .contracts.api import (
     PatternCatalog,
@@ -107,7 +117,10 @@ class PresetStore:
         """Eigenes Preset schreiben (über `patterns.save_preset`, das Muster und Parameter prüft).
         ValueError bei ungültigem Muster/Parameter, PermissionError bei einer mitgelieferten id."""
         from roboprint.patterns import save_preset
+        from roboprint.patterns.checks import check_outline, check_spec
 
+        check_spec({"pattern": body.pattern, "params": dict(body.params)})
+        check_outline(None if body.outline is None else body.outline.model_dump())
         pid = body.id or slugify(body.name)
         if (self.builtin_dir / f"{pid}.json").is_file():
             raise PermissionError(f"Preset {pid!r} ist mitgeliefert und lässt sich nicht überschreiben")
@@ -187,10 +200,13 @@ def fit_results(paths: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def run_preview(req: PatternPreviewRequest, store: PresetStore) -> dict[str, Any]:
     """Vorschau als Dict im Format von `PatternPreview` (ValueError/KeyError bei falscher Eingabe)."""
     from roboprint.patterns import preview
+    from roboprint.patterns.checks import check_outline, check_spec, flag_empty
 
     t0 = time.perf_counter()
     spec, outline = build_spec(req, store)
-    data = preview(spec, outline, req.layer)
+    check_spec(spec)
+    check_outline(outline)
+    data = flag_empty(preview(spec, outline, req.layer))
     data["fit"] = fit_results(data["paths"])
     data["timing_ms"]["api"] = round((time.perf_counter() - t0) * 1e3, 1)
     return data
@@ -209,6 +225,106 @@ def catalog(store: PresetStore) -> PatternCatalog:
     )
 
 
+_MSG_DE = {
+    "missing": "fehlt",
+    "extra_forbidden": "ist kein erlaubtes Feld",
+    "greater_than": "muss größer als {gt} sein",
+    "greater_than_equal": "muss mindestens {ge} sein",
+    "less_than": "muss kleiner als {lt} sein",
+    "less_than_equal": "darf höchstens {le} sein",
+    "finite_number": "muss eine endliche Zahl sein",
+    "string_type": "muss ein Text sein",
+    "int_type": "muss eine ganze Zahl sein",
+    "int_parsing": "muss eine ganze Zahl sein",
+    "float_type": "muss eine Zahl sein",
+    "float_parsing": "muss eine Zahl sein",
+    "string_pattern_mismatch": "hat ein ungültiges Format (erlaubt: Buchstaben, Ziffern, - und _)",
+    "string_too_short": "ist zu kurz",
+    "string_too_long": "ist zu lang",
+    "too_short": "hat zu wenige Einträge",
+    "too_long": "hat zu viele Einträge",
+    "json_invalid": "ist kein gültiges JSON",
+    "model_attributes_type": "muss ein JSON-Objekt sein",
+    "dict_type": "muss ein JSON-Objekt sein",
+    "list_type": "muss eine Liste sein",
+    "literal_error": "hat einen nicht erlaubten Wert",
+}
+#: Zweignamen des Vereinigungstyps eines Parameterwerts (`PatternParamValue`)
+_VALUE_BRANCHES = frozenset({"bool", "int", "float", "str", "list[int]", "list[float]"})
+
+
+def finite_json(v: Any) -> Any:
+    """NaN/±Inf (Python liest `NaN` in JSON) als Text, damit die Fehlerantwort serialisierbar bleibt."""
+    if isinstance(v, float) and not math.isfinite(v):
+        return str(v)
+    if isinstance(v, dict):
+        return {k: finite_json(x) for k, x in v.items()}
+    if isinstance(v, list | tuple):
+        return [finite_json(x) for x in v]
+    return v
+
+
+def german_validation_message(errors: list[dict[str, Any]]) -> str:
+    """Pydantic-Fehler als eine deutsche Zeile, z. B. `outline.length_mm muss größer als 0 sein`.
+
+    Bei Vereinigungstypen meldet pydantic jeden Zweig (Querschnitt als Rechteck oder Polygon,
+    Parameterwert als Zahl, Text, Liste …). Zweignamen fallen aus dem Ort, gleiche Meldungen
+    werden zusammengefasst."""
+
+    def branch(e: dict[str, Any]) -> tuple[tuple[Any, ...], str] | None:
+        loc = tuple(e.get("loc", ()))
+        for i, x in enumerate(loc):
+            if isinstance(x, str) and x[:1].isupper():
+                return loc[:i], x
+        return None
+
+    # Je Vereinigungstyp nur den Zweig mit den wenigsten Fehlern melden (der gemeinte Fall)
+    counts: dict[tuple[Any, ...], dict[str, int]] = {}
+    for e in errors:
+        b = branch(e)
+        if b is not None:
+            counts.setdefault(b[0], {}).setdefault(b[1], 0)
+            counts[b[0]][b[1]] += 1
+    best = {prefix: min(c, key=lambda k: c[k]) for prefix, c in counts.items()}
+    errors = [e for e in errors if (b := branch(e)) is None or best[b[0]] == b[1]]
+
+    def num(v: Any) -> Any:
+        return f"{v:g}" if isinstance(v, float) else v
+
+    parts: list[str] = []
+    for e in errors:
+        typ = str(e.get("type", ""))
+        loc = [
+            str(x)
+            for x in e.get("loc", ())
+            if x not in ("body", "query", "path") and not (isinstance(x, str) and x[:1].isupper())
+        ]
+        if loc and loc[-1] in _VALUE_BRANCHES:
+            loc = loc[:-1]
+            text = "muss eine endliche Zahl, ein Wahrheitswert, ein Text oder eine Zahlenliste sein"
+        elif typ in _MSG_DE:
+            try:
+                text = _MSG_DE[typ].format(**{k: num(v) for k, v in (e.get("ctx") or {}).items()})
+            except (KeyError, IndexError):
+                text = _MSG_DE[typ]
+        else:
+            text = f"ist ungültig ({e.get('msg', typ)})"
+        msg = f"{'.'.join(loc) or 'Anfrage'} {text}"
+        if msg not in parts:
+            parts.append(msg)
+    return "Ungültige Anfrage: " + "; ".join(parts)
+
+
+async def validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """422 ohne Absturz bei NaN in der Eingabe. Unter `/api/patterns` steht eine deutsche Meldung in
+    `detail` (Rohfehler in `errors`), sonst bleibt das gewohnte FastAPI-Format `detail: [...]`."""
+    assert isinstance(exc, RequestValidationError)
+    errors = finite_json(jsonable_encoder(exc.errors()))
+    if request.url.path.startswith("/api/patterns"):
+        return JSONResponse({"detail": german_validation_message(errors), "errors": errors}, status_code=422)
+    return JSONResponse({"detail": errors}, status_code=422)
+
+
 def make_router(store: PresetStore) -> APIRouter:
     router = APIRouter()
 
@@ -216,9 +332,10 @@ def make_router(store: PresetStore) -> APIRouter:
         try:
             return run_preview(req, store)
         except KeyError as exc:
-            raise _err(404, f"Muster oder Preset nicht gefunden: {exc.args[0] if exc.args else exc}") from exc
+            # 422 statt 404: Die Route gibt es, nur der Name im Body ist unbekannt
+            raise _err(422, f"Unbekanntes Muster oder Preset: {exc.args[0] if exc.args else exc}") from exc
         except (ValueError, TypeError) as exc:
-            raise _err(422, f"Ungültige Musterparameter: {exc}") from exc
+            raise _err(422, f"Ungültige Eingabe: {exc}") from exc
 
     def svg_response(data: dict[str, Any], width_px: int) -> Response:
         from roboprint.patterns import preview_svg
@@ -269,7 +386,14 @@ def make_router(store: PresetStore) -> APIRouter:
             req = PatternPreviewRequest.model_validate(
                 {"pattern": pattern, "preset": preset, "params": pdict, "outline": outline, "layer": layer}
             )
-        except ValueError as exc:  # json.JSONDecodeError und pydantic.ValidationError sind ValueErrors
+        except json.JSONDecodeError as exc:
+            raise _err(
+                422, f"Ungültige Anfrage: params ist kein gültiges JSON (Fehler an Zeichen {exc.pos})"
+            ) from exc
+        except ValidationError as exc:
+            errors = finite_json(jsonable_encoder(exc.errors()))
+            raise _err(422, german_validation_message(errors)) from exc
+        except ValueError as exc:
             raise _err(422, f"Ungültige Anfrage: {exc}") from exc
         return svg_response(preview_or_422(req), width_px)
 
