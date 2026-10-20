@@ -214,6 +214,28 @@ def test_halt_in_strand_rejected(minirun_strand_copy):
     assert any("Halt im Strang: wait(1)" in e for e in errs), errs
 
 
+def test_halt_with_redundant_pump_on_rejected(minirun_strand_copy):
+    """radius 0 am Verbinder plus erneutes `set_analog_output(ch=1, val=5.0)` bei laufender Pumpe: kein
+    Pumpenwechsel, der Halt bleibt ein Halt."""
+    p, lines = _lines(minirun_strand_copy)
+    k = _first(lines, "# Verbinder")
+    lines[k] = lines[k].replace("radius=2.0", "radius=0.0")
+    lines.insert(k + 1, "    set_analog_output(ch=1, val=5.0)")
+    _write(p, lines)
+    errs = _check(minirun_strand_copy)
+    assert any("Halt im Strang: movel mit radius 0" in e for e in errs), errs
+    assert any("Pumpenbefehl im Strang ohne Zustandswechsel" in e for e in errs), errs
+
+
+def test_dwell_at_strand_end_rejected(minirun_strand_copy):
+    """wait(10) im Stillstand am Strangende vor Pumpe aus: Verweilen mit laufender Pumpe."""
+    p, lines = _lines(minirun_strand_copy)
+    lines.insert(_first(lines, "    set_analog_output(ch=1, val=0)"), "    wait(10.0)")
+    _write(p, lines)
+    errs = _check(minirun_strand_copy)
+    assert any("Verweilen mit laufender Pumpe: wait(10)" in e for e in errs), errs
+
+
 def test_link_blend_radius_too_large_rejected(minirun_strand_copy):
     p, lines = _lines(minirun_strand_copy)
     k = _first(lines, "# Verbinder")

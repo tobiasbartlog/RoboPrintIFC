@@ -267,6 +267,29 @@ def test_halt_in_strand():
     assert _pump(M, [*ev[:2], ("wait", 0.0, 5), *ev[2:]]) == []
 
 
+def test_halt_not_masked_by_redundant_pump_command():
+    """radius 0 an der Ringgrenze plus erneutes Pumpe-an (5 V bei laufender Pumpe, kein Wechsel): der Halt
+    bleibt ein Halt, und der Pumpenbefehl im Strang ist selbst ein Fehler (SPEC §5.6)."""
+    M, ev = _program(radius=[0, 0, 0, 0, 2, 0, 0, 0, 0])  # Verbinder (Bewegung 5) endet mit radius 0
+    errs = _pump(M, [*ev[:2], ("ao", 1, 5.0, 6), *ev[2:]])
+    assert any("Halt im Strang: movel mit radius 0" in e for e in errs), errs
+    assert any("Pumpenbefehl im Strang ohne Zustandswechsel (AO 1 = 5 V" in e for e in errs), errs
+    M, ev = _program()  # auch ohne Halt: kein Pumpenbefehl zwischen zwei Bewegungen mit Pumpe
+    errs = _pump(M, [*ev[:2], ("ao", 2, 0.0, 5), *ev[2:]])
+    assert any("Pumpenbefehl im Strang ohne Zustandswechsel (AO 2 = 0 V" in e for e in errs), errs
+    assert _pump(M, [("ao", 1, 0.0, 0), *ev, ("ao", 1, 0.0, 9)]) == []  # AO 0 bei Pumpe aus: kein Befund
+
+
+def test_no_dwell_with_pump_at_strand_end():
+    """wait(t > 0) im Stillstand am Strangende vor Pumpe aus: Verweilen mit laufender Pumpe (SPEC §5.5)."""
+    M, ev = _program()
+    errs = _pump(M, [*ev[:2], ("wait", 10.0, 7), *ev[2:]])
+    assert any("Verweilen mit laufender Pumpe: wait(10)" in e for e in errs), errs
+    errs = _pump(M, [*ev[:2], ("mwait", 2.0, 7), *ev[2:]])
+    assert any("Verweilen mit laufender Pumpe: mwait(2)" in e for e in errs), errs
+    assert _pump(M, [*ev[:2], ("wait", 0.0, 7), ("mwait", 0.0, 7), *ev[2:]]) == []
+
+
 def test_waypoints_with_pump():
     rings_W = [PPOS[[3, 5]], PPOS[[6, 8]]]  # Ringstart (approach bzw. link) und Ende
     M, _ = _program()

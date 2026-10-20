@@ -11,9 +11,13 @@ Regeln:
   Sample ist `print`, die Bewegung ist synchron mit radius 0.
 - Ausschalten nur im Stillstand am Strangende: letzte Bewegung endet auf `print`, das naechste Sample ist
   `retract`, synchron mit radius 0. Damit gibt es kein Pumpe-aus zwischen `print` und `link`.
-- Kein Halt im Strang: zwischen zwei Bewegungen mit Pumpe ohne Pumpenbefehl dazwischen hat ein `movel`
-  radius > 0 (ausser ein Nachbarsegment ist kuerzer als MIN_SEGMENT_MM), und `wait`/`mwait` steht nur
-  als Pumpen-Vorlauf direkt nach dem Einschalten.
+- Kein Halt im Strang: zwischen zwei Bewegungen mit Pumpe ohne Pumpenwechsel dazwischen hat ein `movel`
+  radius > 0 (ausser ein Nachbarsegment ist kuerzer als MIN_SEGMENT_MM). Ein AO-Befehl ohne
+  Zustandswechsel (z. B. erneut 5 V bei laufender Pumpe) zaehlt dabei nicht als Wechsel und ist im
+  Strang selbst ein Fehler (SPEC §5.6: im Strang nur Pumpe an am Beginn, Pumpe aus am Ende).
+- Kein Verweilen mit laufender Pumpe: `wait` (> 0 s) und `mwait` stehen nur als Pumpen-Vorlauf direkt
+  nach dem Einschalten (SPEC §5.5). Zwischen zwei Bewegungen mit Pumpe ist auch `mwait(0)` ein Halt;
+  im Stillstand am Strangende vor dem Ausschalten ist nur `mwait(0)` erlaubt (kein Verweilen).
 - Jeder Wegpunkt aus toolpath.json liegt auf einem Bahnstueck, das mit laufender Pumpe gefahren wird.
 """
 
@@ -48,13 +52,18 @@ def pump_errors(tag: str, motions: Sequence, events: Sequence[tuple], idx: Seque
 
     ao: dict = {}
     on, n_on = False, None
-    ao_after: set[int] = set()
+    ao_after: set[int] = set()  # n je Pumpenwechsel (nur echte Zustandswechsel)
     for ev in events:
         if ev[0] == "ao":
             ao[ev[1]] = ev[2]
             now, n = _pump_state(ao), ev[3]
-            ao_after.add(n)
-            if now != on:
+            if now == on:
+                if on and 0 < n < M and motions[n - 1].pump_on and motions[n].pump_on:
+                    errs.append(f"{tag}: Pumpenbefehl im Strang ohne Zustandswechsel (AO {ev[1]} = "
+                                f"{ev[2]:g} V nach Zeile {motions[n - 1].line}); im Strang nur Pumpe an am "
+                                "Beginn und aus am Ende")
+            else:
+                ao_after.add(n)
                 i, k_i, k_next = at(n)
                 what = "an" if now else "aus"
                 if i is None:
@@ -73,13 +82,16 @@ def pump_errors(tag: str, motions: Sequence, events: Sequence[tuple], idx: Seque
                 n_on = n if now else None
             on = now
         elif ev[0] in ("wait", "mwait") and on:
-            n = ev[2]
-            if (ev[0] == "wait" and ev[1] <= 0) or n == n_on:
+            t, n = ev[1], ev[2]
+            if (ev[0] == "wait" and t <= 0) or n == n_on:
                 continue  # wait(0) bzw. Pumpen-Vorlauf t_tot am Strangbeginn
+            line = motions[n - 1].line if n > 0 else "?"
             if n < M and motions[n].pump_on:
-                line = motions[n - 1].line if n > 0 else "?"
-                errs.append(f"{tag}: Halt im Strang: {ev[0]}({ev[1]:g}) zwischen zwei Bewegungen mit Pumpe "
+                errs.append(f"{tag}: Halt im Strang: {ev[0]}({t:g}) zwischen zwei Bewegungen mit Pumpe "
                             f"(nach Zeile {line})")
+            elif t > 0:
+                errs.append(f"{tag}: Verweilen mit laufender Pumpe: {ev[0]}({t:g}) nicht direkt nach dem "
+                            f"Einschalten (nach Zeile {line}); t_tot nur am Strangbeginn")
     for k in range(1, M):
         a, b = idx[k - 1], idx[k]
         if a is None or b is None:

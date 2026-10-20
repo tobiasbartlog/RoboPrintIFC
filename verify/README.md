@@ -39,8 +39,9 @@ Schichtwechsel über Verbinder, danach Travel zu Ring 3, dessen erlaubter Verbin
 `link_max_mm` = 0. Durchfallen müssen: `link` ohne `link_next`, Verbinder 1,5 mm neben der Geraden,
 Verbinder über einer Bohrung im Teil, Verbinder länger als `link_max_mm` oder bei `link_max_mm` = 0,
 falsche Schicht im Verbinder, Zweigwechsel im Verbinder, falsches `zweig_wechsel_in_ringen`, Pumpe aus
-zwischen `print` und `link`, Pumpe an während `retract`, Halt im Strang (`radius = 0` oder `wait`),
-zu großer Radius am Verbinder, fehlendes `toolpath.json`. `oracle/selftest_strand.py` prüft dieselben
+zwischen `print` und `link`, Pumpe an während `retract`, Halt im Strang (`radius = 0` oder `wait`, auch
+mit erneutem Pumpe-an ohne Zustandswechsel), `wait` am Strangende vor Pumpe aus, zu großer Radius am
+Verbinder, fehlendes `toolpath.json`. `oracle/selftest_strand.py` prüft dieselben
 Regeln zusätzlich auf synthetischen Daten; diese Datei braucht weder Pinocchio noch Coal.
 
 ## Methoden
@@ -154,9 +155,12 @@ Pumpe einen Fehler aus und verlangt danach AO = 0 (Exception-Handling).
   endet auf `approach`, das nächste Sample ist `print`, synchron mit radius 0. Ausschalten nur im
   Stillstand am Strangende: letzte Bewegung endet auf `print`, das nächste Sample ist `retract`, synchron
   mit radius 0; damit gibt es kein Pumpe-aus zwischen `print` und `link`. Kein Halt im Strang: ein
-  `movel` zwischen zwei Bewegungen mit Pumpe (ohne AO-Befehl dazwischen) hat radius > 0, außer ein
-  Nachbarsegment ist kürzer als 0,01 mm; `wait` (> 0 s) und `mwait` mit laufender Pumpe nur direkt nach
-  dem Einschalten (Pumpen-Vorlauf t_tot) oder vor dem Ausschalten. `movesx`-Punkte zählen ohne Radius.
+  `movel` zwischen zwei Bewegungen mit Pumpe (ohne Pumpenwechsel dazwischen) hat radius > 0, außer ein
+  Nachbarsegment ist kürzer als 0,01 mm. Ein AO-Befehl ohne Zustandswechsel (z. B. erneut 5 V bei
+  laufender Pumpe) ist kein Pumpenwechsel und zwischen zwei Bewegungen mit Pumpe selbst ein Fehler
+  (SPEC §5.6). Kein Verweilen mit laufender Pumpe: `wait` (> 0 s) und `mwait` nur direkt nach dem
+  Einschalten (Pumpen-Vorlauf t_tot, SPEC §5.5); im Stillstand am Strangende vor dem Ausschalten ist nur
+  `mwait(0)` erlaubt. `movesx`-Punkte zählen ohne Radius.
 - Jeder Wegpunkt aus `toolpath.json` liegt ≤ 1 mm an einem Bahnstück seines Rings (Ringstart = letztes
   `approach`-/`link`-Sample, dann die `print`-Samples), und die Bewegung über dieses Stück läuft mit
   Pumpe. `toolpath.json` fehlt → Fehler.
