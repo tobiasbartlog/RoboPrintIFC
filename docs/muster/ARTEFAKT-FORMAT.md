@@ -48,3 +48,17 @@ Verbinder der Länge 0 in derselben Schicht ausgibt, sondern zu einem Ring zusam
 `layer_order` (`same` | `alternate`), `infill_pattern` (`none` | Mustername), `outfill_pattern`
 (`none` | Mustername), `pattern_params` (Objekt, z. B. `wavelength_mm`, `amplitude_mm`,
 `web_spacing_mm`, `phase`), `shells` (Anzahl Schalen je Seite, Standard 2).
+
+## Nachtrag 18:45: Fugenwand (Sollbruchstellen, Nutzer-Nachtrag 18:20)
+
+- Segmentarten der Fugenwand: Außenfeld zwischen zwei Fugen = `outfill`, Schrägsteg von der Fuge
+  zum Knoten = `web`, Gurtstück in der Wandmitte = `infill`, Endkappe am Modulende = `outfill`.
+  Ein Schichtpfad der Fugenwand ist ein einziger geschlossener Zug (Ringe mit `link_next`, Verbinder
+  der Länge 0 zwischen stoßenden Segmenten werden zu einem Ring zusammengefasst, wenn `kind` gleich
+  ist; sonst Verbinder der Länge 0, der im Planer als `link` mit 0 Samples Länge zählt oder vom
+  Slicer vermieden wird: entscheidet M3).
+- **Gewollte Kontakte** (Fuge, Knoten, Steg an Schale): Mittellinienabstand in [(1 − ε)·w, w] bei
+  Bogenlängenabstand > 2·w. Sie sind keine Kreuzung. Kern und Orakel berichten sie als Kontaktzonen
+  (Lage, Länge, Art `joint` | `node` | `shell`).
+- Vorschau-Ausgabe des Kerns (für API, CLI und Viewer, ohne Roboter): je Schicht die Polylinien je
+  Segmentart, Start und Ende, Kontakte, Regelverstöße M1–M7 und Kennzahlen, als JSON.
