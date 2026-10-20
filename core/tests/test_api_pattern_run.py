@@ -160,6 +160,12 @@ def test_job_resolves_user_preset(client):
         {"infill_pattern": "gibt_es_nicht"},
         {"layer_order": "kreuz"},
         {"infill_pattern": "sinus", "pattern_params": {"wavelength_mm": -5.0}},
+        # Tippfehler im Parameternamen gäben still den Standardwert (wie die Vorschau: 422)
+        {"infill_pattern": "sinus", "pattern_params": {"wavelenght_mm": 200.0}},
+        {"pattern_preset": "sinus", "pattern_params": {"gibtsnicht": 1}},
+        {"outfill_pattern": "fugenwand", "pattern_params": {"field_lenght_mm": 500}},
+        # Kernregler außerhalb von CORE_PARAM_SPECS
+        {"infill_pattern": "sinus", "pattern_params": {"transition_radius_mm": 5.0}},
     ],
 )
 def test_job_rejects_invalid_pattern_choice_with_422(client, params):

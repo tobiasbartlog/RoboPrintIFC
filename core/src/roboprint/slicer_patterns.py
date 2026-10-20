@@ -117,6 +117,12 @@ def pattern_params(p: SliceParams) -> PatternParams | None:
     pp = params_from_dict(data)
     try:
         resolve_patterns(pp)  # prüft Musternamen, Rollen und Parameter früh
+        if p.pattern_params:
+            # Wie die Vorschau (checks.check_spec): unbekannte Schlüssel (Tippfehler) und Kernregler
+            # außerhalb ihres Bereichs sind ein Fehler, statt still den Standardwert zu ergeben
+            from roboprint.patterns.checks import check_spec
+
+            check_spec({"pattern": "none", "params": {"infill": pp.infill, "outfill": pp.outfill, **extra}})
     except KeyError as e:  # unbekanntes Muster: wie jeder andere Parameterfehler
         raise ValueError(str(e.args[0]) if e.args else str(e)) from e
     return pp
