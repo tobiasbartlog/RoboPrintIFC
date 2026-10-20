@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-20T20:12:23+02:00 · Session: start · Phase: M3 · Status: laeuft
+Herzschlag: 2026-10-20T20:29:43+02:00 · Session: start · Phase: M3 · Status: laeuft
 
 # MUSTER-PROGRESS: Druckmuster (Infill und Outfill)
 
@@ -24,7 +24,9 @@ Die erste Zeile setzt nur das Skript.
 | Einbau Planer/Timing/DRL | M3 | wartet (wf_0e4879c6-203) | v2/muster-einbau | |
 | Musterszenarien, `scripts/verify_muster.py`, SPEC-Nachtrag | M3 | wartet (wf_0e4879c6-203) | v2/muster-einbau | |
 | Viewer: Musterwahl, 2D-Vorschau, Legende, Kennzahlen | M4 | offen | v2/muster-viewer | |
-| Vergleich, MUSTERKATALOG, Testdrucke | M5 | offen | v2/muster-katalog | |
+| Katalog-Generator `scripts/muster_katalog.py` (Vorschau-Kennzahlen, Bilder) | M5 | läuft (wf_2be13a79-850) | v2/muster-katalog | |
+| Vorschau-Laufzeit < 100 ms (metrics) | M4 | läuft (wf_2be13a79-850) | v2/muster-perf | |
+| Vergleich mit Roboterprüfung, MUSTERKATALOG final, Testdrucke | M5 | offen | v2/muster-katalog | |
 | Gegenprüfung und Härtung | M6 | offen | v2/muster | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
 
