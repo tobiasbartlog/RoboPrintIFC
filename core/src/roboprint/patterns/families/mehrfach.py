@@ -271,47 +271,50 @@ def build_double(ctx: IslandContext, shape: str) -> IslandPlan:
             return False
         return LineString(np.vstack([printed.pts[-3:], dense[1:]])).is_simple
 
-    best = None
+    # 1. Einlauf: Welle 1 beginnt immer in einem Scheitel (u_s, σ·v_t) mit Richtung +u. Der Biarc
+    #    hängt also nur von (σ, u_s) ab; Kandidaten nach (Einlaufradius bis w, frühester Einstieg).
+    cands = []
     lo = max(u0 - w, u_entry)
     for sigma in (sigma0, -sigma0):
+        full_radius = False
         for u_s in np.arange(lo, lo + SEARCH_W * w + 1e-9, 1.0):
             if u_e - u_s < w:
                 break
-            pc = pieces(float(u_s), sigma)
-            if pc is None:
-                continue
-            w1, arc, w2, k, r_wave = pc
-            if min(r_wave, v_t) < (1.0 - RADIUS_TOL) * w / 2.0:
-                continue
-            res = biarc(entry, t_in, w1[0], (w1[1] - w1[0]) / np.linalg.norm(w1[1] - w1[0]), 0.05, 1.0)
+            q = wellen.to_xy(fr, np.array([[u_s, sigma * v_t]]))[0]
+            res = biarc(entry, t_in, q, fr["eu"], 0.05, 1.0)
             if res is None:
                 continue
             lead, r_lead = res
             r_lead = min(r_lead, w)
             if r_lead < (1.0 - RADIUS_TOL) * w / 2.0:
                 continue
-            curve = np.vstack([lead, w1[1:], arc[1:], w2[1:]])
-            if not feasible(curve):
-                continue
-            key = (round(r_lead, 1), -float(u_s))
-            if best is None or key > best[0]:
-                best = (
-                    key,
-                    {
-                        "lead": lead,
-                        "w1": w1,
-                        "arc": arc,
-                        "w2": w2,
-                        "k": k,
-                        "r_wave": r_wave,
-                        "r_lead": r_lead,
-                        "u_s": float(u_s),
-                        "sigma": sigma,
-                    },
-                )
-            if r_lead >= w - 1e-6:
+            # Vorprüfung nur des Einlaufs (plus 2·w geradeaus am Scheitel)
+            probe = np.vstack([lead, q + 2.0 * w * fr["eu"]])
+            cands.append(((round(r_lead, 1), -float(u_s)), sigma, float(u_s), lead, r_lead, probe))
+            # frühester Einstieg mit vollem Radius w: besser wird es auf dieser Seite nicht
+            if r_lead >= w - 1e-6 and feasible(probe):
+                full_radius = True
                 break
-        if best is not None and best[1]["r_lead"] >= (1.0 - RADIUS_TOL) * w:
+        if full_radius:
+            break
+    cands.sort(key=lambda c: c[0], reverse=True)
+    # 2. Wellen bauen und den ganzen Strang prüfen, bis ein Kandidat passt
+    best = None
+    for _, sigma, u_s, lead, r_lead, probe in cands:
+        if not feasible(probe):
+            continue
+        pc = pieces(u_s, sigma)
+        if pc is None:
+            continue
+        w1, arc, w2, k, r_wave = pc
+        if min(r_wave, v_t) < (1.0 - RADIUS_TOL) * w / 2.0:
+            continue
+        if feasible(np.vstack([lead, w1[1:], arc[1:], w2[1:]])):
+            best = (
+                None,
+                {"lead": lead, "w1": w1, "arc": arc, "w2": w2, "k": k, "r_wave": r_wave,
+                 "r_lead": r_lead, "u_s": u_s, "sigma": sigma},
+            )  # fmt: skip
             break
     if best is None:
         return IslandPlan(

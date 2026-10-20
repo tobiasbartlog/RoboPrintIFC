@@ -32,12 +32,12 @@ Drei Ringe (Pfeiler):
 Zwei Ringe: Ring 0 einwärts, Kehre bei u = 0 auf Ring 1, Ring 1 auswärts.
 
 u_s, u_h und u_e werden in 1-mm-Schritten gesucht: der kleinste Abstand zum Ringwechsel bzw. zur
-Kehre, bei dem jeder Punkt mit Bogenlängenabstand > 2·w mindestens (1 − ε)·w + 0,3 mm entfernt
-bleibt (M2). Das Ergebnis wird mit `metrics.measure_path` geprüft; bei einem `error` gilt das
-Grundmuster.
+Kehre, bei dem jeder Punkt mit Bogenlängenabstand > 2·w mindestens (1 − ε)·w + 1 mm entfernt
+bleibt (M2). Das Ergebnis prüft `metrics.measure_path`; bei einem `error` (oder ohne Anordnung) folgt
+der Versuch mit zwei Ringen, danach das Grundmuster.
 
 Grenzen (Zahlen bei w = 30): Die Kehre hat Radius w/2 = 15 mm (M6 hart erfüllt, Ziel w verfehlt:
-Warnung). Ring 0 hat an der Bruchstelle eine Lücke von a + u_s (Pfeiler: ≈ 47 mm Mittellinie,
+Warnung). Ring 0 hat an der Bruchstelle eine Lücke von a + u_s (Pfeiler: 48 mm Mittellinie,
 außen eine Kerbe von ≈ 20 mm Breite), genau wie die Naht des Grundmusters; die Naht liegt am Rand
 (Start auf Ring 0), Zhao legt sie ebenso dorthin. Mit `alternate` druckt die nächste Schicht dieselbe
 Bahn rückwärts: Ende L = Anfang L + 1, der Schichtwechsel ist ein reiner Z-Hub (M4).
@@ -46,6 +46,7 @@ Bahn rückwärts: Ende L = Anfang L + 1, der Schichtwechsel ist ein reiner Z-Hub
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -229,20 +230,34 @@ def _search(lay: _Layout, n: int, a: float, thresh: float, exempt: float, r_min:
 
     if n == 3:
         # Kehre links vom Ringwechsel (u_h < 0), so nah wie möglich
-        u_h = next((float(u) for u in np.arange(-a, -a - 5 * w, -1.0) if ok(a + 2 * w, float(u), None)), None)
+        u_h = _first(-a, -a - 5 * w, lambda u: ok(a + 2 * w, u, None) is not None)
         if u_h is None:
             return None
         lo = -a
     else:
         u_h, lo = 0.0, 0.0
-    u_s = next((float(u) for u in np.arange(max(lo, 0.0), lo + 4 * w, 1.0) if ok(float(u), u_h, None)), None)
+    u_s = _first(max(lo, 0.0), lo + 4 * w, lambda u: ok(u, u_h, None) is not None)
     if u_s is None:
         return None
-    for u_e in np.arange(max(lo, 0.0), lo + 4 * w, 1.0):
-        res = ok(u_s, u_h, float(u_e))
-        if res is not None:
-            return res, {"u_start": u_s, "u_turn": u_h, "u_end": float(u_e), "link_half": a}
-    return None
+    u_e = _first(max(lo, 0.0), lo + 4 * w, lambda u: ok(u_s, u_h, u) is not None)
+    if u_e is None:
+        return None
+    return ok(u_s, u_h, u_e), {"u_start": u_s, "u_turn": u_h, "u_end": u_e, "link_half": a}
+
+
+def _first(start: float, stop: float, pred: Callable[[float], bool], coarse: float = 4.0) -> float | None:
+    """Erster Wert ab `start` Richtung `stop` (1-mm-Raster), für den `pred` gilt: erst grob in
+    `coarse`-Schritten, dann in 1-mm-Schritten zurück (der freie Bereich ist zusammenhängend: je
+    weiter weg von Ringwechsel bzw. Kehre, desto mehr Abstand)."""
+    sgn = 1.0 if stop >= start else -1.0
+    hit = next((float(u) for u in np.arange(start, stop, sgn * coarse) if pred(float(u))), None)
+    if hit is None:
+        return None
+    for u in np.arange(max(hit - sgn * (coarse - 1.0), start) if sgn > 0 else min(hit + coarse - 1.0, start),
+                       hit, sgn):  # fmt: skip
+        if pred(float(u)):
+            return float(u)
+    return hit
 
 
 # --------------------------------------------------------------------------- Aufbau
@@ -305,6 +320,9 @@ def _attempt(ctx: IslandContext, rows: list[Loop]) -> IslandPlan | str:
     R = float(ctx.param("link_radius_mm"))
     # Längsversatz der S-Kurve zwischen parallelen Ringen im Abstand 2·w mit Radius R: 2·sqrt(R² − (R − w)²)
     a0 = math.sqrt(max(R * R - (R - w) ** 2, 0.0)) if R > w / 2 else w / 2
+    need = 2.0 * a0 + 0.5 * w  # Ringwechsel ±a und Kehre links davon auf dem geraden Stück
+    if n == 3 and info["break_run_mm"] < need:
+        return f"innerster Ring an der Bruchstelle nur {info['break_run_mm']:.0f} mm gerade (< {need:.0f} mm)"
     found = None
     for a in (a0, a0 + 0.25 * w, a0 + 0.5 * w) if n == 3 else (0.0,):
         found = _search(lay, n, a, thresh, 2.0 * w, r_min)
