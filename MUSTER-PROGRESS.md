@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-20T17:49:05+02:00 · Session: lokal-vorbereitung · Phase: M0 · Status: bereit
+Herzschlag: 2026-10-20T17:56:08+02:00 · Session: start · Phase: M0 · Status: laeuft
 
 # MUSTER-PROGRESS: Druckmuster (Infill und Outfill)
 
