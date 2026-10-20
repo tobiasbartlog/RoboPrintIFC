@@ -132,6 +132,11 @@ def build_island(
             printed=tuple(plan.segments),
         )
         ip = _normalize(inf.build(ictx))
+        if not ip.segments:
+            # Infill entfällt: die innerste Schale nicht offen lassen (open_end), sonst fehlt ein
+            # Stück Schale bzw. die S-Kurve des Einzelrings ragt ins leere Band (M5 an Kerben)
+            plan = shell_chain(ctx, ring0, kind0)
+            plan.meta.update(meta)
         off = len(plan.segments)
         plan.segments.extend(ip.segments)
         # Indizes ≥ 0 zählen in den Infill-Segmenten, −1 heißt „nicht zugeordnet“ (z. B. die
