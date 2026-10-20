@@ -1,4 +1,7 @@
-"""Bewertung eines DRL-Programms gegen die geplante Trajektorie (G5, SPEC §5.6/§11)."""
+"""Bewertung eines DRL-Programms gegen die geplante Trajektorie (G5, SPEC §5.6/§11).
+
+Pumpen- und Strangregeln (Pumpe nur in print/link, Ein-/Ausschalten im Stillstand an Strangbeginn
+bzw. -ende, kein Halt im Strang, Wegpunkte mit Pumpe) stehen in `verify.fake_drcf.pump`."""
 
 from __future__ import annotations
 
@@ -10,8 +13,17 @@ from pathlib import Path
 import numpy as np
 
 from verify.fake_drcf.controller import DrlError, InjectedFault, State, make_namespace
-from verify.oracle.content_hash import drl_key, retag, trajectory_key
-from verify.oracle.robot_oracle import HOME_RAD, ROBOT_JSON, default_robot, load_json, rot_angle, zyz_to_R
+from verify.fake_drcf.pump import pump_errors, waypoint_errors
+from verify.oracle.content_hash import drl_key, retag, toolpath_key, trajectory_key
+from verify.oracle.robot_oracle import (
+    HOME_RAD,
+    ROBOT_JSON,
+    default_robot,
+    load_json,
+    rot_angle,
+    workstation_frames,
+    zyz_to_R,
+)
 
 POSJ_TOL_DEG = 1e-3
 POSX_POS_TOL = 0.1  # mm
@@ -45,12 +57,18 @@ def execute(text: str, dialect: str, fault_at_motion: int | None = None) -> tupl
     return st, None
 
 
+KINDS = ("print", "link", "approach", "retract", "lift", "transfer", "lower")
+
+
 class Trajectory:
+    """Geplante Samples (trajectory.json) mit eigener FK; Wegpunkte aus toolpath.json im selben Ordner
+    (`rings_W` = None, wenn die Datei fehlt)."""
+
     def __init__(self, path: Path):
         tr = json.loads(Path(path).read_text(encoding="utf-8"))
         try:
             self.q = np.array(tr["q"], dtype=float)
-            interned = {k: k for k in ("print", "approach", "retract", "lift", "transfer", "lower")}
+            interned = {k: k for k in KINDS}
             self.kind = [interned.get(k, k) for k in tr["kind"]]
             self.ring = np.array(tr["ring"], dtype=int)
             self.reach = np.array([s != "unreachable" for s in tr["status"]])
@@ -60,6 +78,18 @@ class Trajectory:
         r = default_robot()
         self.T_BT = np.array([r.fk_tcp(q) for q in self.q])
         self.qdeg = np.rad2deg(self.q)
+        T_WB = workstation_frames()[0]
+        self.pos_W = self.T_BT[:, :3, 3] @ T_WB[:3, :3].T + T_WB[:3, 3]
+        self.rings_W: list[np.ndarray] | None = None
+        self.toolpath_problem = "toolpath.json fehlt, Wegpunkte mit Pumpe nicht pruefbar"
+        tp = Path(path).parent / "toolpath.json"
+        if tp.is_file():
+            try:
+                rings = load_json(tp).get("rings", [])
+                self.rings_W = [np.asarray(rg.get("waypoints", []), dtype=float).reshape(-1, 7)[:, :3]
+                                for rg in rings]
+            except (AttributeError, TypeError, ValueError) as exc:
+                self.toolpath_problem = f"toolpath.json unbrauchbar ({exc}), Wegpunkte nicht pruefbar"
 
 
 def _match(m, traj: Trajectory, start: int) -> int | None:
@@ -159,35 +189,13 @@ def check_program(path: Path, dialect: str, traj: Trajectory, tcp_name: str = "F
         if m.radius > 0.5 * min(l_prev, l_next) + 1e-6:
             errs.append(f"{tag}: radius {m.radius} > halbe Segmentlaenge ({l_prev:.2f}/{l_next:.2f} mm), "
                         f"Zeile {m.line}")
-    # Pumpe: nur in Druckringen an, beim Einschalten steht der Roboter am Ringstart
+    # Pumpe und Strang (SPEC §5.3/§5.6, ARTEFAKTE): pump.py
     pump_on = np.array([m.pump_on for m in M])
-    on = False
-    for ev in st.events:
-        if ev[0] != "ao":
-            continue
-        n = ev[3]
-        now = ev[2] > 0
-        if now and not on:
-            if n == 0 or idx[n - 1] is None:
-                errs.append(f"{tag}: Pumpe an ohne vorherige Bewegung")
-            else:
-                i = idx[n - 1]
-                nxt = traj.kind[i + 1] if i + 1 < traj.N else None
-                if not (traj.kind[i] == "approach" and nxt == "print"):
-                    errs.append(f"{tag}: Pumpe an bei Sample #{i} ({traj.kind[i]}), nicht am Ringstart")
-                if M[n - 1].radius > 0 or not M[n - 1].sync:
-                    errs.append(f"{tag}: vor 'Pumpe an' steht der Roboter nicht (radius/asynchron, "
-                                f"Zeile {M[n - 1].line})")
-        on = now
-    for k in range(1, len(M)):
-        a, b = idx[k - 1], idx[k]
-        if a is None or b is None:
-            continue
-        kinds = {traj.kind[i] for i in range(a + 1, b + 1)}
-        if pump_on[k] and kinds - {"print"}:
-            errs.append(f"{tag}: Pumpe an waehrend {sorted(kinds - {'print'})} (Zeile {M[k].line})")
-        if not pump_on[k] and "print" in kinds:
-            errs.append(f"{tag}: Druckbewegung ohne Pumpe (Zeile {M[k].line})")
+    errs += pump_errors(tag, M, st.events, idx, traj.kind, pos)
+    if traj.rings_W is None:
+        errs.append(f"{tag}: {traj.toolpath_problem}")
+    else:
+        errs += waypoint_errors(tag, traj.rings_W, traj.pos_W, traj.kind, traj.ring, idx, pump_on)
     final = [ev for ev in st.events if ev[0] == "ao" and ev[3] == len(M)]
     for ch in st.ao_mode:
         if st.ao.get(ch, 0.0) != 0.0 or not any(ev[1] == ch and ev[2] == 0.0 for ev in final):
@@ -203,10 +211,11 @@ def check_program(path: Path, dialect: str, traj: Trajectory, tcp_name: str = "F
 
 
 def _part_key(pdir: Path, tcp_name: str) -> str | None:
-    """Gleiche Trajektorie (ohne part_id) und gleicher Programmtext ohne Kommentarzeilen beider Dialekte
-    -> gleiches Ergebnis. None: Datei fehlt, das Teil wird einzeln geprueft."""
+    """Gleiche Trajektorie und gleicher Toolpath (je ohne part_id) und gleicher Programmtext ohne
+    Kommentarzeilen beider Dialekte -> gleiches Ergebnis. None: Datei fehlt, das Teil wird einzeln
+    geprueft."""
     try:
-        keys = [trajectory_key(pdir / "trajectory.json")]
+        keys = [trajectory_key(pdir / "trajectory.json"), toolpath_key(pdir / "toolpath.json")]
         keys += [drl_key(pdir / f"program.{d}.drl") for d in ("v2", "v3")]
     except (OSError, UnicodeDecodeError):
         return None

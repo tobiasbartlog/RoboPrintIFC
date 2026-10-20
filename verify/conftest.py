@@ -58,3 +58,22 @@ def minirun_copy(minirun_dir, tmp_path) -> Path:
     dst = tmp_path / "run"
     shutil.copytree(minirun_dir, dst)
     return dst
+
+
+@pytest.fixture(scope="session")
+def minirun_strand_dir(tmp_path_factory) -> Path:
+    """Mini-Laufordner mit Straengen (Verbinder 0 -> 1 -> 2, Travel zu 3; SPEC §5.3). Nicht veraendern."""
+    from verify.oracle.minirun import build
+
+    out = tmp_path_factory.mktemp("minirun_strand")
+    build(out, strand=True)
+    return out
+
+
+@pytest.fixture
+def minirun_strand_copy(minirun_strand_dir, tmp_path) -> Path:
+    import shutil
+
+    dst = tmp_path / "run_strand"
+    shutil.copytree(minirun_strand_dir, dst)
+    return dst

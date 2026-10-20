@@ -155,3 +155,75 @@ def test_manipulated_duplicate_not_cached_drl(minirun_copy):
     errs, stats = check_rundir(minirun_copy, jobs=2)
     assert errs and all(e.startswith("box_1/program.v2.drl") for e in errs), errs
     assert "wie" not in stats["box_1/program.v2.drl"] and stats["box_0/program.v2.drl"] == "ok"
+
+
+# --------------------------------------------------------------------------- Strang (SPEC §5.3/§5.6)
+
+
+def _lines(run_dir: Path, dialect: str = "v2") -> tuple[Path, list[str]]:
+    p, text = _prog(run_dir, dialect)
+    return p, text.splitlines()
+
+
+def _write(p: Path, lines: list[str]) -> None:
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _first(lines: list[str], needle: str) -> int:
+    return next(i for i, ln in enumerate(lines) if needle in ln)
+
+
+def test_strand_drl_passes(minirun_strand_dir):
+    assert _check(minirun_strand_dir, "v2") == []
+    assert _check(minirun_strand_dir, "v3") == []
+    _, text = _prog(minirun_strand_dir)
+    assert text.count("# Verbinder") == 2 and text.count("wait(3.0)") == 2  # zwei Straenge, zwei Vorlaeufe
+
+
+def test_pump_off_between_print_and_link_rejected(minirun_strand_copy):
+    p, lines = _lines(minirun_strand_copy)
+    lines.insert(_first(lines, "# Verbinder"), "    set_analog_output(ch=1, val=0)")
+    _write(p, lines)
+    errs = _check(minirun_strand_copy)
+    assert any("(print -> link), nicht am Strangende" in e for e in errs), errs
+    assert any("ohne Pumpe (['link']" in e for e in errs), errs
+
+
+def test_pump_on_during_retract_rejected(minirun_strand_copy):
+    """Pumpe aus erst nach dem Abfahren: Pumpe laeuft waehrend retract."""
+    p, lines = _lines(minirun_strand_copy)
+    k = _first(lines, "    set_analog_output(ch=1, val=0)")
+    lines[k], lines[k + 1] = lines[k + 1], lines[k]
+    _write(p, lines)
+    errs = _check(minirun_strand_copy)
+    assert any("Pumpe an waehrend ['retract']" in e for e in errs), errs
+    assert any("(retract -> lift), nicht am Strangende" in e for e in errs), errs
+
+
+def test_halt_in_strand_rejected(minirun_strand_copy):
+    p, lines = _lines(minirun_strand_copy)
+    k = _first(lines, "# Verbinder")
+    lines[k] = lines[k].replace("radius=2.0", "radius=0.0")
+    _write(p, lines)
+    errs = _check(minirun_strand_copy)
+    assert any("Halt im Strang: movel mit radius 0" in e for e in errs), errs
+    p, lines = _lines(minirun_strand_copy)
+    lines.insert(_first(lines, "# Verbinder"), "    wait(1.0)")
+    _write(p, lines)
+    errs = _check(minirun_strand_copy)
+    assert any("Halt im Strang: wait(1)" in e for e in errs), errs
+
+
+def test_link_blend_radius_too_large_rejected(minirun_strand_copy):
+    p, lines = _lines(minirun_strand_copy)
+    k = _first(lines, "# Verbinder")
+    lines[k] = lines[k].replace("radius=2.0", "radius=30.0")
+    _write(p, lines)
+    errs = _check(minirun_strand_copy)
+    assert any("halbe Segmentlaenge" in e for e in errs), errs
+
+
+def test_toolpath_required(minirun_strand_copy):
+    (minirun_strand_copy / "parts" / "box_0" / "toolpath.json").unlink()
+    errs = _check(minirun_strand_copy)
+    assert any("toolpath.json fehlt" in e for e in errs), errs

@@ -1,5 +1,6 @@
-"""Pruefungen je Teil fuer check_run (G3): Struktur, FK, Grenzen, Schichtregel, Abtastdichte,
-Bahntreue, Zweige, Abdeckung, Status. Alles unabhaengig von roboprint."""
+"""Pruefungen je Teil fuer check_run (G3): Struktur, FK, Grenzen, Schichtregel, Ablauf je Strang,
+Abtastdichte, Bahntreue, Verbinder, Zweige, Abdeckung, Status. Alles unabhaengig von roboprint.
+Die Strang-Regeln selbst stehen in strand_rules.py (ohne Roboter- und Kollisionsmodell)."""
 
 from __future__ import annotations
 
@@ -12,11 +13,18 @@ import trimesh
 
 from verify.oracle.robot_oracle import RobotOracle, inv_T, quat_to_R, rot_angle
 from verify.oracle.run_geometry import coverage, section_P
+from verify.oracle.strand_rules import (
+    KINDS,
+    LINK_MAX_DEFAULT,
+    branch_changes,
+    expected_layers,
+    link_errors,
+    sequence_errors,
+    strand_rings,
+    strand_runs,
+)
 
 STATUSES = ("ok", "warn", "collision", "unreachable")
-KINDS = ("print", "approach", "retract", "lift", "transfer", "lower")
-RING_KINDS = ("approach", "print", "retract")
-TRAVEL_KINDS = ("lift", "transfer", "lower")
 RANK = {"collision": 0, "warn": 1, "ok": 2}
 
 # Toleranzen (README)
@@ -41,6 +49,7 @@ class Params:
     d_target_printed: float = 20.0  # Sollabstand gegen den Druckstand (Nutzerentscheidung 19.10.2026)
     r_free: float = 40.0
     tau_max_deg: float = 0.0
+    link_max: float = LINK_MAX_DEFAULT  # mm, laengster Verbinder (SPEC §10); 0 = keine Verbinder
 
     def thresholds(self) -> list[float]:
         """Schwellen fuer d (d_status): Kollision, d_hard, Toleranz."""
@@ -255,43 +264,19 @@ def check_kinematics(P: PartData, robot: RobotOracle, T_WB: np.ndarray, F: Findi
     return pos, rot
 
 
+def link_next_flags(P: PartData) -> list[bool]:
+    """toolpath.rings[r].link_next (Default false, nur JSON true zaehlt)."""
+    return [r.get("link_next", False) is True for r in P.toolpath.get("rings", [])]
+
+
 def check_layer_rule(P: PartData, F: Findings) -> None:
-    bad, seg_bad = [], []
-    last_L = None
-    for i in range(P.N):
-        k = P.kind[i]
-        if k in RING_KINDS:
-            exp = int(P.ring_layer[P.ring[i]])
-        else:
-            exp = 0 if last_L is None else last_L + 1
-        if P.layer[i] != exp:
-            bad.append(f"#{i} {k} ring {P.ring[i]}: layer {P.layer[i]} statt {exp}")
-        if k == "print":
-            last_L = int(P.ring_layer[P.ring[i]])
+    """Schichtregel und Ablauf je Strang nach ARTEFAKTE (strand_rules)."""
+    exp = expected_layers(P.kind, P.ring, P.ring_layer)
+    bad = [f"#{i} {P.kind[i]} ring {P.ring[i]}: layer {P.layer[i]} statt {exp[i]}"
+           for i in np.flatnonzero(P.layer != exp)]
     F.capped(f"{P.pid}: layer-Regel (ARTEFAKTE)", bad)
-    # Abschnitte: jeder Ring genau ein Druckabschnitt, davor approach, danach retract (gleicher Ring)
-    segs = []
-    for i in range(P.N):
-        key = (P.kind[i], int(P.ring[i]))
-        if not segs or segs[-1][0] != key:
-            segs.append([key, i, i])
-        else:
-            segs[-1][2] = i
-    printed = {}
-    for s, ((k, r), i0, _) in enumerate(segs):
-        if k != "print":
-            continue
-        if r in printed:
-            seg_bad.append(f"Ring {r} hat mehrere Druckabschnitte")
-        printed[r] = i0
-        if s == 0 or segs[s - 1][0] != ("approach", r):
-            seg_bad.append(f"Ring {r}: kein approach direkt vor dem Druck")
-        if s + 1 >= len(segs) or segs[s + 1][0] != ("retract", r):
-            seg_bad.append(f"Ring {r}: kein retract direkt nach dem Druck")
-    missing = sorted(set(range(len(P.ring_layer))) - set(printed))
-    if missing:
-        seg_bad.append(f"Ringe ohne Druckabschnitt: {missing[:10]}")
-    F.capped(f"{P.pid}: Ablauf je Ring", seg_bad)
+    F.capped(f"{P.pid}: Ablauf je Strang",
+             sequence_errors(P.kind, P.ring, link_next_flags(P), len(P.ring_layer)))
 
 
 def check_density(P: PartData, pos: np.ndarray, F: Findings) -> None:
@@ -325,12 +310,13 @@ def _densify(W: np.ndarray, step: float) -> np.ndarray:
 
 def print_segments(P: PartData, with_start: bool = False) -> dict[int, np.ndarray]:
     """Ring -> Indizes seiner Druck-Samples (zusammenhaengend vorausgesetzt, s. Ablaufpruefung).
-    with_start: das letzte approach-Sample desselben Rings (Ringstart) wird vorangestellt."""
+    with_start: das letzte approach- oder link-Sample desselben Rings (Ringstart) wird vorangestellt."""
     out: dict[int, list] = {}
     for i in range(P.N):
         if P.kind[i] == "print":
             r = int(P.ring[i])
-            if with_start and r not in out and i > 0 and P.kind[i - 1] == "approach" and P.ring[i - 1] == r:
+            if (with_start and r not in out and i > 0 and P.kind[i - 1] in ("approach", "link")
+                    and P.ring[i - 1] == r):
                 out[r] = [i - 1]
             out.setdefault(r, []).append(i)
     return {r: np.array(v) for r, v in out.items()}
@@ -385,25 +371,64 @@ def check_toolpath(P: PartData, pos, rot, prm: Params, F: Findings) -> None:
     F.capped(f"{P.pid}: Druckring nicht vollstaendig abgefahren", bad_cover)
 
 
+def check_links(P: PartData, pos: np.ndarray, rot: np.ndarray, prm: Params, F: Findings) -> None:
+    """Verbinder (SPEC §5.3, §11 G3): Gerade, Endpunkte, Laenge <= link_max, Schichtsprung 0/1,
+    Projektion im Querschnitt aus part.stl (strand_rules.link_errors); Duesenachse wie beim Druck."""
+    is_link = np.array([k == "link" for k in P.kind], dtype=bool)
+    if not is_link.any():
+        F.metrics.update(n_links=0)
+        return
+    try:
+        wps = [np.asarray(r.get("waypoints", []), dtype=float).reshape(-1, 7)
+               for r in P.toolpath.get("rings", [])]
+    except (TypeError, ValueError):
+        wps = []
+    if not wps or any(len(w) == 0 for w in wps):
+        F.err(f"{P.pid}: Verbinder nicht pruefbar, Wegpunkte fehlen oder sind unbrauchbar")
+        return
+    sections: dict[int, object] = {}
+
+    def section_of(L: int):
+        if L not in sections:
+            sections[L] = section_P(P.mesh, (L + 0.5) * prm.h)
+        return sections[L]
+
+    errs, metrics = link_errors(P.kind, P.ring, pos, P.reach, wps, P.ring_layer, prm.link_max,
+                                inv_T(P.T_WP), section_of)
+    F.metrics.update(metrics)
+    F.capped(f"{P.pid}: Verbinder (SPEC §5.3)", errs)
+    idx = np.flatnonzero(is_link & P.reach)
+    ang = np.degrees(np.arccos(np.clip(-rot[idx][:, 2, 2], -1.0, 1.0)))
+    F.capped(f"{P.pid}: Verbinder: Duesenachse > tau_max + 0,1 deg",
+             [f"#{i} {a:.3f} deg gegen -Z_W" for i, a in zip(idx, ang, strict=True)
+              if a > prm.tau_max_deg + AXIS_TOL_DEG])
+
+
 def check_branches(P: PartData, robot: RobotOracle, F: Findings) -> None:
-    """Kein Zweigwechsel im Ring (roboprint-Bits und eigene Klassifikation) und eineindeutige
-    Zuordnung eigene Klasse <-> branch abseits der Singularitaeten."""
+    """Kein Zweigwechsel innerhalb eines Strangs (approach, print, link, retract ohne Travel dazwischen;
+    roboprint-Bits und eigene Klassifikation) und eineindeutige Zuordnung eigene Klasse <-> branch
+    abseits der Singularitaeten."""
     bad, mapping, inverse, conflicts = [], {}, {}, []
-    for r, idx in print_segments(P).items():
+    for idx in strand_runs(P.kind):
         idx = idx[P.reach[idx]]
         if len(idx) == 0:
             continue
+        where = strand_rings(P.ring, idx)
         if len(set(P.branch[idx].tolist())) > 1:
-            bad.append(f"Ring {r}: branch {sorted(set(P.branch[idx].tolist()))}")
+            j = int(np.flatnonzero(np.diff(P.branch[idx]) != 0)[0]) + 1
+            bad.append(f"Strang {where}: branch {sorted(set(P.branch[idx].tolist()))}, erster Wechsel bei "
+                       f"#{idx[j]} ({P.kind[idx[j]]})")
+        n_rings = len({int(P.ring[i]) for i in idx})
         ref = [0, 0, 0]
-        for i in idx[:: max(1, len(idx) // 50)].tolist() + [int(idx[-1])]:
+        for i in idx[:: max(1, len(idx) // (50 * n_rings))].tolist() + [int(idx[-1])]:
             s = robot.branch_signs(P.q[i], eps=1e-3)
             for c in range(3):
                 if s[c] == 0:
                     continue
                 if ref[c] and s[c] != ref[c]:
                     name = ("Schulter", "Ellbogen", "Hand")[c]
-                    bad.append(f"Ring {r}: eigene Konfiguration wechselt ({name}) bei #{i}")
+                    bad.append(f"Strang {where}: eigene Konfiguration wechselt ({name}) bei #{i} "
+                               f"({P.kind[i]})")
                 ref[c] = s[c]
     for i in np.flatnonzero(P.reach)[:: max(1, P.N // 400)]:
         s = robot.branch_signs(P.q[i], eps=0.05)
@@ -412,7 +437,7 @@ def check_branches(P: PartData, robot: RobotOracle, F: Findings) -> None:
         b = int(P.branch[i])
         if mapping.setdefault(s, b) != b or inverse.setdefault(b, s) != s:
             conflicts.append(f"#{i}: Klasse {s} -> branch {b}, vorher {mapping[s]}/{inverse[b]}")
-    F.capped(f"{P.pid}: Zweigwechsel innerhalb eines Rings", bad)
+    F.capped(f"{P.pid}: Zweigwechsel innerhalb eines Strangs", bad)
     F.capped(f"{P.pid}: branch nicht eineindeutig zur Konfiguration", conflicts)
 
 
@@ -497,3 +522,9 @@ def check_summary(P: PartData, prm: Params, F: Findings) -> None:
         dmin = float(np.nanmin(P.d_mm))
         if s.get("d_min_mm") is None or abs(float(s["d_min_mm"]) - dmin) > 1e-3:
             F.err(f"{P.pid}: trajectory.summary.d_min_mm = {s.get('d_min_mm')}, aus d_mm {dmin:.3f}")
+    # ARTEFAKTE: Zweigwechsel zwischen aufeinanderfolgenden erreichbaren Samples innerhalb eines Strangs
+    n_bw = branch_changes(P.kind, P.branch, P.reach)
+    F.metrics["branch_changes_in_strands"] = n_bw
+    if s.get("zweig_wechsel_in_ringen") != n_bw:
+        F.err(f"{P.pid}: trajectory.summary.zweig_wechsel_in_ringen = {s.get('zweig_wechsel_in_ringen')}, "
+              f"gezaehlt {n_bw} (Wechsel innerhalb eines Strangs)")
