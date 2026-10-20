@@ -266,6 +266,70 @@ def test_preview_waves_below_100ms(shape):
 # --------------------------------------------------------------------------- Rückfall statt Absturz
 
 
+def test_short_virtual_lane_keeps_infill(monkeypatch):
+    """Gegenprüfung: Die gedachte nächste Bahn (2,5·w innen, hier 30 × 50 mm, Länge < π·w) wird
+    nie gedruckt und nie mit `clear_end` gekürzt. Ein Filter π·w auf sie ließ das Sinus-Infill
+    entfallen, das vorher gültig passte (eine Halbwelle, Einlaufradius 38 mm ≥ w/2). Der Rückfall
+    gilt nur für echte Schalen; der Plan gleicht hier der Referenz."""
+    g = box(-150.3, -160.9, 150.3, 160.9)
+    sections = {0: g, 1: g}
+    p = pt.params_from_dict(
+        {
+            "infill": "sinus",
+            "bead_width_mm": 54.0,
+            "shells": 2,
+            "corner_radius_mm": 42.3,
+            "transition_radius_mm": 200.0,
+            "wavelength_mm": 442.6,
+            "phase_deg": 58.0,
+            "contact_overlap_pct": 3.9,
+            "layer_height_mm": 13.7,
+        }
+    )
+    new = pt.plan_pattern(sections, p)
+    path = new[0]
+    assert path.meta["infill"].get("half_waves") == 1, path.meta["infill"]
+    assert "shells_dropped" not in path.meta
+    with monkeypatch.context() as m:
+        _use_reference(m)
+        old = pt.plan_pattern(sections, p)
+    _same(new, old, "virtual")
+
+
+def test_dropped_rest_ring_removes_self_overlap(monkeypatch):
+    """Gegenprüfung: Der Rückfall (Restring < π·w entfällt) greift auch dort, wo der alte Stand nicht
+    abstürzte. Dort druckte er den Restring mit Selbstüberdeckung (M2-Fehler) und Radien < w/2
+    (M6-Fehler); ohne ihn bleiben nur M6-Warnungen."""
+    g = Polygon([(0, 0), (1680.6, 0), (1680.6, 110.5), (110.5, 110.5), (110.5, 1085.3), (0, 1085.3)])
+    sections = {0: g, 1: g}
+    p = pt.params_from_dict(
+        {
+            "infill": "sinus",
+            "bead_width_mm": 38.3,
+            "shells": 3,
+            "corner_radius_mm": 200.0,
+            "transition_radius_mm": 15.0,
+            "wavelength_mm": 1833.6,
+            "phase_deg": 145.6,
+            "contact_overlap_pct": 5.0,
+            "layer_height_mm": 5.0,
+        }
+    )
+
+    def errors(paths: list[pt.LayerPath]) -> set[str]:
+        m = pt.measure(paths, sections, p).to_dict()
+        return {v["rule"] for v in m["violations"] if v["severity"] == "error"}
+
+    new = pt.plan_pattern(sections, p)
+    assert new[0].meta["shells_dropped"]["from_shell"] == 1
+    with monkeypatch.context() as m:
+        _use_reference(m)
+        m.setattr(shells, "MIN_RING_W", 0.0)  # Rückfall aus: Stand vor der Gegenprüfung
+        old = pt.plan_pattern(sections, p)
+    assert {"M2", "M6"} <= errors(old)
+    assert not errors(new) & {"M2", "M6"}
+
+
 def test_l_section_from_report_falls_back_with_hint():
     """Fehlerbericht: Sinus auf dem L-Querschnitt, w = 58,3 mm, 4 Schalen warf `ValueError: x must
     consist of vectors of length 2 but has shape (0,)` (Schale 2 ist in der Innenecke nur ein

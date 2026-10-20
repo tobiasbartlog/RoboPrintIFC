@@ -305,9 +305,9 @@ def shell_chain(
     for rad in dict.fromkeys((max(p.corner_radius - p.w, 0.0) + 0.5, p.corner_radius)) if open_end else ():
         ext = [r for kd, r in offset_ring(ctx.region, (len(loops) + 0.5) * p.w, rad) if kd == "exterior"]
         if ext:
-            v = Loop(max(ext, key=lambda r: abs(_area(r))))
-            if v.length >= MIN_RING_W * p.w:  # sonst kein Platz für ein Infill (Restring, siehe oben)
-                virtuals.append(v)
+            # auch eine kurze gedachte Bahn bleibt: Sie wird nie gedruckt und nie mit `clear_end`
+            # gekürzt, sie gibt nur die Richtung der S-Kurve ins Infill vor (Infill passt oft noch)
+            virtuals.append(Loop(max(ext, key=lambda r: abs(_area(r)))))
     virtual = virtuals[0] if virtuals else None
     if len(loops) == 1 and virtual is None:
         pts = loops[0].sub(start, start)
