@@ -285,7 +285,9 @@ class Contact:
     - `kind`: `joint` (Fuge: zwei Außenfelder stoßen stumpf), `node` (Knoten: Stege/Gurt berühren
       sich), `shell` (Steg oder Infill an einer Schale, oder Schale an Schale).
     - `at`: Lage (Mitte der Kontaktzone), `length_mm`: Länge der Zone entlang des Pfads.
-    - `segments`: Indizes der beiden beteiligten Segmente im LayerPath (i ≤ j).
+    - `segments`: Indizes der beiden beteiligten Segmente im LayerPath (i ≤ j); −1 = nicht
+      zugeordnet (z. B. ein Infill-Muster, das die Schale nur über `ctx.printed` kennt). Umkehrung
+      und Anhängen rechnen jeden Index ≥ 0 für sich um, −1 bleibt −1.
     - `distance_mm`: kleinster Mittellinienabstand (gemessen; bei deklarierten Kontakten Sollwert).
     """
 
@@ -378,11 +380,9 @@ class LayerPath:
                 c.kind,
                 c.at,
                 c.length_mm,
-                tuple(sorted((n - 1 - c.segments[0], n - 1 - c.segments[1]))),
+                tuple(sorted(n - 1 - k if k >= 0 else -1 for k in c.segments)),
                 c.distance_mm,
             )
-            if min(c.segments) >= 0
-            else Contact(c.kind, c.at, c.length_mm, c.segments, c.distance_mm)
             for c in self.contacts
         ]
         return LayerPath(

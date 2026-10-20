@@ -93,10 +93,19 @@ Eine Familie anlegen (ohne Rückfrage, ohne Merge-Konflikt)
    - Stoßen Segmente aneinander, ist der Verbinder Länge 0 (Ende(i) == Anfang(i + 1)).
    - Gewollte Kontakte (Fuge, Knoten, Steg an Schale) liegen bei Mittellinienabstand
      [(1 − ε)·w, w]; deklariere sie als `Contact` (Art und Lage), gemessen werden sie ohnehin.
+     Ein deklarierter Kontakt ohne gemessenen Kontakt im Umkreis w gibt eine M7-Warnung.
+     `segments` sind Indizes in den eigenen Segmenten des IslandPlan; −1 = nicht zugeordnet (ein
+     Infill-Muster, das eine Schale aus `ctx.printed` berührt, schreibt für sie −1).
    - Naht (Anfang/Ende des Pfads) nicht auf Außen- oder Stoßfläche: `layout.choose_seam(loop,
      ctx.region, ctx.part_bounds, ctx.params)` nutzen oder `layout.face_clearance` prüfen.
    - `meta` JSON-fähig halten (z. B. `fit.to_dict()` aus `fit_to_length`, Fugenlagen).
-4. Tests in `core/tests/test_patterns_<familie>.py`: `plan_pattern` auf den Querschnitten
+4. Dateibesitz (gegen Merge-Konflikte): Jede Familie ändert nur ihre Datei unter `families/`,
+   ihr Preset und ihre Tests. Kernmodule (`types.py`, `plan.py`, `shells.py`, `metrics.py`, …)
+   ändert in M2 nur die Familie **Topologie**, und zwar nur den Ausweichfall in
+   `shells.shell_chain` (Löcher, zerfallende Schalen); alle anderen melden fehlende Kern-
+   funktionen als Einwand. Neue Helfer einer Familie bleiben in ihrer Datei (oder
+   `families/_<familie>_*.py`, wird nicht als Familie geladen).
+5. Tests in `core/tests/test_patterns_<familie>.py`: `plan_pattern` auf den Querschnitten
    600×200, 600×300, 600×365 (und Öffnung/Inseln, wo sinnvoll), `measure(...).ok` muss True sein
    (keine `error`-Verstöße), dazu `preview` und ein SVG. Ein Preset nach
    `core/src/roboprint/patterns/presets/<muster>.json`.
@@ -122,6 +131,13 @@ wechsel ein reiner Z-Hub (Ende L == Anfang L + 1). Bei geändertem Querschnitt: 
 
 Metriken (metrics.py) messen M1–M7 wie dort beschrieben; Verstöße mit Schweregrad `error` machen
 ein Muster ungültig, `warn` sind Zielverfehlungen (z. B. Radius < w, Naht an einer Fläche).
+Mit `layer_order = 'same'` ist jeder Schichtwechsel diagonal und damit ein M4-Fehler (gewollt:
+`same` ist das heutige Verhalten, M4 verlangt den senkrechten Wechsel).
+
+Abdeckung (Kennzahl `shell_coverage`, Maß wie G3: Schalenbereich mit Gehrung). Gerundete Ecken
+(M6) und der Zwickel am Schalenwechsel kosten Fläche: Grundmuster auf 600 × 200 mit den
+Standardwerten 94,4 % (G3 verlangt für S1 ≥ 95 %), mit `corner_radius_mm = 22.5` 95,5 %
+(nur M6-Warnungen), 600 × 300: 95,1 %, 1200 × 200: 97,0 %. Der Slicer (Gehrung) liegt bei ≈ 100 %.
 """
 
 from roboprint.patterns.geometry import (
