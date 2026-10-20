@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="556" viewBox="0 0 1000 556" font-family="sans-serif" font-size="12">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<path d="M 945.5,351.5 945.5,54.5 54.5,54.5 54.5,351.5 945.5,351.5 Z " fill="#f1f3f5" stroke="#adb5bd" fill-rule="evenodd"/>
+<polyline points="444.3,246.1 458.8,254.6" fill="none" stroke="#868e96" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 4"/>
+<polyline points="458.8,254.6 469.9,264.4 476.8,277.6 478.3,292.4 474.4,306.7 465.6,318.6 453.0,326.5 438.4,329.2 409.6,329.2 380.7,329.2 351.9,329.2 323.1,329.2 294.3,329.2 265.5,329.2 236.6,329.2 207.8,329.2 179.0,329.2 150.2,329.2 121.4,329.2 107.6,327.1 95.2,320.7 85.3,310.9 79.0,298.5 76.8,284.7 76.8,257.5 76.8,230.2 76.8,203.0 76.8,175.8 76.8,148.6 76.8,121.4 79.0,107.6 85.3,95.2 95.2,85.3 107.6,79.0 121.4,76.8 144.9,76.8 168.5,76.8 192.1,76.8 215.7,76.8 230.2,79.6 242.8,87.4 251.7,99.4 255.6,113.7 254.0,128.4 247.2,141.6 236.1,151.4" fill="none" stroke="#868e96" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 4"/>
+<polyline points="236.1,151.4 221.6,160.0 207.1,168.5 195.8,178.5 189.0,192.0 187.6,207.0 191.9,221.5 201.3,233.3 217.9,247.7 234.4,262.1 251.0,276.4 263.3,283.7 277.3,286.2 291.3,283.7 303.5,276.4 320.1,262.1 336.7,247.7 353.3,233.3 362.6,221.5 366.9,207.0 365.5,192.0 358.7,178.5 347.4,168.5 333.0,160.0 318.5,151.4" fill="none" stroke="#868e96" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 4"/>
+<polyline points="318.5,151.4 307.3,141.6 300.5,128.4 298.9,113.7 302.9,99.4 311.7,87.4 324.3,79.6 338.9,76.8 368.2,76.8 397.5,76.8 426.8,76.8 456.1,76.8 485.4,76.8 514.6,76.8 543.9,76.8 573.2,76.8 602.5,76.8 631.8,76.8 661.1,76.8 675.7,79.6 688.3,87.4 697.1,99.4 701.1,113.7 699.5,128.4 692.7,141.6 681.5,151.4" fill="none" stroke="#868e96" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 4"/>
+<polyline points="681.5,151.4 667.0,160.0 652.6,168.5 641.3,178.5 634.5,192.0 633.1,207.0 637.4,221.5 646.7,233.3 663.3,247.7 679.9,262.1 696.5,276.4 708.7,283.7 722.7,286.2 736.7,283.7 749.0,276.4 765.6,262.1 782.1,247.7 798.7,233.3 808.1,221.5 812.4,207.0 811.0,192.0 804.2,178.5 792.9,168.5 778.4,160.0 763.9,151.4" fill="none" stroke="#868e96" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 4"/>
+<polyline points="763.9,151.4 752.8,141.6 746.0,128.4 744.4,113.7 748.3,99.4 757.2,87.4 769.8,79.6 784.3,76.8 807.9,76.8 831.5,76.8 855.1,76.8 878.6,76.8 892.4,79.0 904.8,85.3 914.7,95.2 921.0,107.6 923.2,121.4 923.2,148.6 923.2,175.8 923.2,203.0 923.2,230.2 923.2,257.5 923.2,284.7 921.0,298.5 914.7,310.9 904.8,320.7 892.4,327.1 878.6,329.2 849.8,329.2 821.0,329.2 792.2,329.2 763.4,329.2 734.5,329.2 705.7,329.2 676.9,329.2 648.1,329.2 619.3,329.2 590.4,329.2 561.6,329.2 547.0,326.5 534.4,318.6 525.6,306.7 521.7,292.4 523.2,277.6 530.1,264.4 541.2,254.6" fill="none" stroke="#868e96" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 4"/>
+<polyline points="541.2,254.6 555.7,246.1 570.1,237.5 581.5,227.5 588.3,214.1 589.6,199.1 585.3,184.6 576.0,172.7 559.4,158.4 542.8,144.0 526.2,129.7 514.0,122.4 500.0,119.9 486.0,122.4 473.8,129.7 457.2,144.0 440.6,158.4 424.0,172.7 414.7,184.6 410.4,199.1 411.7,214.1 418.5,227.5 429.9,237.5 444.3,246.1" fill="none" stroke="#868e96" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 4"/>
+<polyline points="444.3,246.1 429.9,237.5 418.5,227.5 411.7,214.1 410.4,199.1 414.7,184.6 424.0,172.7 440.6,158.4 457.2,144.0 473.8,129.7 486.0,122.4 500.0,119.9 514.0,122.4 526.2,129.7 542.8,144.0 559.4,158.4 576.0,172.7 585.3,184.6 589.6,199.1 588.3,214.1 581.5,227.5 570.1,237.5 555.7,246.1 541.2,254.6" fill="none" stroke="#2f9e44" stroke-opacity="0.18" stroke-width="44.5" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="541.2,254.6 530.1,264.4 523.2,277.6 521.7,292.4 525.6,306.7 534.4,318.6 547.0,326.5 561.6,329.2 590.4,329.2 619.3,329.2 648.1,329.2 676.9,329.2 705.7,329.2 734.5,329.2 763.4,329.2 792.2,329.2 821.0,329.2 849.8,329.2 878.6,329.2 892.4,327.1 904.8,320.7 914.7,310.9 921.0,298.5 923.2,284.7 923.2,257.5 923.2,230.2 923.2,203.0 923.2,175.8 923.2,148.6 923.2,121.4 921.0,107.6 914.7,95.2 904.8,85.3 892.4,79.0 878.6,76.8 855.1,76.8 831.5,76.8 807.9,76.8 784.3,76.8 769.8,79.6 757.2,87.4 748.3,99.4 744.4,113.7 746.0,128.4 752.8,141.6 763.9,151.4" fill="none" stroke="#7048e8" stroke-opacity="0.18" stroke-width="44.5" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="763.9,151.4 778.4,160.0 792.9,168.5 804.2,178.5 811.0,192.0 812.4,207.0 808.1,221.5 798.7,233.3 782.1,247.7 765.6,262.1 749.0,276.4 736.7,283.7 722.7,286.2 708.7,283.7 696.5,276.4 679.9,262.1 663.3,247.7 646.7,233.3 637.4,221.5 633.1,207.0 634.5,192.0 641.3,178.5 652.6,168.5 667.0,160.0 681.5,151.4" fill="none" stroke="#2f9e44" stroke-opacity="0.18" stroke-width="44.5" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="681.5,151.4 692.7,141.6 699.5,128.4 701.1,113.7 697.1,99.4 688.3,87.4 675.7,79.6 661.1,76.8 631.8,76.8 602.5,76.8 573.2,76.8 543.9,76.8 514.6,76.8 485.4,76.8 456.1,76.8 426.8,76.8 397.5,76.8 368.2,76.8 338.9,76.8 324.3,79.6 311.7,87.4 302.9,99.4 298.9,113.7 300.5,128.4 307.3,141.6 318.5,151.4" fill="none" stroke="#7048e8" stroke-opacity="0.18" stroke-width="44.5" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="318.5,151.4 333.0,160.0 347.4,168.5 358.7,178.5 365.5,192.0 366.9,207.0 362.6,221.5 353.3,233.3 336.7,247.7 320.1,262.1 303.5,276.4 291.3,283.7 277.3,286.2 263.3,283.7 251.0,276.4 234.4,262.1 217.9,247.7 201.3,233.3 191.9,221.5 187.6,207.0 189.0,192.0 195.8,178.5 207.1,168.5 221.6,160.0 236.1,151.4" fill="none" stroke="#2f9e44" stroke-opacity="0.18" stroke-width="44.5" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="236.1,151.4 247.2,141.6 254.0,128.4 255.6,113.7 251.7,99.4 242.8,87.4 230.2,79.6 215.7,76.8 192.1,76.8 168.5,76.8 144.9,76.8 121.4,76.8 107.6,79.0 95.2,85.3 85.3,95.2 79.0,107.6 76.8,121.4 76.8,148.6 76.8,175.8 76.8,203.0 76.8,230.2 76.8,257.5 76.8,284.7 79.0,298.5 85.3,310.9 95.2,320.7 107.6,327.1 121.4,329.2 150.2,329.2 179.0,329.2 207.8,329.2 236.6,329.2 265.5,329.2 294.3,329.2 323.1,329.2 351.9,329.2 380.7,329.2 409.6,329.2 438.4,329.2 453.0,326.5 465.6,318.6 474.4,306.7 478.3,292.4 476.8,277.6 469.9,264.4 458.8,254.6" fill="none" stroke="#7048e8" stroke-opacity="0.18" stroke-width="44.5" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="458.8,254.6 444.3,246.1" fill="none" stroke="#2f9e44" stroke-opacity="0.18" stroke-width="44.5" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="444.3,246.1 429.9,237.5 418.5,227.5 411.7,214.1 410.4,199.1 414.7,184.6 424.0,172.7 440.6,158.4 457.2,144.0 473.8,129.7 486.0,122.4 500.0,119.9 514.0,122.4 526.2,129.7 542.8,144.0 559.4,158.4 576.0,172.7 585.3,184.6 589.6,199.1 588.3,214.1 581.5,227.5 570.1,237.5 555.7,246.1 541.2,254.6" fill="none" stroke="#2f9e44" stroke-width="2"><title>web Steg 262.56 mm</title></polyline>
+<polygon points="431.3,166.4 427.5,175.7 421.6,168.9" fill="#2f9e44"/>
+<polygon points="586.0,185.4 576.9,181.1 583.9,175.5" fill="#2f9e44"/>
+<polyline points="541.2,254.6 530.1,264.4 523.2,277.6 521.7,292.4 525.6,306.7 534.4,318.6 547.0,326.5 561.6,329.2 590.4,329.2 619.3,329.2 648.1,329.2 676.9,329.2 705.7,329.2 734.5,329.2 763.4,329.2 792.2,329.2 821.0,329.2 849.8,329.2 878.6,329.2 892.4,327.1 904.8,320.7 914.7,310.9 921.0,298.5 923.2,284.7 923.2,257.5 923.2,230.2 923.2,203.0 923.2,175.8 923.2,148.6 923.2,121.4 921.0,107.6 914.7,95.2 904.8,85.3 892.4,79.0 878.6,76.8 855.1,76.8 831.5,76.8 807.9,76.8 784.3,76.8 769.8,79.6 757.2,87.4 748.3,99.4 744.4,113.7 746.0,128.4 752.8,141.6 763.9,151.4" fill="none" stroke="#7048e8" stroke-width="2"><title>outfill Außenhaut 620.87 mm</title></polyline>
+<polygon points="554.5,327.9 544.8,330.6 546.5,321.8" fill="#7048e8"/>
+<polygon points="738.7,329.2 729.7,333.7 729.7,324.7" fill="#7048e8"/>
+<polygon points="916.6,309.0 913.4,318.5 907.0,312.2" fill="#7048e8"/>
+<polygon points="923.2,125.5 927.7,134.5 918.7,134.5" fill="#7048e8"/>
+<polygon points="768.4,79.8 776.4,73.7 778.1,82.6" fill="#7048e8"/>
+<polyline points="763.9,151.4 778.4,160.0 792.9,168.5 804.2,178.5 811.0,192.0 812.4,207.0 808.1,221.5 798.7,233.3 782.1,247.7 765.6,262.1 749.0,276.4 736.7,283.7 722.7,286.2 708.7,283.7 696.5,276.4 679.9,262.1 663.3,247.7 646.7,233.3 637.4,221.5 633.1,207.0 634.5,192.0 641.3,178.5 652.6,168.5 667.0,160.0 681.5,151.4" fill="none" stroke="#2f9e44" stroke-width="2"><title>web Steg 273.87 mm</title></polyline>
+<polygon points="800.5,231.0 802.6,221.2 809.6,226.8" fill="#2f9e44"/>
+<polygon points="639.4,224.0 648.5,228.3 641.4,233.8" fill="#2f9e44"/>
+<polyline points="681.5,151.4 692.7,141.6 699.5,128.4 701.1,113.7 697.1,99.4 688.3,87.4 675.7,79.6 661.1,76.8 631.8,76.8 602.5,76.8 573.2,76.8 543.9,76.8 514.6,76.8 485.4,76.8 456.1,76.8 426.8,76.8 397.5,76.8 368.2,76.8 338.9,76.8 324.3,79.6 311.7,87.4 302.9,99.4 298.9,113.7 300.5,128.4 307.3,141.6 318.5,151.4" fill="none" stroke="#7048e8" stroke-width="2"><title>outfill Außenhaut 357.0 mm</title></polyline>
+<polygon points="628.0,76.8 637.0,72.3 637.0,81.3" fill="#7048e8"/>
+<polygon points="363.0,76.8 372.0,72.3 372.0,81.3" fill="#7048e8"/>
+<polyline points="318.5,151.4 333.0,160.0 347.4,168.5 358.7,178.5 365.5,192.0 366.9,207.0 362.6,221.5 353.3,233.3 336.7,247.7 320.1,262.1 303.5,276.4 291.3,283.7 277.3,286.2 263.3,283.7 251.0,276.4 234.4,262.1 217.9,247.7 201.3,233.3 191.9,221.5 187.6,207.0 189.0,192.0 195.8,178.5 207.1,168.5 221.6,160.0 236.1,151.4" fill="none" stroke="#2f9e44" stroke-width="2"><title>web Steg 273.87 mm</title></polyline>
+<polygon points="355.1,231.0 357.1,221.2 364.2,226.8" fill="#2f9e44"/>
+<polygon points="193.9,224.0 203.0,228.3 195.9,233.8" fill="#2f9e44"/>
+<polyline points="236.1,151.4 247.2,141.6 254.0,128.4 255.6,113.7 251.7,99.4 242.8,87.4 230.2,79.6 215.7,76.8 192.1,76.8 168.5,76.8 144.9,76.8 121.4,76.8 107.6,79.0 95.2,85.3 85.3,95.2 79.0,107.6 76.8,121.4 76.8,148.6 76.8,175.8 76.8,203.0 76.8,230.2 76.8,257.5 76.8,284.7 79.0,298.5 85.3,310.9 95.2,320.7 107.6,327.1 121.4,329.2 150.2,329.2 179.0,329.2 207.8,329.2 236.6,329.2 265.5,329.2 294.3,329.2 323.1,329.2 351.9,329.2 380.7,329.2 409.6,329.2 438.4,329.2 453.0,326.5 465.6,318.6 474.4,306.7 478.3,292.4 476.8,277.6 469.9,264.4 458.8,254.6" fill="none" stroke="#7048e8" stroke-width="2"><title>outfill Außenhaut 620.87 mm</title></polyline>
+<polygon points="222.8,78.2 232.5,75.4 230.8,84.3" fill="#7048e8"/>
+<polygon points="76.8,134.5 72.3,125.5 81.3,125.5" fill="#7048e8"/>
+<polygon points="89.8,315.3 80.3,312.2 86.6,305.8" fill="#7048e8"/>
+<polygon points="270.3,329.2 261.3,333.7 261.3,324.7" fill="#7048e8"/>
+<polygon points="454.4,326.2 446.3,332.3 444.7,323.5" fill="#7048e8"/>
+<polyline points="458.8,254.6 444.3,246.1" fill="none" stroke="#2f9e44" stroke-width="2"><title>web Steg 11.31 mm</title></polyline>
+<polygon points="447.7,248.1 457.7,248.8 453.1,256.5" fill="#2f9e44"/>
+<circle cx="444.3" cy="246.1" r="7" fill="none" stroke="#2b8a3e" stroke-width="2.5"><title>Start</title></circle>
+<rect x="439.3" y="241.1" width="10" height="10" fill="none" stroke="#c92a2a" stroke-width="2.5"><title>Ende</title></rect>
+<circle cx="272.8" cy="307.7" r="3.5" fill="#15aabf"><title>Kontakt shell 17.33 mm</title></circle>
+<circle cx="277.4" cy="114.9" r="3.5" fill="#ae3ec9"><title>Kontakt joint 12.0 mm</title></circle>
+<circle cx="388.5" cy="201.8" r="3.5" fill="#f08c00"><title>Kontakt node 12.17 mm</title></circle>
+<circle cx="500.0" cy="98.3" r="3.5" fill="#15aabf"><title>Kontakt shell 17.33 mm</title></circle>
+<circle cx="500.1" cy="291.2" r="3.5" fill="#ae3ec9"><title>Kontakt joint 12.0 mm</title></circle>
+<circle cx="611.7" cy="199.3" r="3.5" fill="#f08c00"><title>Kontakt node 12.17 mm</title></circle>
+<circle cx="722.6" cy="117.4" r="3.5" fill="#ae3ec9"><title>Kontakt joint 12.0 mm</title></circle>
+<circle cx="724.3" cy="307.5" r="3.5" fill="#15aabf"><title>Kontakt shell 21.41 mm</title></circle>
+<circle cx="411.7" cy="214.1" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="500.0" cy="119.9" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="588.3" cy="214.1" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="525.6" cy="306.7" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="746.0" cy="128.4" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="811.0" cy="192.0" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="722.7" cy="286.2" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="637.4" cy="221.5" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="699.5" cy="128.4" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="307.3" cy="141.6" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="366.9" cy="207.0" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="277.3" cy="286.2" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="189.0" cy="192.0" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="254.0" cy="128.4" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="465.6" cy="318.6" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="465.6" cy="318.6" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="254.0" cy="128.4" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="189.0" cy="192.0" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="277.3" cy="286.2" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="366.9" cy="207.0" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="307.3" cy="141.6" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="699.5" cy="128.4" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="637.4" cy="221.5" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="722.7" cy="286.2" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="811.0" cy="192.0" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="746.0" cy="128.4" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="525.6" cy="306.7" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="588.3" cy="214.1" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="500.0" cy="119.9" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<circle cx="411.7" cy="214.1" r="22.3" fill="none" stroke="#f59f00" stroke-width="2"><title>M6: Krümmungsradius &lt; w (Ziel)</title></circle>
+<rect x="10" y="415.06060606060606" width="18" height="6" fill="#1c7ed6"/><text x="32" y="424.06060606060606">outer</text>
+<rect x="120" y="415.06060606060606" width="18" height="6" fill="#74c0fc"/><text x="142" y="424.06060606060606">inner</text>
+<rect x="230" y="415.06060606060606" width="18" height="6" fill="#0ca678"/><text x="252" y="424.06060606060606">hole</text>
+<rect x="340" y="415.06060606060606" width="18" height="6" fill="#e8590c"/><text x="362" y="424.06060606060606">infill</text>
+<rect x="450" y="415.06060606060606" width="18" height="6" fill="#2f9e44"/><text x="472" y="424.06060606060606">web</text>
+<rect x="560" y="415.06060606060606" width="18" height="6" fill="#7048e8"/><text x="582" y="424.06060606060606">outfill</text>
+<text x="10" y="448" fill="#212529">fugenwand · Schicht 0 (alternate), Folgeschicht gestrichelt · Start ○  Ende □</text>
+<text x="10" y="468" fill="#212529">Pfad 2420.36 mm · Druckzeit 24.2 s bei 100.0 mm/s · Material 1.2102 l je m und Schicht · Stränge 1</text>
+<text x="10" y="488" fill="#212529">Kontakte 8 (116.41 mm, 13.33 je m) · Fugenabstand [299.82] · längste gerade Außenstrecke 110.0 mm · kleinster Radius 27.0 mm</text>
+<text x="10" y="508" fill="#212529">Regelverstöße: 0 Fehler, 30 Warnungen · Schichtwechsel vertical (0.0 mm)</text>
+</svg>
