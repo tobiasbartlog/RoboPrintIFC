@@ -9,7 +9,8 @@ Punktpaare mit Bogenlaengenabstand > 2·w gilt:
   schon gelegte Raupe derselben Schicht (`too_deep`).
 - Abstand in [(1 - eps)·w, w + CONTACT_TOL_MM]: gewollter Kontakt. Zusammenhaengende Laeufe solcher
   Punkte entlang des Pfads werden paarweise zu **Kontaktzonen** zusammengefasst (ARTEFAKT-FORMAT,
-  Nachtrag 18:45): Lage (Mittelpunkt in P), Laenge (Mittel der beiden Seiten), Art
+  Nachtrag 18:45): Lage (Mittelpunkt in P), Laenge (Mittel der beiden Seiten), Art nach den
+  Segmentarten im Umkreis w (Bogenlaenge) um die Kontaktpunkte jeder Seite
   - `joint`: eine Seite ist `outfill` und die andere `outfill` oder `web` (Fuge der Fugenwand),
   - `node`: beide Seiten `web`/`infill` (Knoten, Gurt an Gurt),
   - `shell`: alles andere, also Infill/Steg an Schale und Schale an Schale.
@@ -53,8 +54,9 @@ def point_kinds(P: g.LayerPath, ring_kind: dict[int, str]) -> np.ndarray:
     return np.array(ks, dtype=object)[P.elem] if len(P.elem) else np.zeros(0, dtype=object)
 
 
-def contact_type(ka: str, kb: str) -> str:
-    s = {ka, kb}
+def contact_type(ka, kb) -> str:
+    """Art einer Kontaktzone aus den Segmentarten beider Seiten (je eine Menge von Arten)."""
+    s = set(ka) | set(kb)
     if "outfill" in s and s <= {"outfill", "web"}:
         return "joint"
     if s <= set(FILL_KINDS):
@@ -79,9 +81,19 @@ def _runs(mask: np.ndarray, cyclic: bool, breaks: np.ndarray | None = None) -> l
     return runs
 
 
-def _majority(values) -> str:
-    vals, cnt = np.unique(np.asarray(values, dtype=str), return_counts=True)
-    return str(vals[int(np.argmax(cnt))])
+def _near_kinds(P: g.LayerPath, kinds: np.ndarray, ix: np.ndarray, w: float) -> set[str]:
+    """Segmentarten im Umkreis w (Bogenlaenge) um die Kontaktpunkte einer Seite. Eine Kehre an einer
+    Fuge ist halb Feld, halb Steg; erst die Nachbarschaft zeigt beide Arten zuverlaessig."""
+    s = P.s[ix]
+    sel = (P.s >= s.min() - w) & (P.s <= s.max() + w)
+    if P.cyclic:  # Naht: auch ueber Start/Ende hinweg
+        total = P.s[-1]
+        sel |= P.s >= total + s.min() - w
+        sel |= P.s <= s.max() + w - total
+    if s.max() - s.min() > 4.0 * w:  # lange Zone: nur die Punkte selbst
+        sel[:] = False
+        sel[ix] = True
+    return {str(k) for k in kinds[sel]}
 
 
 def analyse(P: g.LayerPath, w: float, eps: float, ring_kind: dict[int, str]) -> PairResult:
@@ -142,10 +154,10 @@ def analyse(P: g.LayerPath, w: float, eps: float, ring_kind: dict[int, str]) -> 
             adj = np.diff(ix) == 1
             return float(np.abs(np.diff(P.s[ix]))[adj].sum()) + step
 
-        ka, kb = _majority(kinds[ia]), _majority(kinds[ib])
+        ka, kb = _near_kinds(P, kinds, ia, w), _near_kinds(P, kinds, ib, w)
         mid = 0.5 * (P.pts[ia].mean(axis=0) + P.pts[ib].mean(axis=0))
         res.zones.append({
-            "type": contact_type(ka, kb), "kinds": [ka, kb],
+            "type": contact_type(ka, kb), "kinds": [sorted(ka), sorted(kb)],
             "point_P": [round(float(x), 2) for x in mid],
             "length_mm": round(0.5 * (extent(ia) + extent(ib)), 1),
             "min_distance_mm": round(dmin_key[key], 2),

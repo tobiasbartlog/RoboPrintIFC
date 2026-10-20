@@ -106,6 +106,25 @@ def sine_infill(extra_tail=None, bump: float = 0.0) -> list[dict]:
     return [{"kind": "outer", "shell": 0, "xy": outer}, {"kind": "infill", "shell": 1, "xy": infill}]
 
 
+def stadium(r: float, half: float = 150.0) -> list[dict]:
+    """Geschlossener Ring (Stadion): Geraden y = ±r von x = -half bis half, Halbkreise vom Radius r.
+    Start = Ende auf der Unterkante bei x = 0 (closed = true wie im heutigen Format)."""
+    pts = join(line((0.0, -r), (half, -r)), arc((half, 0.0), r, -np.pi / 2, np.pi / 2, step=0.5),
+               line((half, r), (-half, r)), arc((-half, 0.0), r, np.pi / 2, 1.5 * np.pi, step=0.5),
+               line((-half, -r), (0.0, -r)))
+    return [{"kind": "outer", "shell": 0, "xy": pts, "closed": True}]
+
+
+def mitre_rings() -> list[dict]:
+    """Heutiges Format (ohne Muster): zwei geschlossene Rechteckringe mit spitzen Ecken (Mitre), Start
+    an der Ecke nahe (x_min, y_min), Aussenring -> Verbinder -> Innenring."""
+    def rect(hx, hy):
+        return np.array([[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy], [-hx, -hy]], float)
+
+    return [{"kind": "outer", "shell": 0, "xy": rect(285.0, 85.0), "closed": True},
+            {"kind": "inner", "shell": 1, "xy": rect(255.0, 55.0), "closed": True}]
+
+
 # ---------------------------------------------------------------- Schichten und Dateien
 
 
@@ -124,7 +143,7 @@ def stack(layer_fn: Callable[[int], list[list[dict]]], n_layers: int, alternate:
                 last_in_island = j == len(rs) - 1
                 last_in_layer = last_in_island and k == len(isl) - 1
                 rings.append({"layer": L, "shell": r["shell"], "kind": r["kind"],
-                              "closed": False, "xy": np.asarray(r["xy"], float),
+                              "closed": bool(r.get("closed", False)), "xy": np.asarray(r["xy"], float),
                               "link_next": (not last_in_island) or (last_in_layer and L < n_layers - 1)})
     return rings
 
