@@ -10,7 +10,7 @@ SCHEMA_VERSION = "2"
 SCENARIO_SCHEMA_VERSION = "1"
 
 Status = Literal["ok", "warn", "collision", "unreachable"]
-Kind = Literal["print", "approach", "retract", "lift", "transfer", "lower"]
+Kind = Literal["print", "link", "approach", "retract", "lift", "transfer", "lower"]
 PartStatus = Literal["machbar", "nicht machbar"]
 RingKind = Literal["outer", "inner", "hole"]
 PlannerMode = Literal["collision_aware", "ignore_collision"]

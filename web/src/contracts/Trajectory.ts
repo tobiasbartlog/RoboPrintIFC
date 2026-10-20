@@ -6,7 +6,7 @@
 export interface Trajectory {
   branch: number[];
   d_mm: (number | null)[];
-  kind: ("print" | "approach" | "retract" | "lift" | "transfer" | "lower")[];
+  kind: ("print" | "link" | "approach" | "retract" | "lift" | "transfer" | "lower")[];
   layer: number[];
   pair: ([string, string] | null)[];
   part_id: string;

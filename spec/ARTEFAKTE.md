@@ -20,14 +20,26 @@ Orakel (`verify/`) und System (`core/`) halten sich beide an diese Datei.
 - `layer[i]` in `trajectory.json` ist **die Anzahl k der fertigen Schichten**, die für Sample i als
   Druckstand gilt: Hindernis = Teil-Solid ∩ {z_P ≤ k·h}.
   - Samples der Arten `print`, `approach`, `retract` eines Rings in Schicht L: k = L.
+  - Samples der Art `link` (Verbinder, SPEC §5.3) vor einem Ring in Schicht L: k = L, also die
+    Schicht des **folgenden** Rings. Beim Schichtwechsel ist die eben gedruckte Schicht damit fertig.
   - Samples der Arten `lift`, `transfer`, `lower` nach einem Ring in Schicht L: k = L + 1
     (SPEC §5.1: bei Travel zählt die eben gedruckte Schicht als fertig).
   - Travel vor dem ersten Ring (aus der Home-Pose): k = 0.
 - `ring[i]`: Index in `toolpath.rings`. `approach`/`print`/`retract` → eigener Ring;
-  `lift` → der eben gedruckte Ring; `transfer`/`lower` → der folgende Ring. Vor dem ersten Ring 0.
-- Ablauf je Ring: `lift` (senkrecht, `movel`) → `transfer` (`movej`) → `lower` (senkrecht, `movel`,
-  endet 20 mm über dem Ringstart) → `approach` (20 mm senkrecht) → `print` → `retract` (20 mm senkrecht).
-  Der erste Ring beginnt mit `transfer` aus der Home-Pose.
+  `link` → der folgende Ring; `lift` → der eben gedruckte Ring; `transfer`/`lower` → der folgende
+  Ring. Vor dem ersten Ring 0.
+- **Strang** (Nutzerentscheidung 20.10.2026, SPEC §5.3): Ablauf je Strang aus den Ringen r … s:
+  `transfer` (`movej`) → `lower` (senkrecht, `movel`, endet `approach_mm` über dem Ringstart) →
+  `approach` (`approach_mm` senkrecht) → `print` r → `link` r + 1 → `print` r + 1 → … → `link` s →
+  `print` s → `retract` (`approach_mm` senkrecht) → `lift` (senkrecht, `movel`). Ein Strang aus einem
+  Ring ist der Fall r = s. Der erste Strang beginnt mit `transfer` aus der Home-Pose.
+- Jeder Ring hat genau einen zusammenhängenden `print`-Abschnitt. Direkt davor steht `approach`
+  desselben Rings (Strangbeginn) oder `link` desselben Rings (Ring r + 1 im Strang). Direkt danach
+  steht `retract` desselben Rings (Strangende) oder `link` des Rings mit dem nächsthöheren Index.
+- `link` von Ring r nach Ring r + 1 ist nur erlaubt, wenn `toolpath.rings[r].link_next = true`.
+  Die `link`-Samples liegen auf der Geraden vom letzten Wegpunkt von r zum ersten Wegpunkt von r + 1
+  und beginnen bzw. enden an diesen Punkten.
+- Die Pumpe läuft in `print` und `link`, sonst nicht. Der Roboter hält im Strang nicht an.
 
 ## Kollisions-Schnittstelle (für G2)
 
@@ -87,17 +99,21 @@ n_layers, status, cause|null {sample, t_s, link, obstacle, message}
 ### parts/<part_id>/toolpath.json
 ```
 schema_version, part_id, layer_height_mm, bead_width_mm,
-rings [{layer, shell, kind, closed, waypoints [[x,y,z,qw,qx,qy,qz], …]}]
+rings [{layer, shell, kind, closed, link_next, waypoints [[x,y,z,qw,qx,qy,qz], …]}]
 ```
 Wegpunkte in W. `kind` ∈ {`outer`, `inner`, `hole`}. Bei `closed = true` wiederholt der letzte
-Wegpunkt den ersten. Die Düsenachse +Z_T zeigt nach −Z_W.
+Wegpunkt den ersten. Die Düsenachse +Z_T zeigt nach −Z_W. `link_next` (bool, Default `false`):
+Der Slicer erlaubt einen Verbinder zum Ring mit dem nächsthöheren Index (Bedingungen SPEC §5.3).
+Ob der Planer ihn nutzt, zeigt die Trajektorie.
 
 ### parts/<part_id>/trajectory.json
 Genau die Arrays aus SPEC §6 (`t_s`, `q`, `tcp`, `layer`, `ring`, `kind`, `branch`, `status`,
 `d_mm`, `pair`, `witness`) plus `schema_version`, `part_id`, `psi_rad[N]` (Gierwinkel ψ je Sample)
 und `summary {n, n_ok, n_warn, n_collision, n_unreachable, d_min_mm, dauer_s,
 zweig_wechsel_in_ringen}`. Bei `unreachable` sind `d_mm`, `pair` und `witness` null; `q` trägt dann
-die letzte gültige Lösung nur zur Anzeige und wird nicht geprüft.
+die letzte gültige Lösung nur zur Anzeige und wird nicht geprüft. `zweig_wechsel_in_ringen` zählt
+Zweigwechsel zwischen aufeinanderfolgenden erreichbaren Samples innerhalb eines Strangs
+(`approach`, `print`, `link`, `retract` ohne Travel dazwischen); der Name bleibt aus Kompatibilität.
 
 Nachtrag 19.10.2026 (Nutzerentscheidung): `status`, `d_mm`, `pair`, `witness` und `summary.d_min_mm`
 beziehen sich auf d_status nach SPEC §2: Minimum über alle Paare außer den Gliedpaaren mit genau einem
