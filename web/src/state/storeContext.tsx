@@ -26,9 +26,10 @@ export function useSteps(): { status: Record<StepId, StepStatus>; blocked: (s: S
   const projectId = useAppStore((s) => s.project?.project_id ?? null);
   const wallId = useAppStore((s) => s.wallId);
   const params = useAppStore((s) => s.params);
+  const pattern = useAppStore((s) => s.patternChoice);
   const runBasis = useAppStore((s) => s.run?.basis ?? null);
   return useMemo(() => {
-    const inputs = { projectId, wallId, params, runBasis };
+    const inputs = { projectId, wallId, params, pattern, runBasis };
     return { status: stepStatuses(inputs), blocked: (s: StepId) => stepBlockedReason(s, inputs) };
-  }, [projectId, wallId, params, runBasis]);
+  }, [projectId, wallId, params, pattern, runBasis]);
 }

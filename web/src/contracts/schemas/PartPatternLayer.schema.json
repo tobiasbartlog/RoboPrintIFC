@@ -1,0 +1,189 @@
+{
+  "$defs": {
+    "PartLayerPath": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "layer": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "length_mm": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/PartLayerSegment"
+          },
+          "type": "array"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "layer",
+        "segments",
+        "start",
+        "end",
+        "length_mm"
+      ],
+      "title": "PartLayerPath",
+      "type": "object"
+    },
+    "PartLayerSegment": {
+      "additionalProperties": false,
+      "properties": {
+        "closed": {
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "outer",
+            "inner",
+            "hole",
+            "infill",
+            "web",
+            "outfill"
+          ],
+          "type": "string"
+        },
+        "link_next": {
+          "type": "boolean"
+        },
+        "points": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "ring": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "shell": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ring",
+        "kind",
+        "shell",
+        "closed",
+        "link_next",
+        "points"
+      ],
+      "title": "PartLayerSegment",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Eine Schicht des gerechneten Teils im Teil-Frame P (mm, XY) samt Nachbarschicht.",
+  "properties": {
+    "bead_width_mm": {
+      "type": "number"
+    },
+    "bounds": {
+      "description": "Ecken [min, max] aller Punkte der gezeigten Schichten",
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "maxItems": 2,
+        "minItems": 2,
+        "type": "array"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "layer": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "n_layers": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "neighbor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PartLayerPath"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Folgeschicht (letzte Schicht: Vorgängerschicht)"
+    },
+    "neighbor_relation": {
+      "anyOf": [
+        {
+          "enum": [
+            "next",
+            "previous"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "part_id": {
+      "type": "string"
+    },
+    "path": {
+      "$ref": "#/$defs/PartLayerPath"
+    },
+    "z_mm": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "part_id",
+    "layer",
+    "n_layers",
+    "z_mm",
+    "bead_width_mm",
+    "bounds",
+    "path",
+    "neighbor",
+    "neighbor_relation"
+  ],
+  "title": "PartPatternLayer",
+  "type": "object"
+}

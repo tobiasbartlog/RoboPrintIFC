@@ -5,6 +5,7 @@
  */
 import type { Example, JobState, ProjectInfo, Summary, WallEntry } from '../contracts';
 import type { ApiPort, ProjectSource } from './apiPort';
+import { fakePartPatternLayer, fakePartPatternReport } from './fakePartPattern';
 
 const RAW = import.meta.glob('../../fixtures/run_demo/**/*.{json,drl}', {
   query: '?raw',
@@ -128,6 +129,14 @@ export function createFakeApi(opts: FakeOptions = {}): ApiPort {
     // Das Fixture hat kein Wandmesh; das Teil-STL dient als Platzhalter.
     wallMeshUrl: () => '/fixtures/run_demo/parts/P01/part.stl',
     contextMeshUrl: () => '/fixtures/run_demo/parts/P01/part.stl',
+    patternReport: async (_runId: string, partId: string) => {
+      await wait();
+      return fakePartPatternReport(partId);
+    },
+    patternLayer: async (_runId: string, partId: string, layer: number) => {
+      await wait();
+      return fakePartPatternLayer(partId, layer);
+    },
     assetBase: '/dev-assets',
   };
 }

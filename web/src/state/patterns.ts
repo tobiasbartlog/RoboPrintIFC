@@ -29,7 +29,7 @@ export const SEGMENT_STYLE: Record<string, { label: string; color: string }> = {
   outer: { label: 'Außenschale', color: 'var(--mantine-color-blue-6)' },
   inner: { label: 'Innenschale', color: 'var(--mantine-color-cyan-6)' },
   hole: { label: 'Laibungsschale', color: 'var(--mantine-color-teal-6)' },
-  infill: { label: 'Infill / Gurt', color: 'var(--mantine-color-orange-6)' },
+  infill: { label: 'Infill / Gurt', color: 'var(--mantine-color-pink-6)' },
   web: { label: 'Steg', color: 'var(--mantine-color-green-6)' },
   outfill: { label: 'Außenfeld / Endkappe', color: 'var(--mantine-color-violet-6)' },
 };

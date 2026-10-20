@@ -4,10 +4,11 @@
  * die Shell umzubauen. `t` ist die einzige Zeitquelle (Sekunden).
  */
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import type { Example, JobState, PartArtifact, ProjectInfo, Summary, TrajectorySummary } from '../contracts';
+import type { Example, JobState, PartArtifact, PartPatternLayer, PartPatternReport, ProjectInfo, Summary, TrajectorySummary } from '../contracts';
 import type { ApiPort, WallFrame } from './apiPort';
 import { createPlaybackSlice, type PlaybackSlice } from './playback';
 import { DEFAULT_PARAMS, type ParamValue, type ParamValues } from './params';
+import { DEFAULT_PATTERN, jobPatternParams, type PatternChoice } from './patternChoice';
 import { makeBasis, stepBlockedReason, stepStatuses, type RunBasis, type StepId, type StepInputs, type StepStatus } from './stepper';
 
 export interface RunData {
@@ -54,6 +55,12 @@ export interface AppState extends PlaybackSlice {
   setParam: (key: string, value: ParamValue) => void;
   resetParam: (key: string) => void;
   resetParams: () => void;
+  // Musterwahl für den Lauf (Standard: kein Muster)
+  patternChoice: PatternChoice;
+  setPatternChoice: (patch: Partial<PatternChoice>) => void;
+  /** Ersetzt die ganze Wahl (Auswahl, Übernahme aus dem Musterersteller). */
+  replacePatternChoice: (choice: PatternChoice) => void;
+  resetPatternChoice: () => void;
   // job
   job: JobSlice;
   startJob: () => Promise<void>;
@@ -69,6 +76,12 @@ export interface AppState extends PlaybackSlice {
   openRun: (runId: string, partId?: string | null) => Promise<void>;
   runError: string | null;
   runErrorDetail: string | null;
+  /** Kennzahlen des Druckmusters je Teil des aktuellen Laufs, Schlüssel `<run_id>|<part_id>` (von der API gerechnet). */
+  patternReports: Record<string, PartPatternReport>;
+  patternReportErrors: Record<string, string>;
+  loadPatternReport: (partId: string) => Promise<void>;
+  /** Eine Schicht des Teils für die 2D-Vorschau (zwischengespeichert je Lauf, Teil und Schicht). */
+  loadPatternLayer: (partId: string, layer: number) => Promise<PartPatternLayer>;
   // selection
   partId: string | null;
   selectPart: (id: string | null) => void;
@@ -94,6 +107,7 @@ export type AppStore = StoreApi<AppState>;
 export function createAppStore(api: ApiPort, opts: StoreOptions = {}): AppStore {
   const pollMs = opts.pollMs ?? 400;
   let jobToken = 0;
+  const layerCache = new Map<string, Promise<PartPatternLayer>>();
 
   return createStore<AppState>()((set, get) => {
     const playback = createPlaybackSlice(set, get, api);
@@ -170,17 +184,25 @@ export function createAppStore(api: ApiPort, opts: StoreOptions = {}): AppStore 
       setParam: (key, value) => set((s) => ({ params: { ...s.params, [key]: value } })),
       resetParam: (key) => set((s) => ({ params: { ...s.params, [key]: DEFAULT_PARAMS[key] as ParamValue } })),
       resetParams: () => set({ params: { ...DEFAULT_PARAMS } }),
+      patternChoice: { ...DEFAULT_PATTERN },
+      setPatternChoice: (patch) => set((s) => ({ patternChoice: { ...s.patternChoice, ...patch } })),
+      replacePatternChoice: (patternChoice) => set({ patternChoice: { ...patternChoice } }),
+      resetPatternChoice: () => set({ patternChoice: { ...DEFAULT_PATTERN } }),
 
       job: EMPTY_JOB,
       startJob: async () => {
-        const { project, wallId, params, job } = get();
+        const { project, wallId, params, patternChoice, job } = get();
         if (!project || !wallId) return;
         if (job.state && (job.state.state === 'queued' || job.state.state === 'running')) return;
         const token = ++jobToken;
-        const basis = makeBasis(project.project_id, wallId, params);
+        const basis = makeBasis(project.project_id, wallId, params, patternChoice);
         set({ job: { ...EMPTY_JOB, state: { state: 'queued', progress: 0, stage: null, message: null, run_id: null } } });
         try {
-          const jobId = await api.startJob(project.project_id, { wall_id: wallId, params, planner_mode: 'collision_aware' });
+          const jobId = await api.startJob(project.project_id, {
+            wall_id: wallId,
+            params: { ...params, ...jobPatternParams(patternChoice) },
+            planner_mode: 'collision_aware',
+          });
           if (token !== jobToken) return;
           set((s) => ({ job: { ...s.job, jobId } }));
           for (;;) {
@@ -232,6 +254,32 @@ export function createAppStore(api: ApiPort, opts: StoreOptions = {}): AppStore 
       },
 
       run: null,
+      patternReports: {},
+      patternReportErrors: {},
+      loadPatternReport: async (partId) => {
+        const run = get().run;
+        if (!run) return;
+        const key = `${run.runId}|${partId}`;
+        if (get().patternReports[key]) return;
+        try {
+          const report = await api.patternReport(run.runId, partId);
+          set((s) => ({ patternReports: { ...s.patternReports, [key]: report } }));
+        } catch (e) {
+          set((s) => ({ patternReportErrors: { ...s.patternReportErrors, [key]: errText(e) } }));
+        }
+      },
+      loadPatternLayer: async (partId, layer) => {
+        const run = get().run;
+        if (!run) throw new Error('Kein Lauf vorhanden');
+        const key = `${run.runId}|${partId}|${layer}`;
+        let hit = layerCache.get(key);
+        if (!hit) {
+          hit = api.patternLayer(run.runId, partId, layer);
+          layerCache.set(key, hit);
+          hit.catch(() => layerCache.delete(key));
+        }
+        return hit;
+      },
       loadRunFile: async (path) => {
         const run = get().run;
         if (!run) throw new Error('Kein Lauf vorhanden');
@@ -278,6 +326,7 @@ export function stepInputs(s: AppState): StepInputs {
     projectId: s.project?.project_id ?? null,
     wallId: s.wallId,
     params: s.params,
+    pattern: s.patternChoice,
     runBasis: s.run?.basis ?? null,
   };
 }

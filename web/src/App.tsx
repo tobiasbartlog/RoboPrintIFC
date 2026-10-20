@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DecomposeStep } from './components/DecomposeStep';
 import { ExportStep } from './components/ExportStep';
 import { JobBar } from './components/JobBar';
+import { SceneLegend } from './components/SceneLegend';
 import { ModelStep } from './components/ModelStep';
 import { SimulationStep } from './components/SimulationStep';
 import { StepperBar } from './components/StepperBar';
@@ -19,6 +20,7 @@ import { PatternStoreProvider, usePatternStoreApi } from './state/patternContext
 import { createPatternStore, type PatternStore } from './state/patternStore';
 import { createAppStore, type AppStore } from './state/store';
 import { StoreProvider, useAppStore, useAppStoreApi } from './state/storeContext';
+import { ViewContext, type View } from './state/viewContext';
 
 const theme = createTheme({ primaryColor: 'blue', defaultRadius: 'md' });
 
@@ -105,7 +107,7 @@ function useDirectEntry() {
   }, [store]);
 }
 
-export type View = 'flow' | 'pattern';
+export type { View } from './state/viewContext';
 
 /** Ansicht aus der URL (`?view=muster`), sonst der Ablauf. */
 export function viewFromSearch(search: string): View {
@@ -138,6 +140,7 @@ function Shell({ initialView }: { initialView: View }) {
     if (view === 'pattern' && patternStore.getState().catalog === null) void patternStore.getState().loadCatalog();
   }, [view, patternStore]);
   return (
+    <ViewContext.Provider value={setView}>
     <AppShell header={{ height: 56 }} aside={{ width: { base: 340, lg: 440 }, breakpoint: 'sm' }} padding="md">
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
@@ -164,6 +167,7 @@ function Shell({ initialView }: { initialView: View }) {
                 <PlayerScene />
                 <WallPreviewLayer />
                 <SceneEmptyHint />
+                <SceneLegend />
               </Box>
             </>
           )}
@@ -176,6 +180,7 @@ function Shell({ initialView }: { initialView: View }) {
         </Box>
       </AppShell.Aside>
     </AppShell>
+    </ViewContext.Provider>
   );
 }
 

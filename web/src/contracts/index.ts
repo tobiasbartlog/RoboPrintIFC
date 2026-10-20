@@ -15,6 +15,8 @@ export type { JobCreate } from './JobCreate';
 export type { JobCreated } from './JobCreated';
 export type { JobState } from './JobState';
 export type { BBox, Cause, PartArtifact, Placement } from './PartArtifact';
+export type { PartLayerPath, PartLayerSegment, PartPatternLayer } from './PartPatternLayer';
+export type { PartKindStat, PartLayerChanges, PartLayerStat, PartPatternReport } from './PartPatternReport';
 export type { PatternCatalog, PatternInfo, PatternParamSpec } from './PatternCatalog';
 export type { PatternPresetCreate } from './PatternPresetCreate';
 export type { PatternPreset, PatternPresetEntry } from './PatternPresetEntry';
