@@ -18,6 +18,8 @@ from shapely.geometry.polygon import orient
 QUAD_SEGS = 16
 #: Abtastung für Abstandsprüfungen
 DENSE_MM = 2.0
+#: Faktoren auf den Eckradius, falls die volle Rundung die Topologie eines Offsets ändert
+RADIUS_STEPS = (1.0, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1)
 
 
 def polygons(geom: Any) -> list[Polygon]:
@@ -43,16 +45,23 @@ def offset_region(region: Any, offset_mm: float, corner_radius_mm: float = 0.0) 
     Erosion um `offset_mm` mit runder Fuge: konkave Ecken (Laibungen, L-Ecken, Löcher) werden
     konzentrische Bögen mit Radius `offset_mm` um die Ecke. Konvexe Ecken werden mit
     `corner_radius_mm` gerundet (Erosion um offset + r, Dilatation um r). Ändert die Rundung die
-    Topologie (Anzahl Teile oder Löcher, z. B. an schmalen Hälsen), gilt die ungerundete Fläche.
+    Topologie (Anzahl Teile oder Löcher, z. B. an schmalen Hälsen oder bei einem Ring, der
+    schmaler als 2·r ist), wird r schrittweise verkleinert (RADIUS_STEPS, größter passender Radius,
+    z. B. Pfeiler 150 mm: innere Schale 60 mm breit → r = 28,5 statt einer scharfen Ecke); erst
+    wenn auch r/10 nicht passt, gilt die ungerundete Fläche.
     """
     base = region.buffer(-offset_mm, join_style="round", quad_segs=QUAD_SEGS)
     if corner_radius_mm <= 0 or base.is_empty:
         return base
-    r = corner_radius_mm
-    rounded = region.buffer(-(offset_mm + r), join_style="round", quad_segs=QUAD_SEGS).buffer(
-        r, join_style="round", quad_segs=QUAD_SEGS
-    )
-    return rounded if _signature(rounded) == _signature(base) else base
+    sig = _signature(base)
+    for k in RADIUS_STEPS:
+        r = corner_radius_mm * k
+        rounded = region.buffer(-(offset_mm + r), join_style="round", quad_segs=QUAD_SEGS).buffer(
+            r, join_style="round", quad_segs=QUAD_SEGS
+        )
+        if _signature(rounded) == sig:
+            return rounded
+    return base
 
 
 def offset_ring(region: Any, offset_mm: float, corner_radius_mm: float = 0.0) -> list[tuple[str, np.ndarray]]:
@@ -296,7 +305,10 @@ class Loop:
         e = s1 % L
         if e <= s0 + 1e-9:
             e += L
-        inner = np.concatenate([self.cum[1:-1], self.cum[1:-1] + L, self.cum[1:-1] + 2 * L])
+        # Alle Eckpunkte inkl. des Ringanfangs (cum[0] + k·L): Läuft das Stück über den Ringanfang,
+        # muss dessen Eckpunkt erhalten bleiben (sonst wird eine scharfe Ecke zur Diagonale).
+        base = self.cum[:-1]
+        inner = np.concatenate([base, base + L, base + 2 * L])
         inner = inner[(inner > s0 + 1e-9) & (inner < e - 1e-9)]
         return np.vstack([self.point(s0), *[self.point(x) for x in inner], self.point(e)])
 

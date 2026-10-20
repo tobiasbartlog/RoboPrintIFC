@@ -40,7 +40,8 @@ Aufbau je Insel
    weit weg von Außen- und Stoßfläche.
 
 Kontakte (Art `shell`) werden gemessen und deklariert: Zonen, in denen die Infill-Mittellinie einer
-Schale (Bogenlängenabstand > 2·w) bis w + contact_tol nahekommt.
+Schale (Bogenlängenabstand > 2·w) bis w + contact_tol nahekommt; Segmente (−1, 0) = (Schale,
+Infill-Segment), der Kern verschiebt den Infill-Index.
 """
 
 from __future__ import annotations
@@ -485,7 +486,7 @@ def shell_contacts(pts: np.ndarray, printed: Printed, w: float, tol: float) -> l
         mid = run[len(run) // 2]
         at = (dense[mid] + printed.pts[j[mid]]) / 2.0
         out.append(
-            Contact("shell", tuple(at), float(s[run[-1]] - s[run[0]]) + CHECK_MM, (-1, -1), float(d[k]))
+            Contact("shell", tuple(at), float(s[run[-1]] - s[run[0]]) + CHECK_MM, (-1, 0), float(d[k]))
         )
     return out
 

@@ -134,10 +134,16 @@ def build_island(
         ip = _normalize(inf.build(ictx))
         off = len(plan.segments)
         plan.segments.extend(ip.segments)
+        # Indizes ≥ 0 zählen in den Infill-Segmenten, −1 heißt „nicht zugeordnet“ (z. B. die
+        # Schale): jeder Index wird für sich verschoben, −1 bleibt −1.
         plan.contacts.extend(
-            Contact(c.kind, c.at, c.length_mm, (c.segments[0] + off, c.segments[1] + off), c.distance_mm)
-            if min(c.segments) >= 0
-            else c
+            Contact(
+                c.kind,
+                c.at,
+                c.length_mm,
+                tuple(sorted(k + off if k >= 0 else -1 for k in c.segments)),
+                c.distance_mm,
+            )
             for c in ip.contacts
         )
         plan.meta["infill"] = ip.meta

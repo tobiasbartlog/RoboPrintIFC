@@ -173,10 +173,9 @@ etwa 7 %.
 - Im AUFTRAG steht für eine Schale je Seite ein „Infill-Band von 140 mm bei 200 mm Wand“. 140 mm ist
   die Hohlraumbreite. Das Band der Mittellinien ist 110 mm breit (140 − w), die Amplitude also
   56,5 mm. Das ist kein Widerspruch, nur eine Begriffsfrage.
-- Infill-Kontakte deklariert die Familie mit `segments = (-1, -1)`. `build_island` verschiebt nur
-  nichtnegative Indizes um die Zahl der Schalensegmente, ein Kontakt Infill ↔ Schale lässt sich
-  also nicht mit beiden Indizes angeben. Die gemessenen Kontakte in `metrics` tragen die richtigen
-  Indizes. Vorschlag für den Kern: Indizes im Infill-Kontext relativ zu `printed + segments`.
+- Infill-Kontakte deklariert die Familie mit `segments = (−1, 0)` (Schale nicht zugeordnet,
+  Infill-Segment 0); seit der Kern-Gegenprüfung verschiebt `build_island` jeden Index ≥ 0 für sich.
+  Die gemessenen Kontakte in `metrics` tragen die echten Indizes.
 - Orakel M6 (Vorschlag G9): Die Zielwarnung (Radius < w) schlägt beim Grundmuster mit exakt 30 mm
   Bögen an (gemessen 28,0 mm). Vorschlag: dieselbe Toleranz von 5 % wie im Kern (`RADIUS_TOL`),
   bezogen auf das Fenster, sonst warnt jedes Muster.
