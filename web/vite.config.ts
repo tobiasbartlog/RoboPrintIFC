@@ -22,5 +22,7 @@ export default defineConfig({
     globals: true,
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['src/test-setup.ts'],
+    // Ganze App-Abläufe unter Last (parallele Agenten auf 4 vCPU): 5 s reichen nicht verlässlich.
+    testTimeout: 30_000,
   },
 });

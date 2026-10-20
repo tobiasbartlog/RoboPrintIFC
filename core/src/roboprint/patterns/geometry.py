@@ -7,6 +7,7 @@ Kreisbögen, Biarc-Übergänge (zwei tangentenstetige Bögen) und Eckenrundung (
 
 from __future__ import annotations
 
+import bisect
 import math
 from typing import Any
 
@@ -146,16 +147,51 @@ def _turn_deg(p: np.ndarray, closed: bool) -> np.ndarray:
     return turn
 
 
-def _seg_dev(pts: np.ndarray, a: np.ndarray, b: np.ndarray) -> float:
-    """Größter Abstand der Punkte zur Strecke a-b."""
-    if len(pts) == 0:
-        return 0.0
-    ab = b - a
-    L2 = float(ab @ ab)
+def _greedy_chords(
+    p: np.ndarray, s: np.ndarray, forced: np.ndarray, step_mm: float, chord_tol_mm: float
+) -> list[int]:
+    """Indizes der gierigen Sehnenwahl von `resample_curve`. Reines Python über Listen: Die Stücke
+    sind kurz (≤ step_mm), und die Abweichungsprüfung bricht am ersten Punkt über chord_tol ab;
+    das ist um ein Mehrfaches schneller als die frühere numpy-Fassung je Kandidat (gleiche Rechnung,
+    eingefroren in tests/patterns_resample_reference.py)."""
+    xs, ys, sl, fl = p[:, 0].tolist(), p[:, 1].tolist(), s.tolist(), forced.tolist()
+    n, nf = len(xs), len(fl)
+    out = [0]
+    i = fi = 0
+    while i < n - 1:
+        jmax = bisect.bisect_right(sl, sl[i] + step_mm + 1e-9) - 1
+        jmax = min(max(jmax, i + 1), n - 1)
+        while fi < nf and fl[fi] <= i:
+            fi += 1
+        if fi < nf:
+            jmax = min(jmax, fl[fi])
+        j = jmax
+        ax, ay = xs[i], ys[i]
+        while j > i + 1 and _chord_exceeds(xs, ys, i, j, ax, ay, chord_tol_mm):
+            j -= 1
+        out.append(j)
+        i = j
+    return out
+
+
+def _chord_exceeds(
+    xs: list[float], ys: list[float], i: int, j: int, ax: float, ay: float, tol: float
+) -> bool:
+    """Liegt ein Punkt i + 1 … j − 1 weiter als `tol` von der Strecke i → j? (Projektion auf die
+    Strecke, auf [0, 1] begrenzt, dann der Abstand.)"""
+    abx, aby = xs[j] - ax, ys[j] - ay
+    L2 = abx * abx + aby * aby
+    sqrt = math.sqrt
     if L2 < 1e-18:
-        return float(np.linalg.norm(pts - a, axis=1).max())
-    t = np.clip((pts - a) @ ab / L2, 0.0, 1.0)
-    return float(np.linalg.norm(pts - (a + t[:, None] * ab), axis=1).max())
+        return any(sqrt((xs[m] - ax) ** 2 + (ys[m] - ay) ** 2) > tol for m in range(i + 1, j))
+    for m in range(i + 1, j):
+        x, y = xs[m], ys[m]
+        t = ((x - ax) * abx + (y - ay) * aby) / L2
+        t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+        ex, ey = x - (ax + t * abx), y - (ay + t * aby)
+        if sqrt(ex * ex + ey * ey) > tol:
+            return True
+    return False
 
 
 def resample_curve(
@@ -181,22 +217,7 @@ def resample_curve(
     corner = _turn_deg(p[:-1] if closed else p, closed) > keep_angle_deg
     if closed:
         corner = np.append(corner, True)
-    forced = np.flatnonzero(corner)
-    s = arc_length(p)
-    n = len(p)
-    out = [0]
-    i = 0
-    while i < n - 1:
-        jmax = int(np.searchsorted(s, s[i] + step_mm + 1e-9, side="right")) - 1
-        jmax = min(max(jmax, i + 1), n - 1)
-        f = forced[np.searchsorted(forced, i, side="right") :]
-        if len(f):
-            jmax = min(jmax, int(f[0]))
-        j = jmax
-        while j > i + 1 and _seg_dev(p[i + 1 : j], p[i], p[j]) > chord_tol_mm:
-            j -= 1
-        out.append(j)
-        i = j
+    out = _greedy_chords(p, arc_length(p), np.flatnonzero(corner), step_mm, chord_tol_mm)
     res = densify(p[out], step_mm)
     if closed:
         res[-1] = res[0]
@@ -281,6 +302,15 @@ class Loop:
         k, t = self._seg(s)
         return self.pts[k] + t * (self.pts[k + 1] - self.pts[k])
 
+    def points(self, s: np.ndarray) -> np.ndarray:
+        """`point` für viele Bogenlängen auf einmal (elementweise dieselbe Rechnung)."""
+        s = np.asarray(s, float) % self.length
+        k = np.clip(np.searchsorted(self.cum, s, side="right") - 1, 0, len(self.pts) - 2)
+        L = self.cum[k + 1] - self.cum[k]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t = np.where(L > 0, (s - self.cum[k]) / L, 0.0)
+        return self.pts[k] + t[:, None] * (self.pts[k + 1] - self.pts[k])
+
     def tangent(self, s: float, incoming: bool = False) -> np.ndarray:
         """Einheitstangente; an einem Eckpunkt die Richtung des folgenden Stücks
         (`incoming=True`: des ankommenden)."""
@@ -310,7 +340,7 @@ class Loop:
         base = self.cum[:-1]
         inner = np.concatenate([base, base + L, base + 2 * L])
         inner = inner[(inner > s0 + 1e-9) & (inner < e - 1e-9)]
-        return np.vstack([self.point(s0), *[self.point(x) for x in inner], self.point(e)])
+        return np.vstack([self.point(s0), self.points(inner), self.point(e)])
 
     def reversed(self) -> Loop:
         return Loop(self.pts[::-1].copy())
@@ -348,16 +378,24 @@ def arc_points(
     return np.column_stack([center[0] + r * np.cos(ang), center[1] + r * np.sin(ang)])
 
 
-def tangent_arc(
-    a: np.ndarray, ta: np.ndarray, b: np.ndarray, chord_tol_mm: float = 0.5, step_mm: float = 20.0
-) -> tuple[np.ndarray, float]:
-    """Bogen von a (Richtung ta) nach b. Rückgabe (Punkte, Radius; inf für eine Gerade)."""
+def _arc_radius(a: np.ndarray, ta: np.ndarray, b: np.ndarray) -> tuple[float | None, np.ndarray]:
+    """Vorzeichenbehafteter Radius des Bogens von a (Richtung ta) nach b (> 0: Mittelpunkt links,
+    gegen den Uhrzeigersinn; None: Gerade) und die Normale links von ta."""
     c = b - a
     n = _perp(ta)
     den = 2.0 * float(n @ c)
     if abs(den) < 1e-12 * max(1.0, float(c @ c)):
+        return None, n
+    return float(c @ c) / den, n
+
+
+def tangent_arc(
+    a: np.ndarray, ta: np.ndarray, b: np.ndarray, chord_tol_mm: float = 0.5, step_mm: float = 20.0
+) -> tuple[np.ndarray, float]:
+    """Bogen von a (Richtung ta) nach b. Rückgabe (Punkte, Radius; inf für eine Gerade)."""
+    rs, n = _arc_radius(a, ta, b)
+    if rs is None:
         return densify(np.vstack([a, b]), step_mm), math.inf
-    rs = float(c @ c) / den  # vorzeichenbehaftet: > 0 Mittelpunkt links (gegen den Uhrzeigersinn)
     ctr = a + rs * n
     va, vb = a - ctr, b - ctr
     sweep = math.atan2(_cross(va, vb), float(va @ vb))
@@ -370,18 +408,11 @@ def tangent_arc(
     return pts, abs(rs)
 
 
-def biarc(
-    p1: np.ndarray,
-    t1: np.ndarray,
-    p2: np.ndarray,
-    t2: np.ndarray,
-    chord_tol_mm: float = 0.5,
-    step_mm: float = 20.0,
-) -> tuple[np.ndarray, float] | None:
-    """Tangentenstetiger Übergang aus zwei Kreisbögen von p1 (Richtung t1) nach p2 (Richtung t2),
-    mit gleich langen Tangentenhenkeln. Zwischen zwei parallelen Geraden im Abstand d mit
-    Längsversatz 2·sqrt(R² − (R − d/2)²) sind das genau zwei Bögen mit Radius R (S-Kurve).
-    Rückgabe (Punkte, kleinerer Radius) oder None, wenn es keinen Biarc gibt."""
+def _biarc_mid(
+    p1: np.ndarray, t1: np.ndarray, p2: np.ndarray, t2: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """Verbindungspunkt pm des Biarcs und die Einheitstangenten (t1, tm) an seinen Bogenanfängen;
+    None, wenn es keinen Biarc gibt."""
     t1 = t1 / np.linalg.norm(t1)
     t2 = t2 / np.linalg.norm(t2)
     v = p2 - p1
@@ -398,12 +429,42 @@ def biarc(
     if not math.isfinite(d) or d <= 1e-9:
         return None
     pm = 0.5 * (p1 + d * t1 + p2 - d * t2)
-    a1, r1 = tangent_arc(p1, t1, pm, chord_tol_mm, step_mm)
     tm = pm - (p1 + d * t1)
     if np.linalg.norm(tm) < 1e-12:
         tm = t1
-    a2, r2 = tangent_arc(pm, tm / np.linalg.norm(tm), p2, chord_tol_mm, step_mm)
+    return t1, pm, tm / np.linalg.norm(tm)
+
+
+def biarc(
+    p1: np.ndarray,
+    t1: np.ndarray,
+    p2: np.ndarray,
+    t2: np.ndarray,
+    chord_tol_mm: float = 0.5,
+    step_mm: float = 20.0,
+) -> tuple[np.ndarray, float] | None:
+    """Tangentenstetiger Übergang aus zwei Kreisbögen von p1 (Richtung t1) nach p2 (Richtung t2),
+    mit gleich langen Tangentenhenkeln. Zwischen zwei parallelen Geraden im Abstand d mit
+    Längsversatz 2·sqrt(R² − (R − d/2)²) sind das genau zwei Bögen mit Radius R (S-Kurve).
+    Rückgabe (Punkte, kleinerer Radius) oder None, wenn es keinen Biarc gibt."""
+    mid = _biarc_mid(p1, t1, p2, t2)
+    if mid is None:
+        return None
+    t1, pm, tm = mid
+    a1, r1 = tangent_arc(p1, t1, pm, chord_tol_mm, step_mm)
+    a2, r2 = tangent_arc(pm, tm, p2, chord_tol_mm, step_mm)
     return np.vstack([a1, a2[1:]]), min(r1, r2)
+
+
+def biarc_radius(p1: np.ndarray, t1: np.ndarray, p2: np.ndarray, t2: np.ndarray) -> float | None:
+    """Kleinerer Radius des Biarcs wie `biarc`, ohne Punkte (None, wenn es keinen gibt)."""
+    mid = _biarc_mid(p1, t1, p2, t2)
+    if mid is None:
+        return None
+    t1, pm, tm = mid
+    r1, _ = _arc_radius(p1, t1, pm)
+    r2, _ = _arc_radius(pm, tm, p2)
+    return min(math.inf if r1 is None else abs(r1), math.inf if r2 is None else abs(r2))
 
 
 def fillet_polyline(

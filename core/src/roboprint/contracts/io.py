@@ -14,6 +14,8 @@ from .api import (
     JobCreate,
     JobCreated,
     JobState,
+    PartPatternLayer,
+    PartPatternReport,
     PatternCatalog,
     PatternPresetCreate,
     PatternPresetEntry,
@@ -33,6 +35,7 @@ TOP_LEVEL_MODELS: tuple[type[BaseModel], ...] = (
     Summary, Scene, PartArtifact, Toolpath, Trajectory, Scenario,
     Health, Example, ProjectCreate, ProjectCreated, ProjectInfo, JobCreate, JobCreated, JobState,
     PatternCatalog, PatternPreviewRequest, PatternPreview, PatternPresetCreate, PatternPresetEntry,
+    PartPatternReport, PartPatternLayer,
 )  # fmt: skip
 
 

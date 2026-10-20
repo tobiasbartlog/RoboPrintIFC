@@ -1,6 +1,7 @@
 /** Reine Stepper- und Veraltet-Logik (kein DOM, kein Store). */
 import type { ParamValues } from './params';
 import { paramsKey } from './params';
+import { DEFAULT_PATTERN, type PatternChoice } from './patternChoice';
 
 export const STEP_IDS = ['model', 'decompose', 'simulation', 'export'] as const;
 export type StepId = (typeof STEP_IDS)[number];
@@ -25,19 +26,26 @@ export interface StepInputs {
   projectId: string | null;
   wallId: string | null;
   params: ParamValues;
+  /** Musterwahl (Standard: kein Muster). Sie gehört wie die Parameter zur Basis des Laufs. */
+  pattern?: PatternChoice;
   /** Basis des vorhandenen Laufs, falls vorhanden. */
   runBasis: RunBasis | null;
 }
 
-export function makeBasis(projectId: string, wallId: string, params: ParamValues): RunBasis {
-  return { projectId, wallId, paramsKey: paramsKey(params) };
+/** Fingerabdruck aus Parametern und Musterwahl. */
+function basisKey(params: ParamValues, pattern: PatternChoice = DEFAULT_PATTERN): string {
+  return paramsKey({ ...params, ...pattern });
+}
+
+export function makeBasis(projectId: string, wallId: string, params: ParamValues, pattern: PatternChoice = DEFAULT_PATTERN): RunBasis {
+  return { projectId, wallId, paramsKey: basisKey(params, pattern) };
 }
 
 export function isRunStale(i: StepInputs): boolean {
   const b = i.runBasis;
   if (!b) return false;
   if (b.direct) return false;
-  return b.projectId !== i.projectId || b.wallId !== i.wallId || b.paramsKey !== paramsKey(i.params);
+  return b.projectId !== i.projectId || b.wallId !== i.wallId || b.paramsKey !== basisKey(i.params, i.pattern);
 }
 
 export function stepStatuses(i: StepInputs): Record<StepId, StepStatus> {

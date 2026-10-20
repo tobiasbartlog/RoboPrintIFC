@@ -34,6 +34,11 @@ Aufbau je Insel
    Schalen und Welle bleiben ≥ (1 − ε)·w + 0,3 mm entfernt, der Radius ≥ w/2. Passt die gewählte
    Phase gar nicht, gilt Phase 0 (meta `phase_deg`); passt gar nichts, entfällt das Infill (meta
    `skipped`), der Schalenpfad bleibt gültig.
+   Laufzeit (Vorschau < 100 ms): Je Wellenanfang werden nur Eckradius und die ersten zwei Punkte
+   der Welle gerechnet (`_wellen_form`), der Einlaufradius ohne Bogenpunkte (`biarc_radius`); die
+   Prüfung auf Kreuzung und Doppelmaterial (Anfang 2·λ + 2·w der Welle) läuft erst, wenn ein
+   Kandidat über Abbruch oder Auswahl entscheidet, die ganze Welle nur für den gewählten. Das
+   Ergebnis gleicht der früheren vollständigen Suche (test_patterns_wellen_perf.py).
 4. **Ende und Schichtwechsel.** Die Welle endet am Bandende in einem Scheitel (Phase 0) und
    berührt dort die Stirnschale. Mit `alternate` druckt Schicht L + 1 dieselbe Bahn rückwärts:
    Ende L = Anfang L + 1, der Schichtwechsel ist ein reiner Z-Hub (M4). Die Naht liegt im Hohlraum,
@@ -47,20 +52,36 @@ Infill-Segment), der Kern verschiebt den Infill-Index.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 from scipy.spatial import cKDTree
 from shapely.geometry import LineString
 
-from roboprint.patterns.geometry import biarc, dedupe, densify, fillet_polyline, polygons, resample_curve
-from roboprint.patterns.layout import fit_to_length
+from roboprint.patterns.families._wellen_form import (  # noqa: F401 (Teil der Schnittstelle)
+    FINE_MM,
+    RADIUS_TIE_MM,
+    _trapezoid_verts,
+    clip_u,
+    sine_uv,
+    trapezoid_radius,
+    trapezoid_uv,
+    wave_uv,
+    zigzag_height,
+)
+from roboprint.patterns.geometry import (
+    biarc,
+    biarc_radius,
+    dedupe,
+    densify,
+    polygons,
+    resample_curve,
+)
 from roboprint.patterns.metrics import RADIUS_TOL
 from roboprint.patterns.registry import pattern
 from roboprint.patterns.types import Contact, IslandContext, IslandPlan, ParamSpec, Segment
 
-#: Abtastung der Sollkurve vor dem Neu-Abtasten (mm)
-FINE_MM = 1.0
 #: Abtastung für Abstandsprüfungen (mm)
 CHECK_MM = 2.0
 #: Reserve über (1 − ε)·w bei der Einlaufsuche (Sehnenfehler der späteren Abtastung)
@@ -165,118 +186,6 @@ def to_xy(fr: dict[str, Any], uv: np.ndarray) -> np.ndarray:
     return fr["center"] + uv[:, :1] * fr["eu"] + uv[:, 1:2] * fr["ev"]
 
 
-# --------------------------------------------------------------------------- Wellenformen
-
-
-def sine_uv(u_s: float, u_e: float, lam: float, amp: float, phase: float, sigma: float) -> np.ndarray:
-    # Stücke ≤ FINE_MM auch an steilen Flanken (resample_pieces hält längere Stücke für Geraden)
-    du = FINE_MM / math.sqrt(1.0 + (2 * math.pi * amp / lam) ** 2)
-    n = max(2, math.ceil((u_e - u_s) / du) + 1)
-    u = np.linspace(u_s, u_e, n)
-    return np.column_stack([u, sigma * amp * np.cos(2 * math.pi * (u - u_s) / lam + phase)])
-
-
-def zigzag_height(lam: float, amp: float, radius: float) -> float:
-    """Höhe H der Zickzack-Scheitelpunkte, bei der der Bogenscheitel (Radius r) genau A erreicht:
-    H − r·(√(1 + (4H/λ)²) − 1) = A. Lösbar nur für λ > 4·r (sonst wächst der Abzug schneller als
-    H: zwei Bögen mit r füllen die Halbwelle allein); dann inf."""
-    if lam <= 4.0 * radius:
-        return math.inf
-    f = lambda h: h - radius * (math.sqrt(1.0 + (4.0 * h / lam) ** 2) - 1.0) - amp  # noqa: E731
-    lo, hi = amp, amp + 1.0
-    while f(hi) < 0:
-        hi *= 2.0
-    for _ in range(60):
-        mid = 0.5 * (lo + hi)
-        lo, hi = (mid, hi) if f(mid) < 0 else (lo, mid)
-    return hi
-
-
-def trapezoid_uv(
-    u_s: float, u_e: float, lam: float, amp: float, phase: float, sigma: float, plateau: float, radius: float
-) -> tuple[np.ndarray, float, float]:
-    """Gerundete Trapezwelle (plateau = 0: Zickzack, plateau = λ/2: Mäander), Plateaumitte des
-    ersten Scheitels bei u_s − phase/(2π)·λ. Rückgabe (uv, kleinster Eckradius, erreichte
-    Amplitude); uv ist leer, wenn die Form mit diesem r nicht in die Halbwelle passt."""
-    half = lam / 2.0
-    P = min(max(plateau, 0.0), half)
-    shift = phase / (2 * math.pi) * lam
-    height = amp if P > 1e-9 else zigzag_height(lam, amp, radius)
-    if not math.isfinite(height):
-        return np.zeros((0, 2)), 0.0, 0.0
-    verts = []
-    for j in range(math.floor(shift / half) - 2, math.ceil((u_e - u_s + shift) / half) + 3):
-        cu = u_s - shift + j * half
-        sv = sigma * (1 if j % 2 == 0 else -1) * height
-        verts += [(cu - P / 2, sv), (cu + P / 2, sv)] if P > 1e-9 else [(cu, sv)]
-    # Mäander: senkrechte Flanken, Nachbarecken mit gleichem u (gewollt)
-    uv, rmin = fillet_polyline(np.array(verts), radius, chord_tol_mm=0.05, step_mm=FINE_MM)
-    uv = clip_u(uv, u_s, u_e)
-    peak = float(np.max(np.abs(uv[:, 1]))) if len(uv) else 0.0
-    return uv, rmin, peak
-
-
-def clip_u(uv: np.ndarray, u_s: float, u_e: float) -> np.ndarray:
-    """Polylinie (u nicht fallend, deckt [u_s, u_e] ab) auf [u_s, u_e] schneiden, mit exakten
-    Endpunkten."""
-    u = uv[:, 0]
-    i0 = int(np.searchsorted(u, u_s, side="right"))
-    i1 = int(np.searchsorted(u, u_e, side="left"))
-    if i0 == 0 or i1 >= len(u) or i0 > i1:
-        raise ValueError("Welle deckt den Bereich nicht ab")
-    a, b = uv[i0 - 1], uv[i0]
-    c, d = uv[i1 - 1], uv[i1]
-    p = a + (b - a) * (u_s - a[0]) / (b[0] - a[0])
-    q = c + (d - c) * (u_e - c[0]) / (d[0] - c[0]) if d[0] > c[0] else d
-    return dedupe(np.vstack([p, uv[i0:i1], q]))
-
-
-def wave_uv(
-    shape: str,
-    u_s: float,
-    u_e: float,
-    amp: float,
-    opts: dict[str, Any],
-    sigma: float,
-    n_fixed: int | None = None,
-):
-    """Welle von u_s bis u_e: (uv, Wellenlänge, Halbwellen, kleinster Radius der Sollkurve).
-    `n_fixed`: Zahl der Halbwellen vorgeben (Einlaufsuche, spart das erneute Anpassen)."""
-    total = u_e - u_s
-    lam_t = float(opts["wavelength_mm"])
-    w = float(opts["w"])
-    phase = math.radians(float(opts["phase_deg"]))
-    n0 = fit_to_length(total, lam_t / 2.0).count
-    target = w if shape == "sinus" else min(w, float(opts["round_radius_mm"]))
-    best = None
-    # Halbwellen verringern, bis der Radius das Ziel erreicht; begrenzt das Band den Radius
-    # (Mäander im 50-mm-Band: r ≤ A), bleibt die angepasste Zahl mit dem größten Radius.
-    for n in range(n_fixed or n0, 0, -1):
-        lam = 2.0 * total / n
-        if shape == "sinus":
-            r = lam * lam / (4 * math.pi**2 * amp) if amp > 1e-9 else math.inf
-            uv = None
-        else:
-            plateau = (
-                lam / 2.0 if shape == "maeander" else (0.0 if shape == "zickzack" else opts["plateau_mm"])
-            )
-            # Trapez: zu langes Plateau lässt keinen Platz für die Eckbögen → Plateau kürzen
-            for pl in dict.fromkeys([plateau, plateau / 2.0, 0.0] if shape == "trapez" else [plateau]):
-                uv, r, peak = trapezoid_uv(u_s, u_e, lam, amp, phase, sigma, pl, opts["round_radius_mm"])
-                if peak < amp - 0.5 and total >= lam / 2.0:  # Scheitel erreichen die Schale nicht
-                    r = 0.0
-                if r >= target - 1e-6:
-                    break
-        if best is None or r > best[3] + 0.05:
-            best = (uv, lam, n, r)
-        if r >= target - 1e-6:
-            break
-    uv, lam, n, r = best
-    if uv is None:
-        uv = sine_uv(u_s, u_e, lam, amp, phase, sigma)
-    return uv, lam, n, r
-
-
 # --------------------------------------------------------------------------- Abstände
 
 
@@ -297,10 +206,11 @@ class Printed:
         Punkt, dessen Bogenlängenabstand s + t > `exempt` ist?"""
         d, _ = self.tree.query(pts, distance_upper_bound=thresh)
         idx = np.flatnonzero(np.isfinite(d))
-        for i, near in zip(idx, self.tree.query_ball_point(pts[idx], thresh), strict=True):
-            if near and np.any(self.t[near] + s[i] > exempt):
-                return True
-        return False
+        if not len(idx):
+            return False
+        # alle Paare im Abstand ≤ thresh auf einmal (wie query_ball_point je Punkt)
+        pairs = cKDTree(pts[idx]).sparse_distance_matrix(self.tree, thresh, output_type="ndarray")
+        return bool(len(pairs) and np.any(self.t[pairs["j"]] + s[idx[pairs["i"]]] > exempt))
 
 
 def self_violates(pts: np.ndarray, s: np.ndarray, thresh: float, exempt: float) -> bool:
@@ -349,6 +259,26 @@ def resample_pieces(curve: np.ndarray, step_mm: float, chord_tol_mm: float) -> n
 # --------------------------------------------------------------------------- Aufbau
 
 
+class Join:
+    """Einlauf-Kandidat: Rangschlüssel (Einlaufradius auf 0,1 mm, −u), Kennwerte, Prüfung
+    (einmal gerechnet, bei Bedarf) und die ganze Kurve (bei Bedarf)."""
+
+    def __init__(
+        self,
+        key: tuple[float, float],
+        info: dict[str, Any],
+        check: Callable[[], bool],
+        curve: Callable[[], np.ndarray],
+    ):
+        self.key, self.info, self._check, self.curve = key, info, check, curve
+        self._ok: bool | None = None
+
+    def ok(self) -> bool:
+        if self._ok is None:
+            self._ok = bool(self._check())
+        return self._ok
+
+
 def build_wave(ctx: IslandContext, shape: str) -> IslandPlan:
     p = ctx.params
     w = p.w
@@ -392,55 +322,121 @@ def build_wave(ctx: IslandContext, shape: str) -> IslandPlan:
             return False
         return LineString(np.vstack([printed.pts[-3:], dense[1:]])).is_simple
 
-    cands: list[tuple[tuple[float, float], dict[str, Any]]] = []
-
     def try_join(
-        wave: np.ndarray, k: int, lam: float, n: int, r_wave: float, at: np.ndarray | None = None
-    ) -> float:
+        wave: np.ndarray,
+        k: int,
+        lam: float,
+        n: int,
+        r_wave: float,
+        at: np.ndarray | None = None,
+        prefix: Callable[[], np.ndarray] | None = None,
+        full: Callable[[], tuple[np.ndarray, float]] | None = None,
+    ) -> Join | None:
         """Einlauf-Biarc auf den Wellenpunkt `at` im Stück k → k + 1 (Standard: Punkt k), Rest der
-        Welle ab k + 1; Kandidat merken. Rückgabe: Einlaufradius (0 = nicht machbar)."""
+        Welle ab k + 1. Rückgabe: Kandidat (Prüfung auf Kreuzung und Doppelmaterial erst bei
+        Bedarf, `Join.ok`) oder None, wenn es keinen Biarc mit Radius ≥ w/2 gibt.
+
+        `wave` darf nur der Anfang der Welle sein (bitgleich, bis hinter Punkt k + 1); `prefix`
+        liefert dann den Anfang für die Prüfung (mindestens λ + 2·w + längstes Stück hinter k),
+        `full` die ganze Welle für den gewählten Kandidaten."""
         q = wave[k] if at is None else at
         tq = wave[k + 1] - wave[k]
-        res = biarc(entry, t_in, q, tq / np.linalg.norm(tq), 0.05, FINE_MM)
-        if res is None:
-            return 0.0
-        lead, r_lead = res
+        tq = tq / np.linalg.norm(tq)
+        r_lead = biarc_radius(entry, t_in, q, tq)  # Punkte erst bei Bedarf (`lead`)
+        if r_lead is None:
+            return None
         r_lead = min(r_lead, w)
         if min(r_lead, r_wave) < (1.0 - RADIUS_TOL) * w / 2.0:  # M6 hart
-            return 0.0
-        curve = np.vstack([lead, wave[k + 1 :]])
-        if not feasible(curve, float(arc_of(lead)[-1]) + lam + exempt):
-            return 0.0
+            return None
         u_join = float((q - fr["center"]) @ fr["eu"])
-        info = {"curve": curve, "lam": lam, "n": n, "r_wave": r_wave, "r_lead": r_lead, "u_s": u_join}
-        cands.append(((round(r_lead, 1), -u_join), info))
-        return r_lead
+        info = {"lam": lam, "n": n, "r_wave": r_wave, "r_lead": r_lead, "u_s": u_join}
+
+        def lead() -> np.ndarray:
+            return biarc(entry, t_in, q, tq, 0.05, FINE_MM)[0]
+
+        def full_wave() -> np.ndarray:
+            xy, info["r_wave"] = full()  # Radius der ganzen Welle (Bericht)
+            return xy
+
+        return Join(
+            (round(r_lead, 1), -u_join),
+            info,
+            lambda: _check(lead(), (wave if prefix is None else prefix())[k + 1 :], lam),
+            lambda: np.vstack([lead(), (wave if full is None else full_wave())[k + 1 :]]),
+        )
+
+    def _check(lead: np.ndarray, tail: np.ndarray, lam: float) -> bool:
+        """Kreuzung und Doppelmaterial bis λ + 2·w hinter dem Einlauf. Die Welle wird dafür hinter
+        dem Stück, das diese Stelle enthält, abgeschnitten (gleiches Ergebnis, weniger Punkte)."""
+        if len(tail) > 2:
+            seg = np.linalg.norm(np.diff(tail, axis=0), axis=1)
+            arc = np.concatenate([[0.0], np.cumsum(seg)])
+            tail = tail[: int(np.searchsorted(arc, lam + exempt + float(seg.max()) + 1.0, side="right")) + 1]
+        return feasible(np.vstack([lead, tail]), float(arc_of(lead)[-1]) + lam + exempt)
 
     def search(o: dict[str, Any], sigma: float) -> dict[str, Any] | None:
-        cands.clear()
+        # Kandidaten in Suchreihenfolge; gültig ist ein Kandidat erst mit `ok()` (Prüfung bei
+        # Bedarf: Für Abbruch und Auswahl zählen nur wenige, die übrigen werden nie geprüft)
+        cands: list[Join] = []
+
+        def good(c: Join | None) -> bool:
+            return c is not None and c.info["r_lead"] >= w - 1e-6 and c.ok()
+
         # 1. Wellenanfang u_s verschieben (Phasenpunkt am Einlauf), Welle bis zum Bandende angepasst
         lo = max(u0 - w, u_entry)
         n_fixed = None
         for u_s in np.arange(lo, lo + SEARCH_W * w + 1e-9, 1.0):
             if u1 - u_s < w:
                 break
-            uv, lam, n, r_wave = wave_uv(shape, float(u_s), u1, amp, o, sigma, n_fixed)
+            u_s = float(u_s)
+            # für den Einlauf genügen die ersten zwei Punkte, für die Prüfung 2·λ + 2·w + 10 mm, die
+            # ganze Welle erst für den gewählten Kandidaten (alle Stücke wie in der ganzen Welle)
+            uv, lam, n, r_wave = wave_uv(shape, u_s, u1, amp, o, sigma, n_fixed, start_only=True)
+
+            def part(
+                cut: tuple[float, float] | None, u_s: float = u_s, n: int = n
+            ) -> tuple[np.ndarray, float]:
+                uv, _, _, r = wave_uv(shape, u_s, u1, amp, o, sigma, n, cut)
+                return to_xy(fr, uv), r
+
             n_fixed = n
-            if len(uv) >= 2 and try_join(to_xy(fr, uv), 0, lam, n, r_wave) >= w - 1e-6:
+            if len(uv) < 2:
+                continue
+            c = try_join(
+                to_xy(fr, uv),
+                0,
+                lam,
+                n,
+                r_wave,
+                prefix=lambda part=part: part((2.0, exempt + 10.0))[0],
+                full=lambda part=part: part(None),
+            )
+            if c is not None:
+                cands.append(c)
+            if good(c):
                 break
         # 2. Reicht das nicht (z. B. Phase 180°: Scheitel auf der Gegenseite), Welle ab Bandanfang
         #    festhalten und später einsteigen (bis eine Wellenlänge weit, alle CHECK_MM)
-        if not cands or max(c[0][0] for c in cands) < (1.0 - RADIUS_TOL) * w:
+        thr = (1.0 - RADIUS_TOL) * w
+        if not any(c.key[0] >= thr and c.ok() for c in cands):
             uv, lam, n, r_wave = wave_uv(shape, max(u0, lo), u1, amp, o, sigma)
             fine = to_xy(fr, uv) if len(uv) >= 2 else np.zeros((0, 2))
             s_f = arc_of(fine)
             for s_k in np.arange(0.0, min(lam, s_f[-1] - w) if len(fine) else 0.0, CHECK_MM):
                 k = min(int(np.searchsorted(s_f, s_k, side="right")) - 1, len(fine) - 2)
                 t = (s_k - s_f[k]) / max(s_f[k + 1] - s_f[k], 1e-12)
-                if try_join(fine, k, lam, n, r_wave, fine[k] + t * (fine[k + 1] - fine[k])) >= w - 1e-6:
+                c = try_join(fine, k, lam, n, r_wave, fine[k] + t * (fine[k + 1] - fine[k]))
+                if c is not None:
+                    cands.append(c)
+                if good(c):
                     break
-        cands.sort(key=lambda c: c[0], reverse=True)
-        return next((c[1] for c in cands if feasible(c[1]["curve"], None)), None)
+        # stabil wie zuvor: gleiche Schlüssel in Suchreihenfolge
+        for c in sorted(cands, key=lambda c: c.key, reverse=True):
+            if c.ok():
+                curve = c.curve()
+                if feasible(curve, None):
+                    return {**c.info, "curve": curve}
+        return None
 
     # Erst der Scheitel auf der Seite, zu der der Eintritt zeigt; reicht der Einlaufradius nicht
     # (z. B. Eintritt parallel zum Band in Gegenrichtung: Kehre über die ganze Bandbreite), die

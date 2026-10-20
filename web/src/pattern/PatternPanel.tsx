@@ -4,7 +4,9 @@ import type { PatternParamSpec } from '../contracts';
 import { ErrorNote, Reason } from '../components/common';
 import { usePatternStore, usePatternStoreApi } from '../state/patternContext';
 import { CHOICE_LABEL, effectiveValue, inRange, num, outlineOfBox, patternInfo, type PatternValue } from '../state/patterns';
-import { useAppStore } from '../state/storeContext';
+import { choiceFromBuilder } from '../state/patternChoice';
+import { useAppStore, useAppStoreApi } from '../state/storeContext';
+import { useSetView } from '../state/viewContext';
 
 const ROLE_GROUP: Record<string, string> = {
   full: 'Ganze Wand (Schalen, Außen und Innen zusammen)',
@@ -307,6 +309,39 @@ function ExportSection() {
   );
 }
 
+/** Übergang in den Ablauf: Das Muster samt geänderten Reglern gilt für den nächsten Lauf. */
+function UseForRun() {
+  const store = useAppStoreApi();
+  const patternStore = usePatternStoreApi();
+  const setView = useSetView();
+  const hasWall = useAppStore((s) => s.project !== null && s.wallId !== null);
+  const ready = usePatternStore((s) => s.catalog !== null);
+  return (
+    <Stack gap={4}>
+      <Button
+        variant="filled"
+        disabled={!ready}
+        onClick={() => {
+          const ps = patternStore.getState();
+          const app = store.getState();
+          app.replacePatternChoice(choiceFromBuilder(ps.catalog, ps.pattern, ps.presetId, ps.params));
+          app.setStep(hasWall ? 'decompose' : 'model');
+          setView('flow');
+        }}
+        data-testid="pattern-use-for-run"
+      >
+        Für Lauf verwenden
+      </Button>
+      <Reason text={!ready ? 'Erst der Musterkatalog: ohne ihn lässt sich kein Muster übernehmen.' : null} testid="pattern-use-reason" />
+      <Text size="xs" c="dimmed" data-testid="pattern-use-hint">
+        {hasWall
+          ? 'Setzt das Muster in „Zerlegen & prüfen“ ein und wechselt dorthin.'
+          : 'Setzt das Muster für den nächsten Lauf; danach im Ablauf ein Modell und eine Wand wählen.'}
+      </Text>
+    </Stack>
+  );
+}
+
 /** Seitenpanel des Mustererstellers: Musterwahl, Maße, Regler, Speichern, Export. */
 export function PatternPanel() {
   const catalog = usePatternStore((s) => s.catalog);
@@ -368,6 +403,7 @@ export function PatternPanel() {
           data-testid="pattern-preset-select"
         />
       ) : null}
+      <UseForRun />
       <Accordion multiple defaultValue={['size', 'pattern', 'core', 'save']} variant="separated" data-testid="pattern-accordion">
         <Accordion.Item value="size">
           <Accordion.Control>Maße</Accordion.Control>

@@ -17,3 +17,6 @@ globalThis.ResizeObserver ??= class {
   unobserve() {}
   disconnect() {}
 };
+
+// Mantine-Auswahllisten scrollen den aktiven Eintrag ins Bild; jsdom kennt scrollIntoView nicht.
+Element.prototype.scrollIntoView ??= () => {};

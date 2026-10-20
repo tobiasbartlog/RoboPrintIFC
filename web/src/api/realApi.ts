@@ -26,5 +26,7 @@ export const realApi: ApiPort = {
   wallMeshUrl: (projectId, wallId, frame = 'L') =>
     `${client.API_BASE}/projects/${encodeURIComponent(projectId)}/walls/${encodeURIComponent(wallId)}.stl${frame === 'L' ? '' : `?frame=${frame}`}`,
   contextMeshUrl: (projectId) => `${client.API_BASE}/projects/${encodeURIComponent(projectId)}/context.stl`,
+  patternReport: (runId, partId) => client.loadPatternReport(runId, partId),
+  patternLayer: (runId, partId, layer) => client.loadPatternLayer(runId, partId, layer),
   assetBase: `${client.API_BASE}/assets`,
 };
