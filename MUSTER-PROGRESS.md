@@ -32,7 +32,7 @@ Die erste Zeile setzt nur das Skript.
 
 | Prüfung | Status | Kennzahl | Stand |
 |---|---|---|---|
-| G1–G8 (`scripts/verify.py`) | --fast grün (G1 G2 G3 G5 G8) | Ausgangslage | M0 18:30 |
+| G1–G8 (`scripts/verify.py`) | --fast grün (G1 G2 G3 G5 G8) | Ausgangslage | M0 18:10 |
 | Muster (`scripts/verify_muster.py`) | | | |
 
 ## Gate-Einwände
@@ -52,14 +52,14 @@ Die erste Zeile setzt nur das Skript.
 - `spec/` und `verify/` bleiben gesperrt. SPEC-Ergänzungen kommen als Nachtrag nach `docs/muster/`,
   das Muster-Orakel als Vorschlag nach `verify_muster/`.
 
-### 2026-10-20 18:30 M0 Einrichtung (Session start)
+### 2026-10-20 18:10 M0 Einrichtung (Session start)
 - `v2/strang` gemergt, `verify.py --fast` grün (G1, G2, G3, G5, G8; G4/G6/G7 nicht im Schnelllauf).
 - Artefaktformat für Muster festgelegt (`docs/muster/ARTEFAKT-FORMAT.md`): neue `kind` `infill`/`web`/`outfill`,
   `closed=false` für offene Segmente, Schichtpfad = Ringfolge mit `link_next`, senkrechter Wechsel als
   Verbinder mit waagrechter Länge ≤ 0,5 mm, opt-in-Parameter `layer_order`, `infill_pattern`, `outfill_pattern`.
 - M1-Workflow gestartet (R sonnet, K opus, O opus; K und O je mit Gegenlese-Agent).
 
-### 2026-10-20 18:50 Nutzer-Nachtrag 18:20 übernommen (Session start)
+### 2026-10-20 18:25 Nutzer-Nachtrag 18:20 übernommen (Session start)
 - Nachtrag: Outfill = Sollbruchstellen (O2, Foto `docs/muster/referenz/fugenwand-foto.jpg`), dazu
   parametrischer 2D-Musterersteller. Prioritäten neu: Kern/Orakel → Fugenwand → Musterersteller →
   Infill-Wellen/alternate → O1/O3.
