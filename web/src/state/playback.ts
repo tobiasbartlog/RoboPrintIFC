@@ -4,6 +4,7 @@
  */
 import type { PartArtifact, Scene, Toolpath, Trajectory } from '../contracts';
 import { duration, type CollisionRange } from '../player/clock';
+import { printProgress } from '../scene/progress';
 import type { LoadedRun } from '../scene/types';
 import type { ApiPort } from './apiPort';
 
@@ -92,7 +93,14 @@ export function createPlaybackSlice(set: SetFn, get: () => State, api: ApiPort):
         if (my !== token) return;
         const loaded: LoadedRun = {
           scene: sc,
-          parts: { [partId]: { part, toolpath, stlUrl: api.runFileUrl(runId, `${base}/part.stl`) } },
+          parts: {
+            [partId]: {
+              part,
+              toolpath,
+              stlUrl: api.runFileUrl(runId, `${base}/part.stl`),
+              progress: printProgress(trajectory, toolpath?.rings ?? null),
+            },
+          },
         };
         set({ playback: { runId, partId, trajectory, loaded }, playbackLoading: false });
       } catch (e) {

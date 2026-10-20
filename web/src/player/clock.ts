@@ -4,6 +4,7 @@
  * Index-Suche, Sample für die Szene, Timeline-Bereiche, Kollisionsliste und Debug-Objekt.
  */
 import type { Trajectory } from '../contracts';
+import type { PrintProgress } from '../scene/progress';
 import type { SceneSample } from '../scene/types';
 
 export type Status = Trajectory['status'][number];
@@ -33,8 +34,8 @@ export function duration(tr: Pick<Trajectory, 't_s'> | null): number {
   return tr.t_s[tr.t_s.length - 1] ?? 0;
 }
 
-/** Sample i so, wie die Szene es braucht. */
-export function sceneSample(tr: Trajectory, i: number): SceneSample | null {
+/** Sample i so, wie die Szene es braucht; mit `progress` samt Druckfortschritt fuer Volumen und Strang. */
+export function sceneSample(tr: Trajectory, i: number, progress?: PrintProgress | null): SceneSample | null {
   const q = tr.q[i];
   const tcp = tr.tcp[i];
   if (!q || !tcp) return null;
@@ -42,6 +43,7 @@ export function sceneSample(tr: Trajectory, i: number): SceneSample | null {
     q,
     tcp,
     layer: tr.layer[i] ?? 0,
+    printed: progress ? progress.at(i) : null,
     status: tr.status[i] ?? 'ok',
     pair: tr.pair[i] ?? null,
     witness: tr.witness[i] ?? null,
@@ -79,9 +81,12 @@ export function segments<V>(tS: readonly number[], values: readonly V[], keep: (
   return out;
 }
 
+/** Arten mit laufender Pumpe: Druck und Verbinder bilden zusammen einen Strang (SPEC §5.3). */
+export const PUMP_KINDS: readonly Kind[] = ['print', 'link'];
+/** Arten mit Pumpe aus: An- und Abfahrt am Strangende und der Travel zwischen Strängen. */
 export const TRAVEL_KINDS: readonly Kind[] = ['approach', 'retract', 'lift', 'transfer', 'lower'];
 
-/** Bereiche der Bewegungsarten (Druck und die fünf Travel-Arten). */
+/** Bereiche der Bewegungsarten (Druck, Verbinder und die fünf Arten ohne Pumpe). */
 export function kindSegments(tr: Pick<Trajectory, 't_s' | 'kind'>): Segment<Kind>[] {
   return segments(tr.t_s, tr.kind);
 }

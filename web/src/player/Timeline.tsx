@@ -64,6 +64,15 @@ function TrackImpl<V>({
 // zehntausenden Samples nur den Cursor bewegt.
 const Track = memo(TrackImpl) as typeof TrackImpl;
 
+/** Legende der Bewegungsarten: erst die Arten mit Pumpe (Druck, Verbinder), dann die ohne; Paare teilen eine Farbe. */
+const LEGEND_KINDS: readonly (readonly [Kind, string])[] = [
+  ['print', KIND_LABEL.print],
+  ['link', KIND_LABEL.link],
+  ['approach', 'An-/Abfahrt'],
+  ['lift', 'Heben/Senken'],
+  ['transfer', KIND_LABEL.transfer],
+];
+
 const range = (s: { t0: number; t1: number }) => `${clock(s.t0)}–${clock(s.t1)} min`;
 const kindColor = (v: Segment<Kind>['value']) => KIND_COLOR[v];
 const kindTitle = (s: Segment<Kind>) => `${KIND_LABEL[s.value]} ${range(s)}`;
@@ -110,10 +119,10 @@ export function Timeline({ trajectory, t, onSeek }: TimelineProps) {
       />
       </Stack>
       <Group gap="sm" style={{ rowGap: 4 }} wrap="wrap">
-        {(['print', 'approach', 'lift', 'transfer'] as const).map((k) => (
-          <Group key={k} gap={4} wrap="nowrap">
+        {LEGEND_KINDS.map(([k, label]) => (
+          <Group key={k} gap={4} wrap="nowrap" data-testid={`timeline-legend-${k}`}>
             <Box w={10} h={10} style={{ background: KIND_COLOR[k], borderRadius: 2 }} />
-            <Text size="xs">{k === 'approach' ? 'An-/Abfahrt' : k === 'lift' ? 'Heben/Senken' : KIND_LABEL[k]}</Text>
+            <Text size="xs">{label}</Text>
           </Group>
         ))}
         {(['warn', 'collision', 'unreachable'] as const).map((k) => (

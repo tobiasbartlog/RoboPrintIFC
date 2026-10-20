@@ -21,6 +21,7 @@ export function obstacleLabel(name: string): string {
 
 export const KIND_LABEL: Record<Kind, string> = {
   print: 'Druck',
+  link: 'Verbinder',
   approach: 'Anfahrt',
   retract: 'Abfahrt',
   lift: 'Anheben',
@@ -37,8 +38,10 @@ export const STATUS_LABEL: Record<Status, string> = {
 
 const v = (c: string) => `var(--mantine-color-${c})`;
 
+/** Druck und Verbinder (Pumpe an) in einer Farbfamilie, Verbinder heller; Travel davon abgesetzt. */
 export const KIND_COLOR: Record<Kind, string> = {
   print: v('blue-6'),
+  link: v('indigo-4'),
   approach: v('cyan-4'),
   retract: v('cyan-4'),
   lift: v('grape-4'),
