@@ -1,0 +1,34 @@
+{
+  "schema_version": "1",
+  "id": "testdruck_zickzack",
+  "beschreibung": "Testkörper 600 x 200 x 100 mm (Länge x Dicke x Höhe, 10 Schichten), Modus Modul am Doosantisch, Standard-Druckplatz (0, -50) mm, lange Seite zum Roboter. Muster: Infill Zickzack (Preset core/src/roboprint/patterns/presets/zickzack.json). Abgeleitet aus docs/muster/szenarien/S4_muster_zickzack.json durch scripts/muster_testdrucke.py.",
+  "mode": "modul",
+  "source": {
+    "kind": "box",
+    "size_mm": [
+      600,
+      200,
+      100
+    ]
+  },
+  "decompose": false,
+  "robot": "robots/doosan_m1013.json",
+  "urdf": "third_party/doosan_m1013/urdf/m1013.white.urdf",
+  "tool": "tools/30gut.json",
+  "workstation": "workstations/doosantisch.json",
+  "params": {
+    "pattern_preset": "core/src/roboprint/patterns/presets/zickzack.json"
+  },
+  "planner_mode": "collision_aware",
+  "expect": {
+    "parts": "all_feasible",
+    "muster": {
+      "machbar": true,
+      "fast": false,
+      "preset": "core/src/roboprint/patterns/presets/zickzack.json"
+    }
+  },
+  "limits": {
+    "wall_time_s": 200
+  }
+}
