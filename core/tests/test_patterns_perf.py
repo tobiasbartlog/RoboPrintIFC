@@ -167,3 +167,64 @@ def test_preview_fugenwand_1200x200_below_100ms():
     med, best = statistics.median(ts), min(ts)
     assert best < 100.0, f"Bestwert {best:.1f} ms (Median {med:.1f} ms)"
     assert med < 150.0, f"Median {med:.1f} ms"
+
+
+# ------------------------------------------------- Gegenprüfung: zufällige Parameter und Querschnitte
+
+
+def _random_value(rng: np.random.Generator, spec: Any) -> Any:
+    get = (lambda n: spec[n]) if isinstance(spec, dict) else (lambda n: getattr(spec, n))
+    kind = get("kind")
+    if kind == "bool":
+        return bool(rng.random() < 0.5)
+    if kind == "choice":
+        return str(rng.choice(list(get("choices"))))
+    lo, hi = get("minimum"), get("maximum")
+    if kind == "int":
+        return int(rng.integers(int(lo), int(hi) + 1))
+    if rng.random() < 0.15:  # Bereichsgrenzen
+        return float(rng.choice([lo, hi]))
+    return round(float(rng.uniform(lo, hi)), 1)
+
+
+def _random_sections(rng: np.random.Generator) -> dict[int, Any]:
+    from shapely.geometry import MultiPolygon, Polygon, box
+
+    ln, th = rng.uniform(300, 2000), rng.uniform(120, 450)
+    wall = box(-ln / 2, -th / 2, ln / 2, th / 2)
+    gap = rng.uniform(80, 300)
+    two = MultiPolygon([box(-ln / 2, -th / 2, -gap / 2, th / 2), box(gap / 2, -th / 2, ln / 2, th / 2)])
+    ell = Polygon([(0, 0), (ln, 0), (ln, th), (th, th), (th, 0.6 * ln), (0, 0.6 * ln)])
+    kind = int(rng.integers(0, 4))
+    if kind == 3:  # Öffnung ab Schicht 1: Querschnitt ändert sich (restart, M3 mit Differenz)
+        return {0: wall, 1: two, 2: two}
+    g = (wall, two, ell)[kind]
+    return {0: g, 1: g, 2: g}
+
+
+@pytest.mark.parametrize("seed", range(8))
+def test_random_params_equal_reference(seed: int, monkeypatch):
+    """Zufällige Muster, Parameter innerhalb der ParamSpecs (inkl. Grenzen) und Querschnitte
+    (Rechteck, zwei Inseln, L-Form, Öffnung ab Schicht 1): Pfade, Abtastung und Messung wie die
+    Referenz. Die Presets oben decken nur Rechtecke mit Standardwerten ab."""
+    rng = np.random.default_rng(1000 + seed)
+    cat = {c["name"]: c for c in pt.catalog()}
+    name = str(rng.choice(sorted(cat)))
+    d = {s.name: _random_value(rng, s) for s in pt.CORE_PARAM_SPECS if rng.random() < 0.7}
+    d.update({q["name"]: _random_value(rng, q) for q in cat[name]["params"]})
+    if name != "schalen":
+        d["outfill" if cat[name]["role"] == "full" else "infill"] = name
+    params = pt.params_from_dict(d)
+    sections = _random_sections(rng)
+    new = pt.plan_pattern(sections, params)
+    with monkeypatch.context() as m:
+        _use_reference_fillet(m)
+        old = pt.plan_pattern(sections, params)
+    _same(new, old, f"{name} {d}")
+    for lp in new:
+        for a, b in zip(pt.metrics.sample_path(lp), ref.sample_path(lp), strict=True):
+            assert np.array_equal(a, b)
+    for layers in (None, [0, 1]):
+        n, o = pt.measure(new, sections, params, layers), ref.measure(new, sections, params, layers)
+        _same(n, o, f"{name} {d} layers={layers}")
+        assert n.to_dict() == o.to_dict()
