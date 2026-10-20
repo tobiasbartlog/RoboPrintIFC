@@ -1,8 +1,8 @@
 # Auftrag: Druckmuster (Infill und Outfill), Nachtlauf 20./21.10.2026
 
 Branch `v2/muster` (abgezweigt von `v2/strang`, 99c802c). Fortschritt und Herzschlag stehen in
-`MUSTER-PROGRESS.md`. Diese Datei ist der Auftrag. Sie ändert sich in der Nacht nicht, nur
-`MUSTER-PROGRESS.md` und der Code ändern sich.
+`MUSTER-PROGRESS.md`. Diese Datei ist der Auftrag. Sie ändert sich in der Nacht nur durch
+Nachträge des Nutzers. `MUSTER-PROGRESS.md` und der Code ändern sich laufend.
 
 ## Auftrag des Nutzers (Tobias, 20.10.2026, wörtlich)
 
@@ -25,6 +25,78 @@ Lauf). Er will, dass Details selbst entschieden und begründet werden; Rückfrag
 Nacht keine. Echte Weichen (Prozess am Gerät, Gates, Standardwerte) sammelst du mit Empfehlung
 für den Morgenbericht.
 
+## Nachtrag des Nutzers (20.10.2026, 18:20) – hat Vorrang
+
+> Mit den Außenfugen meinte ich sozusagen sollbruchstellen. Hier auf dem Foto erkennst du ein
+> Beispielmuster. […] Cool wäre ein parametrischer Musterersteller, mit dem ich die Länge der
+> einzelnen Stränge anpassen kann. Das darf auch in 2d sein damit es leichter zu rechnen ist.
+
+Foto: `docs/muster/referenz/fugenwand-foto.jpg` (Lehm, gedruckt, Blick schräg von oben auf die
+Außenseite). Sieh es dir selbst an, bevor du das Muster entwirfst.
+
+**Outfill heißt Sollbruchstellen (O2).** Die Lesart O2 ist damit bestätigt und hat Vorrang. O1 und
+O3 werden nur noch gebaut, wenn Zeit bleibt.
+
+**Was das Foto zeigt** (Lesart des Vorbereiters; prüfe sie am Bild):
+- Die Außenhaut besteht aus **geraden Feldern**. An jeder Feldgrenze stoßen zwei Felder nur stumpf
+  aneinander. Es entsteht eine senkrechte Fuge über die ganze Höhe: Die Raupen berühren sich dort,
+  laufen aber nicht durch. Das ist die Sollbruchstelle.
+- Von jeder Fuge laufen zwei **schräge Stege V-förmig nach innen**. Über jeder Fuge liegt eine Raute,
+  über jedem Feld ein Dreieck bzw. Trapez. Die Stege treffen sich an Knoten und berühren sich dort.
+  Sie kreuzen sich nicht.
+- Die Gegenseite der Wand ist gleich aufgebaut. Innen entsteht so ein Rauten- bzw. Fachwerkraster.
+- Alle Schichten liegen deckungsgleich übereinander, es gibt keinen Überhang.
+
+**Eine mögliche Einzelstrang-Topologie** (Vorschlag; prüfe sie und finde bessere Varianten): Die
+Vorderseite läuft als Folge Feld A → Fuge J_AB → schräg nach innen zum Knoten N_A über der Feldmitte
+von A → Gurtstück auf der Wandmitte von N_A nach N_B → schräg zurück zur Fuge J_AB → Feld B → Fuge
+J_BC → schräg zu N_B → … . Jede Fuge und jeder Knoten wird zweimal **berührt** (Kontakt, keine
+Kreuzung: Die Richtungen der beiden Besuche greifen nicht ineinander). An den Modulenden schließt
+eine Endkappe zur Rückseite, die gespiegelt oder um eine halbe Teilung versetzt zurückläuft. Je
+Schicht entsteht so ein geschlossener Ring, also ein senkrechter Schichtwechsel. Varianten:
+- mit oder ohne Gurt in der Wandmitte (ohne Gurt: Die Knoten von Vorder- und Rückseite berühren sich)
+- Rückseite gespiegelt (Fugen beider Seiten gegenüber, also eine durchgehende Sollbruchebene durch
+  die Wand) oder um eine halbe Teilung versetzt
+- Fuge stumpf (Raupen berühren sich) oder mit kleinem Spalt bzw. Kerbe nach außen
+- Feldgrenzen an den Modulenden: Ein Modulstoß ist selbst eine Fuge.
+
+**Parametrischer 2D-Musterersteller (neues Hauptziel, Priorität wie die Fugenwand selbst):**
+- Der Nutzer stellt die **Länge der einzelnen Stränge** ein: Feldlänge (Außenstrang zwischen zwei
+  Fugen), Länge bzw. Winkel der Schrägstege, Knoten- bzw. Gurtlänge, Fugenspalt, Eckradius,
+  Versatz der Rückseite. Dazu kommen Wanddicke, Modullänge und w, mit Vorgabe aus dem gewählten
+  Modul oder frei.
+- Die Ansicht ist **2D-Draufsicht einer Schicht**, live beim Ziehen der Regler. Gezeigt werden: der
+  Pfad nach Segmentart eingefärbt, Richtungspfeile, Start und Ende, die nächste (umgekehrte)
+  Schicht blass, Fugen und Kontakte markiert, Regelverstöße M1–M7 rot. Dazu Kennzahlen: Pfadlänge
+  und Druckzeit je Schicht, Material je Meter, Zellgrößen, Kontaktlängen, Fugenabstand, längste
+  gerade Außenstrecke, kleinster Radius.
+- **An die Modullänge anpassen:** ganze Zahl von Feldern, Rest gleichmäßig verteilt; die
+  tatsächlichen Längen werden angezeigt.
+- Speichern als benanntes Muster (JSON-Preset), das Slicer, Szenarien und Viewer als Musterparameter
+  verwenden. Export als SVG für Doku und Katalog.
+- **Architektur:** Die Geometrie rechnet `core/src/roboprint/patterns/`, nicht der Browser (SPEC §9:
+  Der Viewer rechnet keine Fachlogik). Die API bekommt einen schnellen Vorschau-Endpunkt (z. B.
+  `POST /api/patterns/preview` → 2D-Polylinien je Segmentart, Kontakte, Verstöße, Kennzahlen; Ziel
+  < 100 ms je Schicht). Das Web zeichnet das als SVG mit Mantine-Reglern und Entprellung. Ein
+  CLI-Befehl (z. B. `roboprint pattern-preview <preset.json> --svg <datei>`) erzeugt dieselbe Ansicht
+  für den Katalog. Kein Roboter in der Vorschleife. Die Roboterprüfung läuft erst beim „Zerlegen &
+  prüfen“ bzw. in den Musterszenarien.
+- Im Viewer bekommt der Musterersteller einen eigenen, gut erreichbaren Platz (z. B. eigener Reiter
+  bzw. Schritt „Muster“ oder Drawer im Parameterpanel; entscheide nach `docs/ux-leitbild.md`).
+  Playwright-Test und Screenshot gehören dazu.
+
+**Angepasste Prioritäten:**
+1. Kern und Orakel (M1) wie geplant, die Kern-Schnittstelle aber von Anfang an für parametrische
+   Segmentmuster mit Kontakten (Fugen, Knoten) auslegen.
+2. Fugenwand (Foto) als erste Musterfamilie, mit Varianten und echter Roboterprüfung (S1-Quader,
+   Testkörper, ein S2-Modul).
+3. 2D-Musterersteller (API + Web + CLI).
+4. Danach die Infill-Wellen (Sinus usw.) und die alternierende Schichtfolge für das heutige Muster.
+5. O1/O3 und weitere Varianten nur, wenn Zeit bleibt.
+Der Recherche-Agent sucht zusätzlich nach Sollbruchstellen bzw. Kontrollfugen in Lehm-, Cob- und
+Stampflehmwänden (übliche Fugenabstände, Fugenausbildung) und nach gedruckten Fachwerk- bzw.
+Rautenwänden.
+
 ## Ziel
 
 Für Wandmodule entstehen Druckmuster, die je Schicht und Insel als **ein durchgehender Strang**
@@ -45,6 +117,7 @@ gedruckt werden: ohne Absetzen, mit durchlaufender Pumpe, ohne Kreuzung, ohne Ü
 - einen bebilderten Musterkatalog mit Kennzahlen und Empfehlung (`docs/muster/MUSTERKATALOG.md`)
 - kleine Testdruck-DRLs je Muster, vom Planer geprüft (`docs/muster/testdrucke/`)
 - Muster im Viewer wählbar, mit 2D-Vorschau einer Schicht
+- den parametrischen 2D-Musterersteller (Nachtrag 18:20) mit der Fugenwand aus dem Foto als erstem Muster
 - G1–G8 weiter grün, die Musterprüfung grün
 - `MORGENBERICHT-MUSTER.md` und einen Draft-PR `v2/muster → v2/strang`
 
@@ -86,7 +159,8 @@ Ergebnis.
 
 ## Outfill: was gemeint sein kann
 
-Der Wortlaut lässt mehrere Lesarten zu. Baue und vergleiche mindestens zwei davon:
+*Nach dem Nachtrag oben ist O2 (Sollbruchstellen, Foto) bestätigt und hat Vorrang.* Ursprünglicher
+Text: Der Wortlaut lässt mehrere Lesarten zu. Baue und vergleiche mindestens zwei davon:
 
 - **O1 Gewellte oder gefaltete Außenschale:** Welle, Zickzack oder Trapez im Wanddickenband. Die
   Hülle bleibt in der IFC-Dicke, die Fläche ist nicht mehr eben. Schwinden in Wandlängsrichtung
