@@ -20,9 +20,9 @@ Die erste Zeile setzt nur das Skript.
 | I-Mehrfach (Doppelwelle/Kettenglied, Waben, Fermat) | M2 | läuft (wf_3c365435-7f4) | v2/muster-mehrfach | |
 | Outfill O1/O3 (nur wenn Zeit; O2 = Fugenwand) | M2 | offen | v2/muster-outfill | |
 | Topologie (Öffnungen, Inseln, Laibungsstege, Naht, Übergänge) | M2 | läuft (wf_3c365435-7f4) | v2/muster-topologie | |
-| Einbau Slicer + Vertrag + Schema/TS | M3 | läuft (wf M3) | v2/muster-einbau | |
-| Einbau Planer/Timing/DRL | M3 | offen | v2/muster-einbau | |
-| Musterszenarien, `scripts/verify_muster.py`, SPEC-Nachtrag | M3 | offen | v2/muster-einbau | |
+| Einbau Slicer + Vertrag + Schema/TS | M3 | läuft (wf_0e4879c6-203) | v2/muster-einbau | |
+| Einbau Planer/Timing/DRL | M3 | wartet (wf_0e4879c6-203) | v2/muster-einbau | |
+| Musterszenarien, `scripts/verify_muster.py`, SPEC-Nachtrag | M3 | wartet (wf_0e4879c6-203) | v2/muster-einbau | |
 | Viewer: Musterwahl, 2D-Vorschau, Legende, Kennzahlen | M4 | offen | v2/muster-viewer | |
 | Vergleich, MUSTERKATALOG, Testdrucke | M5 | offen | v2/muster-katalog | |
 | Gegenprüfung und Härtung | M6 | offen | v2/muster | |
