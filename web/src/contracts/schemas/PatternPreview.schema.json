@@ -320,6 +320,10 @@
         "print_time_s": {
           "type": "number"
         },
+        "shell_coverage": {
+          "description": "kleinste Abdeckung des Schalenbereichs über alle Inseln, 0..1",
+          "type": "number"
+        },
         "strands": {
           "type": "integer"
         },
@@ -341,6 +345,7 @@
         "longest_straight_outer_mm",
         "min_radius_mm",
         "min_clearance_mm",
+        "shell_coverage",
         "cells",
         "paths"
       ],
@@ -738,6 +743,10 @@
             }
           ]
         },
+        "shell_coverage": {
+          "description": "Abdeckung des Schalenbereichs, 0..1 (Maß wie G3)",
+          "type": "number"
+        },
         "start": {
           "items": {
             "type": "number"
@@ -758,6 +767,7 @@
         "min_clearance_mm",
         "min_radius_mm",
         "max_chord_error_mm",
+        "shell_coverage",
         "contacts",
         "contacts_by_kind",
         "contact_length_mm",

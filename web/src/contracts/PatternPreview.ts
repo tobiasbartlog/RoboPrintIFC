@@ -79,6 +79,10 @@ export interface PatternMetrics {
   path_length_mm: number;
   paths: PatternPathMetrics[];
   print_time_s: number;
+  /**
+   * kleinste Abdeckung des Schalenbereichs über alle Inseln, 0..1
+   */
+  shell_coverage: number;
   strands: number;
   v_print_mm_s: number;
 }
@@ -124,6 +128,10 @@ export interface PatternPathMetrics {
   n_segments: number;
   path_length_mm: number | null;
   print_time_s: number | null;
+  /**
+   * Abdeckung des Schalenbereichs, 0..1 (Maß wie G3)
+   */
+  shell_coverage: number;
   /**
    * @minItems 2
    * @maxItems 2

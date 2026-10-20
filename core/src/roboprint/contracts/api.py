@@ -209,6 +209,7 @@ class PatternPathMetrics(ContractModel):
     min_clearance_mm: float | None
     min_radius_mm: float | None
     max_chord_error_mm: float | None
+    shell_coverage: float = Field(description="Abdeckung des Schalenbereichs, 0..1 (Maß wie G3)")
     contacts: int
     contacts_by_kind: dict[str, PatternContactSum]
     contact_length_mm: float | None
@@ -244,6 +245,7 @@ class PatternMetrics(ContractModel):
     longest_straight_outer_mm: float | None
     min_radius_mm: float | None
     min_clearance_mm: float | None
+    shell_coverage: float = Field(description="kleinste Abdeckung des Schalenbereichs über alle Inseln, 0..1")
     cells: list[PatternCell]
     paths: list[PatternPathMetrics]
 

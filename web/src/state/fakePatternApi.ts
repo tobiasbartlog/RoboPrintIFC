@@ -53,7 +53,7 @@ export function createFakePatternApi(opts: FakePatternOptions = {}): PatternApi 
     },
     async preview(req) {
       requests.push(req);
-      if (opts.previewError) throw new Error(opts.previewError);
+      if (opts.previewError) throw Object.assign(new Error(opts.previewError), { status: 422 });
       const o = req.outline && 'length_mm' in req.outline ? req.outline : { length_mm: 600, thickness_mm: 200 };
       const w = Number(req.params.bead_width_mm ?? 30);
       const L = o.length_mm;
@@ -121,6 +121,7 @@ export function createFakePatternApi(opts: FakePatternOptions = {}): PatternApi 
           longest_straight_outer_mm: field,
           min_radius_mm: 30,
           min_clearance_mm: 30,
+          shell_coverage: 0.95,
           cells: [],
           paths: [],
         },
