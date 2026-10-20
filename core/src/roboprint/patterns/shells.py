@@ -114,13 +114,21 @@ def _min_dist(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def lane_change(
-    ring: Loop, nxt: Loop, start: float, params: PatternParams, min_ell: float = 0.0
+    ring: Loop,
+    nxt: Loop,
+    start: float,
+    params: PatternParams,
+    min_ell: float = 0.0,
+    avoid: np.ndarray | None = None,
 ) -> tuple[float, np.ndarray, float]:
     """S-Kurve vom Ende von `ring` (Start bei Bogenlänge `start`) auf `nxt`.
 
     Gesucht wird das kleinste ℓ ≥ max(ℓ₀, min_ell) (1-mm-Schritte), bei dem beide Biarc-Bögen
     mindestens R haben und die S-Kurve vom Anfang des Rings (start … start + 3·w) mindestens
-    w − CLEAR_TOL_MM entfernt bleibt (kein Doppelmaterial). Rückgabe (ℓ, Punkte der S-Kurve von
+    w − CLEAR_TOL_MM entfernt bleibt (kein Doppelmaterial), ebenso von `avoid` (die ankommende
+    S-Kurve des vorigen Wechsels: Ab drei Schalen liegen zwei Wechsel nebeneinander; eine um w
+    verschobene Kopie der S-Kurve hätte an der steilsten Stelle (60° bei R = w) nur w·cos 60° =
+    w/2 Abstand, also Doppelmaterial, M2). Rückgabe (ℓ, Punkte der S-Kurve von
     A = ring(start − ℓ) nach B = nxt neben ring(start), Bogenlänge von B auf `nxt`)."""
     R, w = params.transition_radius, params.w
     P = ring.point(start)
@@ -129,7 +137,9 @@ def lane_change(
     tB = nxt.tangent(tb)
     d = float(np.linalg.norm(B - P))
     ell0 = 2.0 * math.sqrt(max(R * R - (R - d / 2.0) ** 2, 0.0)) if d < 2 * R else d
-    head = densify(ring.sub(start, start + min(3.0 * w, 0.3 * ring.length)), 1.0)
+    head = densify(ring.sub(start, start + min(3.0 * w, 0.3 * ring.length)), 1.0)[1:]
+    if avoid is not None and len(avoid) > 1:
+        head = np.vstack([head, densify(avoid, 1.0)])
     best: tuple[float, np.ndarray, float] | None = None
     for ell in max(ell0, min_ell) + np.arange(0.0, 8.0 * w, 1.0):
         if ell >= 0.6 * ring.length:
@@ -140,7 +150,7 @@ def lane_change(
         if res is None:
             continue
         pts, r = res
-        clear = _min_dist(densify(pts, 1.0)[:-1], head[1:]) >= w - CLEAR_TOL_MM
+        clear = _min_dist(densify(pts, 1.0)[:-1], head) >= w - CLEAR_TOL_MM
         score = min(r, R) + (R if clear else 0.0)
         if best is None or score > best[2]:
             best = (float(ell), pts, score)
@@ -199,7 +209,9 @@ def shell_chain(ctx: IslandContext, ring0: np.ndarray | None = None, ring0_kind:
         # Ende dieses Rings: frei von der ankommenden S-Kurve (head)
         t_end = start + lp.length if head is None else clear_end(lp, start, head, p.w)
         if k < len(loops) - 1:
-            ell, trans, tb = lane_change(lp, loops[k + 1], start, p, min_ell=start + lp.length - t_end)
+            ell, trans, tb = lane_change(
+                lp, loops[k + 1], start, p, min_ell=start + lp.length - t_end, avoid=head
+            )
             body = lp.sub(start, start - ell)
             meta["transitions_mm"].append(round(ell, 2))
         else:
