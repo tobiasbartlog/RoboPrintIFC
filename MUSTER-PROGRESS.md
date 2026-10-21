@@ -34,15 +34,15 @@ Die erste Zeile setzt nur das Skript.
 | Backlog: alle S2-Wände mit Rautenkette (S6, `docs/muster/S2-RAUTENKETTE.md`) | Backlog | erledigt, gemergt; 22 Kopfmodule mit Schräge verletzen M1–M4/M6 | v2/muster-s2 | cb16c11 |
 | Fugenwand bei veränderlichem Querschnitt (Abschrägung am Wandkopf): Köpfe M2–M7 fehlerfrei | M6 | erledigt, gemergt | v2/muster-fugenschraege | 2e1539e |
 | Kernfehler `shells.shell_chain`/`clear_end` bei Inseln < ~4·w | M6 | erledigt (Wellen-Fix + Härtung R1) | v2/muster-haertung | bf01933 |
-| Voller Lauf `scripts/verify.py` (G1–G8) nach M6 | M6 | läuft (06:06) | v2/muster | |
-| Neuerzeugung Musterlauf, Testdrucke, Katalog nach M6 | M6 | offen | v2/muster | |
+| Voller Lauf `scripts/verify.py` (G1–G8) nach M6 | M6 | erledigt: G1–G8 grün, Exit 0 | v2/muster | |
+| Neuerzeugung Musterlauf, Testdrucke, Katalog nach M6 | M6 | läuft (Musterlauf 06:30) | v2/muster | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
 
 ## Gate-Stand
 
 | Prüfung | Status | Kennzahl | Stand |
 |---|---|---|---|
-| G1–G8 (`scripts/verify.py`) | --fast grün (G1 G2 G3 G5 G8) | Ausgangslage | M0 18:10 |
+| G1–G8 (`scripts/verify.py`, voll) | **grün**, Exit 0 | G7: S1 40,8 s, S2 129,1 s; G8 pytest core 676 s; G6 e2e 108 s | 21.10. 06:28 |
 | Muster (`scripts/verify_muster.py`) | GRÜN (Einbau-Zweig) | 11 Szenarien, je 1 Strang/Schicht, 100 % senkrechte Wechsel, d_min 10,83 mm; S5 Fugenwand mit Öffnung belegt nicht machbar (M3) | 00:00 |
 
 ## Gate-Einwände
@@ -248,3 +248,7 @@ Die erste Zeile setzt nur das Skript.
 - Merge-Konflikt S6-Doku: Stand nach dem Abschrägungs-Fix übernommen, Zähltest angepasst. Wellen-Laufzeittest:
   1200×200 mit Grenze 120 ms (Mäander 95–108 ms), zweimal aufwärmen.
 - Voller `scripts/verify.py` läuft ohne parallele Agenten (06:06).
+
+### 2026-10-21 06:30 Voller Gate-Lauf grün (Session start)
+- `scripts/verify.py` (alle Gates, ohne parallele Agenten): G1–G8 grün, Exit 0. G7 S1 40,8 s, S2 129,1 s.
+- Morgenbericht-Entwurf liegt (`MORGENBERICHT-MUSTER.md`). Musterlauf voll neu gestartet, Katalog-Fix läuft.

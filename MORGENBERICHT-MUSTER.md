@@ -100,7 +100,10 @@ Haken sauber, Knoten haften; Fotos nach 1, 3 und 7 Tagen), 3. `sinus`, dann Gurt
 <!-- GATES -->
 ## Gate-Stand
 
-(wird nach dem vollen Lauf eingetragen)
+| Prüfung | Ergebnis | Kennzahlen |
+|---|---|---|
+| `scripts/verify.py` (G1–G8, voll, 21.10. 06:28) | **grün**, Exit 0 | G1 12 s, G2 50 s, G3 S1 41 + 32 s, G4 S2/S3 grün, G5 36 s, G6 e2e 108 s, G7 S1 40,8 s ≤ 180, S2 129,1 s ≤ 1800, G8 ruff, pytest core (676 s), web lint/typecheck/test |
+| `scripts/verify_muster.py` (Vorschlag G9) | (läuft) | |
 <!-- /GATES -->
 
 ## Weichen für den Nutzer
