@@ -403,7 +403,8 @@ def test_dropped_infill_reason_reaches_toolpath_and_report(T: float, pat: str) -
     from roboprint import pattern_report
 
     box = make_box([600.0, T, 30.0], origin=[-300.0, -T / 2, 0.0])
-    tp = to_toolpath(slice_part(box, SliceParams(infill_pattern=pat, layer_order="alternate")), np.eye(4), "b")
+    sliced = slice_part(box, SliceParams(infill_pattern=pat, layer_order="alternate"))
+    tp = to_toolpath(sliced, np.eye(4), "b")
     d = tp.model_dump(mode="json")
     assert "infill" not in {r["kind"] for r in d["rings"]}
     notes = d["pattern"]["notes"]
