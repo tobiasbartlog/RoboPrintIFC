@@ -25,6 +25,8 @@
     "muster": {
       "machbar": true,
       "fast": false,
+      "abdeckung_untergrenze": 0.5,
+      "abdeckung_untergrenze_grund": "O1 druckt gewollt nur eine Schale je Seite ohne Infill: Abdeckung des Zwei-Schalen-Bereichs 53,3 %",
       "preset": "core/src/roboprint/patterns/presets/aussenwelle.json"
     }
   },

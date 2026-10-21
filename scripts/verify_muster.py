@@ -209,10 +209,11 @@ def run_metrics(run: Path) -> dict[str, Any]:
     }
 
 
-def check_run_result(run: Path, step: dict[str, Any]) -> dict[str, Any]:
+def check_run_result(run: Path, step: dict[str, Any], floor: float = COVERAGE_FLOOR) -> dict[str, Any]:
     """G3 aus `check.json`, nur gültig, wenn der Exitcode dazu passt: 0 mit `passed`, oder 1 mit
     ausschließlich Abdeckungsfehlern. Alles andere (Abbruch, Zeitlimit, Aufruffehler 2, Bericht und
-    Exitcode widersprechen sich) ist rot."""
+    Exitcode widersprechen sich) ist rot. `floor` ist die Untergrenze für musterbedingte Lücken
+    (Szenario: `expect.muster.abdeckung_untergrenze`, z. B. O1 mit einer Schale je Seite)."""
     rep = _load(run / "check.json")
     if rep is None:
         return {"status": "rot", "abdeckung": "rot", "errors": [f"check.json fehlt ({step['tail'][-300:]})"]}
@@ -235,9 +236,9 @@ def check_run_result(run: Path, step: dict[str, Any]) -> dict[str, Any]:
     # in der Meldung) unter COVERAGE_FLOOR, fehlt Material, und G3 bleibt rot.
     seen = [float(v) for v in cov_min] if cov else []
     seen += [float(x) / 100.0 for e in cov for x in COVERAGE_PCT_RE.findall(e)]
-    if seen and min(seen) < COVERAGE_FLOOR:
+    if seen and min(seen) < floor:
         hard.append(
-            f"Abdeckung {100 * min(seen):.1f} % unter der Untergrenze {100 * COVERAGE_FLOOR:.0f} % für "
+            f"Abdeckung {100 * min(seen):.1f} % unter der Untergrenze {100 * floor:.0f} % für "
             "musterbedingte Lücken (Gate-Einwand 1/3 begründet nur 60–95 %): Material fehlt"
         )
     return {
@@ -414,7 +415,7 @@ def run_scenario(path: Path, jobs: int, no_run: bool) -> dict[str, Any]:
             log=OUT / "logs" / f"{sid}.check_run.log",
         )
         steps.append(cr)
-        g3 = check_run_result(run, cr)
+        g3 = check_run_result(run, cr, float(exp.get("abdeckung_untergrenze", COVERAGE_FLOOR)))
         print(
             f"   check_run     {g3['status']} (Abdeckung: {g3['abdeckung']})  {cr['seconds']} s", flush=True
         )

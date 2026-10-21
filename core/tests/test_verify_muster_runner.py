@@ -80,6 +80,16 @@ def test_check_run_coverage_below_floor_is_red(vm, tmp_path, check):
     assert r["status"] == "rot" and any("Untergrenze" in e for e in r["errors"]), r
 
 
+def test_check_run_scenario_floor(vm, tmp_path):
+    """O1 mit einer Schale je Seite deckt gewollt nur 53 % ab: Einwand mit Szenario-Untergrenze 0,5,
+    sonst rot."""
+    check = {"passed": False, "errors": [COV], "parts": {"p1": {"coverage_min": 0.533}}}
+    _write(tmp_path / "check.json", check)
+    assert vm.check_run_result(tmp_path, _step(1))["status"] == "rot"
+    r = vm.check_run_result(tmp_path, _step(1), 0.5)
+    assert r["status"] == "gruen" and r["abdeckung"] == "einwand", r
+
+
 def test_check_run_hard_error_is_red(vm, tmp_path):
     _write(tmp_path / "check.json", {"passed": False, "errors": [COV, "p1: 2 collision, 0 unreachable"]})
     assert vm.check_run_result(tmp_path, _step(1))["status"] == "rot"
