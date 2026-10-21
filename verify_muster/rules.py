@@ -287,11 +287,23 @@ def check_m4(C: Ctx) -> Rule:
         d = float(np.linalg.norm(p_end - p_start))
         linked = rings[re_].link_next and rs_ == re_ + 1
         vertical = d <= M4_TOL_MM and linked
-        travel = False
+        travel = pump_off = False
         if tr is not None:
-            if np.any((kind_arr == "link") & (tr.ring == rs_)):
+            # Samples zwischen dem letzten print von Ring re_ und dem ersten print von Ring rs_: Der
+            # Wechsel ist nur dann ein link, wenn dort die Pumpe durchlaeuft (nur print/link) und
+            # mindestens ein link-Sample liegt. Ein link mit anschliessendem retract/approach o. ae.
+            # ist ein Absetzen (vorher genuegte irgendein link-Sample von Ring rs_).
+            i_end = np.flatnonzero((kind_arr == "print") & (tr.ring == re_))
+            i_beg = np.flatnonzero((kind_arr == "print") & (tr.ring == rs_))
+            if len(i_end) and len(i_beg) and i_end.max() < i_beg.min():
+                between = kind_arr[i_end.max() + 1 : i_beg.min()]
+                pump_off = bool(np.any(~np.isin(between, PUMP_KINDS)))
+                has_link = bool(np.any(between == "link"))
+            else:
+                has_link = bool(np.any((kind_arr == "link") & (tr.ring == rs_)))
+            if has_link and not pump_off:
                 n_link += 1
-            elif linked:
+            elif linked or pump_off:
                 travel = True
         if vertical and not travel:
             n_vert += 1
@@ -310,6 +322,8 @@ def check_m4(C: Ctx) -> Rule:
             why = f"waagrecht {d:.2f} mm"
         elif not linked:
             why = "kein Verbinder (link_next = false)"
+        elif pump_off:
+            why = "Trajektorie setzt ab (Pumpe aus zwischen den Schichten: Travel bzw. retract/approach)"
         else:
             why = "Trajektorie setzt ab (Travel statt link)"
         R.fail(L, re_, p_end, f"Schichtwechsel {L} -> {L + 1} nicht senkrecht: {why} (Ring {re_} -> {rs_})",
