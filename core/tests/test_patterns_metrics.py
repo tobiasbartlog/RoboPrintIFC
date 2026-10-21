@@ -166,3 +166,41 @@ def test_island_without_strand_is_m1_error(name):
     missing = [v for v in rep.errors if v.rule == "M1" and v.island == 1]
     assert {v.layer for v in missing} == {0, 1} and not rep.ok
     assert all("ohne Strang" in v.message for v in missing)
+
+
+@pytest.mark.parametrize(
+    ("angle", "size", "spec"),
+    [
+        (45.0, (600, 200), {"pattern": "aussenwelle", "params": {"bead_width_mm": 20}}),
+        (15.0, (600, 365), {"pattern": "waben", "params": {"bead_width_mm": 20, "shells": 3}}),
+    ],
+)
+def test_prismatic_reversed_layer_has_no_overhang(angle, size, spec):
+    """Gegenprüfung M6 (Runde 2): Schicht 1 ist die Umkehrung von Schicht 0, nur um ~1e-13 mm
+    gerundet anders. Das galt nicht als gleiche Mittellinie, und GEOS pufferte die Umkehrung falsch
+    (Fläche doppelt so groß): falscher M3-Fehler mit 6e4 bzw. 9e4 mm²."""
+    from shapely import affinity
+
+    L, T = size
+    poly = affinity.rotate(box(-L / 2, -T / 2, L / 2, T / 2), angle, origin=(0, 0))
+    out = {"polygon": [list(c) for c in poly.exterior.coords[:-1]]}
+    d = pt.preview(spec, out, 0)
+    assert d["ok"], [(v["rule"], v["value"]) for v in d["violations"] if v["severity"] == "error"]
+
+
+def test_bead_area_never_exceeds_minkowski_bound():
+    """Die Raupenfläche einer Mittellinie ist höchstens Länge·w + π·(w/2)²; ein GEOS-Puffer darüber
+    ist falsch (gefüllter Innenraum) und wird stückweise neu gerechnet."""
+    from shapely import affinity
+    from shapely.geometry import LineString
+
+    from roboprint.patterns.metrics import _bead_area
+
+    poly = affinity.rotate(box(-300, -100, 300, 100), 45, origin=(0, 0))
+    p = pt.params_from_dict({"bead_width_mm": 20, "outfill": "aussenwelle"})
+    paths = pt.plan_pattern({0: poly, 1: poly}, p)
+    for lp in paths:
+        pl = lp.polyline()
+        bound = LineString(pl).length * p.w + math.pi * (p.w / 2) ** 2
+        assert _bead_area(pl, p.w).area <= bound + 1e-6
+        assert _bead_area(pl[::-1], p.w).area <= bound + 1e-6

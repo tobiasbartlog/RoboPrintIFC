@@ -243,10 +243,24 @@ def bead_area(path: LayerPath, w: float) -> Any:
     return _bead_area(path.polyline(), w)
 
 
+#: Punkte je Teilstück, wenn der Puffer der ganzen Mittellinie unplausibel ist
+_BUFFER_CHUNK = 32
+
+
 def _bead_area(pl: np.ndarray, w: float) -> Any:
     if len(pl) < 2:
         return Point(pl[0]).buffer(w / 2.0)
-    g = LineString(pl).buffer(w / 2.0, quad_segs=8)
+    line = LineString(pl)
+    g = line.buffer(w / 2.0, quad_segs=8)
+    # GEOS puffert manche Mittellinien mit fast berührenden Raupen numerisch falsch: Schon eine
+    # Rundungsänderung um 1e-13 mm (z. B. die umgekehrte Bahn) füllt dann einen Innenraum mit.
+    # Die echte Fläche ist höchstens Länge·w + π·(w/2)²; liegt der Puffer darüber, wird er aus
+    # überlappenden Teilstücken neu vereinigt (gleiche Minkowski-Summe, robust).
+    bound = line.length * w + math.pi * (w / 2.0) ** 2
+    if g.area > bound * (1.0 + 1e-9) + 1e-6:
+        k = _BUFFER_CHUNK
+        parts = [LineString(pl[i : i + k + 1]).buffer(w / 2.0, quad_segs=8) for i in range(0, len(pl) - 1, k)]
+        g = shapely.union_all(parts)
     # GEOS liefert bei fast tangentialen Raupenrändern gelegentlich ungültige Puffer
     # (TopologyException in difference); dann reparieren.
     return g if g.is_valid else shapely.make_valid(g)
@@ -669,6 +683,10 @@ def _longest_unsupported(
 # --------------------------------------------------------------------------- ganzes Teil
 
 
+#: Mittellinien, die sich je Punkt um höchstens so viel unterscheiden, gelten als gleich (M3)
+_SAME_PL_MM = 1e-9
+
+
 def _bead_group(
     lp: LayerPath,
     section: Any,
@@ -678,10 +696,10 @@ def _bead_group(
 ) -> tuple[Any, _AreaMetrics, int]:
     """Raupenfläche, Flächengrößen und Geometriegruppe eines Pfads.
 
-    Gleiche Mittellinie im gleichen Querschnitt (gleiche Insel) rechnet nur einmal. Eine exakt
-    umgekehrte Mittellinie (`layer_order = alternate`) bekommt dieselbe Gruppe (dieselbe Fläche, für
-    M3), ihre Flächengrößen werden aber neu gerechnet: GEOS puffert die Umkehrung mit anderer
-    Punktfolge, und Reihenfolge und Rundung der Zellen sollen exakt bleiben."""
+    Gleiche Mittellinie im gleichen Querschnitt (gleiche Insel) rechnet nur einmal. Eine (bis auf
+    Rundung, `_SAME_PL_MM`) umgekehrte Mittellinie (`layer_order = alternate`) bekommt dieselbe
+    Gruppe (dieselbe Fläche, für M3), ihre Flächengrößen werden aber neu gerechnet: GEOS puffert
+    die Umkehrung mit anderer Punktfolge, und Reihenfolge und Rundung der Zellen sollen exakt bleiben."""
     pl = lp.polyline()
     gid = None
     for k, (pl0, sec0, isl0, g0, a0) in enumerate(groups):
@@ -689,9 +707,10 @@ def _bead_group(
             continue
         if not (sec0 is section or shapely.equals_exact(sec0, section, 0.0)):
             continue
-        if np.array_equal(pl0, pl):
+        # Gleichheit bis auf Rundung (1e-9 mm): die Umkehrung einer Bahn weicht um ~1e-13 mm ab
+        if np.allclose(pl0, pl, rtol=0.0, atol=_SAME_PL_MM):
             return g0, a0, k
-        if gid is None and np.array_equal(pl0[::-1], pl):
+        if gid is None and np.allclose(pl0[::-1], pl, rtol=0.0, atol=_SAME_PL_MM):
             gid = k
     g = _bead_area(pl, params.w)
     area = _area_metrics(g, section, lp.island, params, sec_cache)
