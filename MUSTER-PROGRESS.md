@@ -29,11 +29,13 @@ Die erste Zeile setzt nur das Skript.
 | Wellen-Fix: Planung ≈ 2× schneller (Bestwert < 100 ms), Rückfall statt Absturz | M2 | erledigt, gemergt | v2/muster-wellenfix | 5b10474 |
 | Testdrucke je Muster: 12 Testkörper, alle machbar, v2+v3 von fake_drcf akzeptiert (`docs/muster/testdrucke/`) | M5 | erledigt, gemergt | v2/muster-testdrucke | bf48e16 |
 | Katalog final mit Roboterkennzahlen (`docs/muster/MUSTERKATALOG.md`, 17 Muster × 4 Querschnitte) | M5 | erledigt, gemergt | v2/muster-katalog | a714579 |
-| Gegenprüfung und Härtung (Finder → Verifikation → Fixes) | M6 | läuft (wf_ec0731df-a69) | v2/muster-haertung | |
+| Gegenprüfung und Härtung: 3 Runden, 28 Funde bestätigt, 27 behoben, 1 nicht reproduzierbar (Test hält ihn fest) | M6 | erledigt, gemergt | v2/muster-haertung | b7b8c3f |
 | Backlog: Parameterstudie Fugenwand und Wellen (`docs/muster/PARAMETERSTUDIE.md`, 1064 Läufe) | Backlog | erledigt, gemergt | v2/muster-studie | 9e53fd4 |
 | Backlog: alle S2-Wände mit Rautenkette (S6, `docs/muster/S2-RAUTENKETTE.md`) | Backlog | erledigt, gemergt; 22 Kopfmodule mit Schräge verletzen M1–M4/M6 | v2/muster-s2 | cb16c11 |
 | Fugenwand bei veränderlichem Querschnitt (Abschrägung am Wandkopf): Köpfe M2–M7 fehlerfrei | M6 | erledigt, gemergt | v2/muster-fugenschraege | 2e1539e |
-| Kernfehler `shells.shell_chain`/`clear_end` stürzt bei Inseln < ~4·w ab (auch Grundmuster) | M6 | offen | v2/muster-haertung | |
+| Kernfehler `shells.shell_chain`/`clear_end` bei Inseln < ~4·w | M6 | erledigt (Wellen-Fix + Härtung R1) | v2/muster-haertung | bf01933 |
+| Voller Lauf `scripts/verify.py` (G1–G8) nach M6 | M6 | läuft (06:06) | v2/muster | |
+| Neuerzeugung Musterlauf, Testdrucke, Katalog nach M6 | M6 | offen | v2/muster | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
 
 ## Gate-Stand
@@ -235,3 +237,14 @@ Die erste Zeile setzt nur das Skript.
 - Gegenprüfung: Dickensprung kürzte alle Vollschichten statt nur der letzten; Teil-Cache ignorierte
   Schichtnummern; beides behoben. Offen: beidseitige Abschrägung erkennt weder Fugenwand noch Topologie;
   Topologie-Rückfall kürzt die letzte Vollschicht (nicht auf dem Fugenwand-Pfad).
+
+### 2026-10-21 06:10 M6 abgeschlossen (Session start)
+- Runde 3: 8 von 9 Funden behoben: Eckenrundung schnitt an L/T-Querschnitten Schenkel ab (ok = True!);
+  Querschnitte mit Innenloch hatten 340–373 mm Verbinder über die Schalen (jetzt Schlitz zum Rand, ein Ring);
+  Orakel nahm Ringe in falscher Reihenfolge an; Topologie-Randöffnung bei ungerader Zahl Brüstungsschichten mit
+  163 mm diagonalem Wechsel; eine Schale + Infill ließ 54–91 mm der Außenbahn aus; M7-Kontaktzahlen hingen von
+  der Druckrichtung ab; DRL-Kopf meldete Muster bei `layer_order=same` allein; S6-Zählung. Nicht reproduzierbar:
+  großer `transition_radius_mm` + Infill (Test hält die gemeldeten Fälle fest).
+- Merge-Konflikt S6-Doku: Stand nach dem Abschrägungs-Fix übernommen, Zähltest angepasst. Wellen-Laufzeittest:
+  1200×200 mit Grenze 120 ms (Mäander 95–108 ms), zweimal aufwärmen.
+- Voller `scripts/verify.py` läuft ohne parallele Agenten (06:06).
