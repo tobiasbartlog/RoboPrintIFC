@@ -39,6 +39,20 @@ def test_corner_radius_does_not_pinch_neck_under_notch():
     assert len(bottom) == 0 or bottom[:, 1].max() < 15.5
 
 
+@pytest.mark.parametrize("name", ["sinus", "zickzack", "schalen", "fugenwand", "waben"])
+def test_contact_metrics_do_not_depend_on_print_direction(name):
+    """M7: Schicht L + 1 (alternate) ist die Umkehrung von Schicht L. Anzahl und Länge der
+    Kontaktzonen sind Eigenschaften der Geometrie und deshalb in beiden Schichten gleich."""
+    from pathlib import Path
+
+    preset = pt.load_preset(Path(pt.__file__).parent / "presets" / f"{name}.json")
+    m0, m1 = (pt.preview(preset, None, layer)["metrics"] for layer in (0, 1))
+    assert m0["path_length_mm"] == pytest.approx(m1["path_length_mm"])
+    assert m0["contacts"] == m1["contacts"]
+    assert m0["contact_length_mm"] == pytest.approx(m1["contact_length_mm"], abs=0.05)
+    assert m0["contacts_per_m"] == pytest.approx(m1["contacts_per_m"], abs=0.01)
+
+
 @pytest.mark.parametrize(("pattern", "cr"), [("schalen", 120.0), ("doppelwelle", 141.0), ("waben", 147.0)])
 def test_corner_radius_l_250_preview_prints_whole_wall(pattern, cr):
     """L 800 × 800, Wand 250 mm (Vorschau/CLI): Pfad über den ganzen Querschnitt, nicht nur die Ecke."""
