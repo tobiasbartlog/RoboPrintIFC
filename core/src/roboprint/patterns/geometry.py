@@ -40,6 +40,65 @@ def _signature(geom: Any) -> list[int]:
     return [len(p.interiors) for p in polygons(geom)]
 
 
+def _convex_corners(geom: Any) -> tuple[np.ndarray, np.ndarray]:
+    """Konvexe Ecken einer Fläche: Punkte (n, 2) und Innenwinkel θ (n,) in Radiant."""
+    pts: list[np.ndarray] = []
+    ang: list[np.ndarray] = []
+    for poly in polygons(geom):
+        poly = orient(poly, sign=1.0)  # Material links: außen gegen, Löcher im Uhrzeigersinn
+        for ring in (poly.exterior, *poly.interiors):
+            c = np.asarray(ring.coords, float)[:-1]
+            if len(c) < 3:
+                continue
+            a = c - np.roll(c, 1, axis=0)
+            b = np.roll(c, -1, axis=0) - c
+            turn = np.arctan2(a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0], (a * b).sum(axis=1))
+            keep = turn > 1e-9
+            pts.append(c[keep])
+            ang.append(math.pi - turn[keep])
+    if not pts:
+        return np.zeros((0, 2)), np.zeros(0)
+    return np.vstack(pts), np.concatenate(ang)
+
+
+def _corners_only(base: Any, rounded: Any, r: float) -> bool:
+    """True, wenn `rounded` aus `base` nur Eckstücke abträgt.
+
+    Eine Rundung mit Radius r nimmt an einer konvexen Ecke mit Innenwinkel θ ein Stück weg, dessen
+    Spitze die Ecke ist und das höchstens r·(1/sin(θ/2) − 1) vom gerundeten Rand entfernt liegt.
+    Jedes abgetragene Stück (dicker als 0,5 mm) muss deshalb eine konvexe Ecke enthalten und darf
+    nicht weiter als das 1,5-Fache davon (+ 1 mm, Bögen am Nachbarrand) vom gerundeten Rand
+    abstehen; mehrere Ecken in einem Stück zählen als eine mit der Summe ihrer Drehungen
+    (Streifenende: Summe ≥ 170°, abgelehnt). Ein L/T-Schenkel, schmaler als 2·r (Streifenende,
+    weit abstehend), oder ein eingeschnürter Hals (Stück ohne Ecke) erfüllen das nicht."""
+    import shapely
+
+    removed = polygons(base.difference(rounded))
+    if not removed:
+        return True
+    corners, theta = _convex_corners(base)
+    cpts = shapely.points(corners) if len(corners) else None
+    for piece in removed:
+        if piece.area <= 0.25 * piece.length:  # Splitter dünner als ≈ 0,5 mm
+            continue
+        if cpts is None:
+            return False
+        near = shapely.distance(cpts, piece) < 0.5
+        if not near.any():
+            return False
+        # mehrere Ecken in einem Stück (Horn neben einem Bogen): Winkel aus der Summe der Drehungen;
+        # dreht das Stück um ≥ 170°, ist es ein Streifenende (Schenkel schmaler als 2·r), keine Ecke
+        eff = math.pi - float(np.sum(math.pi - theta[near]))
+        if eff < math.radians(10.0):
+            return False
+        allowed = 1.5 * r * (1.0 / math.sin(max(eff, 1e-6) / 2.0) - 1.0) + 1.0
+        # Eckpunkte des Stücks genügen: Spitze bzw. Schenkelende sind Ecken des Stücks
+        far = shapely.distance(shapely.points(np.asarray(piece.exterior.coords, float)), rounded)
+        if float(far.max()) > allowed:
+            return False
+    return True
+
+
 def offset_region(region: Any, offset_mm: float, corner_radius_mm: float = 0.0) -> Any:
     """Nach innen versetzte Fläche, deren Rand die Mittellinie einer Schale ist.
 
@@ -47,9 +106,11 @@ def offset_region(region: Any, offset_mm: float, corner_radius_mm: float = 0.0) 
     konzentrische Bögen mit Radius `offset_mm` um die Ecke. Konvexe Ecken werden mit
     `corner_radius_mm` gerundet (Erosion um offset + r, Dilatation um r). Ändert die Rundung die
     Topologie (Anzahl Teile oder Löcher, z. B. an schmalen Hälsen oder bei einem Ring, der
-    schmaler als 2·r ist), wird r schrittweise verkleinert (RADIUS_STEPS, größter passender Radius,
-    z. B. Pfeiler 150 mm: innere Schale 60 mm breit → r = 28,5 statt einer scharfen Ecke); erst
-    wenn auch r/10 nicht passt, gilt die ungerundete Fläche.
+    schmaler als 2·r ist) oder nimmt sie mehr weg als die Eckstücke (`_corners_only`: ein
+    L/T-Schenkel, schmaler als 2·r, oder ein Hals unter einer Kerbe), wird r schrittweise
+    verkleinert (RADIUS_STEPS, größter passender Radius, z. B. L mit 200 mm Wand und r = 150:
+    Schale 0 mit r = 75, Schale 1 mit r = 45; Pfeiler 150 mm: innere Schale 60 mm breit →
+    r = 28,5 statt einer scharfen Ecke); erst wenn auch r/10 nicht passt, gilt die ungerundete Fläche.
     """
     base = region.buffer(-offset_mm, join_style="round", quad_segs=QUAD_SEGS)
     if corner_radius_mm <= 0 or base.is_empty:
@@ -60,7 +121,7 @@ def offset_region(region: Any, offset_mm: float, corner_radius_mm: float = 0.0) 
         rounded = region.buffer(-(offset_mm + r), join_style="round", quad_segs=QUAD_SEGS).buffer(
             r, join_style="round", quad_segs=QUAD_SEGS
         )
-        if _signature(rounded) == sig:
+        if _signature(rounded) == sig and _corners_only(base, rounded, r):
             return rounded
     return base
 
