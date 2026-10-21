@@ -31,6 +31,7 @@ Die erste Zeile setzt nur das Skript.
 | Katalog final mit Roboterkennzahlen (`docs/muster/MUSTERKATALOG.md`, 17 Muster × 4 Querschnitte) | M5 | erledigt, gemergt | v2/muster-katalog | a714579 |
 | Gegenprüfung und Härtung (Finder → Verifikation → Fixes) | M6 | läuft (wf_ec0731df-a69) | v2/muster-haertung | |
 | Backlog: Parameterstudie Fugenwand und Wellen (`docs/muster/PARAMETERSTUDIE.md`, 1064 Läufe) | Backlog | erledigt, gemergt | v2/muster-studie | 9e53fd4 |
+| Backlog: alle S2-Wände mit Rautenkette (S6), Planerlaufzeit | Backlog | läuft (wf_44ab3058-46d) | v2/muster-s2 | |
 | Kernfehler `shells.shell_chain`/`clear_end` stürzt bei Inseln < ~4·w ab (auch Grundmuster) | M6 | offen | v2/muster-haertung | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
 
