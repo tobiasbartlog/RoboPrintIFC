@@ -1,0 +1,35 @@
+{
+  "schema_version": "1",
+  "id": "S5_muster_oeffnung_fugenwand",
+  "beschreibung": "Modul mit Oeffnung: Wand 600 x 200 x 400 mm aus docs/muster/szenarien/S5_fensterwand.ifc (erzeugt von scripts/muster_s5_ifc.py), Fenster x 180..420 mm, Bruestung bis z = 150 mm, Sturz z = 400 mm. Entspricht dem unteren Modul einer hoeheren Wand (Zerlegung schneidet an der Sturzlinie). Synthetisch, weil examples/Building-Architecture.ifc (S2) keine Oeffnung enthaelt. Zerlegung ergibt genau ein Modul: Schichten 0-14 voller Querschnitt, ab Schicht 15 zwei Pfeiler (Inseln) zu 180 mm. Muster: Fugenwand Rautenkette (Katalog-Empfehlung fuer prismatische Module). Erwartet nicht machbar: die Fugenwand ist prismatisch, ueber der Bruestung stehen die Laibungsraupen der Pfeiler frei (M3).",
+  "mode": "modul",
+  "source": {
+    "kind": "ifc",
+    "path": "docs/muster/szenarien/S5_fensterwand.ifc",
+    "walls": "all"
+  },
+  "decompose": true,
+  "robot": "robots/doosan_m1013.json",
+  "urdf": "third_party/doosan_m1013/urdf/m1013.white.urdf",
+  "tool": "tools/30gut.json",
+  "workstation": "workstations/doosantisch.json",
+  "params": {
+    "pattern_preset": "docs/muster/presets/fugenwand_raute.json"
+  },
+  "planner_mode": "collision_aware",
+  "expect": {
+    "parts": "all_feasible",
+    "muster": {
+      "machbar": false,
+      "fast": false,
+      "preset": "docs/muster/presets/fugenwand_raute.json",
+      "erwartete_regeln": [
+        "M3"
+      ],
+      "beleg": "Kern (patterns.measure) und Orakel: M3-Ueberhang an der Bruestungsoberkante; nur topologie legt Querstege an den kuenftigen Laibungen (docs/muster/topologie.md)."
+    }
+  },
+  "limits": {
+    "wall_time_s": 600
+  }
+}

@@ -4,7 +4,10 @@ import { isJobRunning } from '../state/store';
 import { useAppStore, useSteps } from '../state/storeContext';
 import { ErrorNote, Reason, StaleBanner } from './common';
 import { ModuleProgress, ModuleRaster, RunStats } from './ModuleRaster';
+import { LayerPreview } from './LayerPreview';
 import { ParamsPanel } from './ParamsPanel';
+import { PartPatternStats } from './PartPatternStats';
+import { PatternChoice } from './PatternChoice';
 import { stageLabel } from '../state/moduleView';
 
 const num = (n: number) => n.toLocaleString('de-DE');
@@ -36,6 +39,7 @@ export function DecomposeStep() {
       <Text size="sm" data-testid="decompose-wall">
         Wand: {wallName ?? (run?.basis.direct ? 'keine (Lauf direkt geöffnet)' : 'noch keine gewählt')}
       </Text>
+      <PatternChoice />
       <ParamsPanel />
 
       {/* Bleibt am unteren Rand der Seitenleiste sichtbar, auch wenn die Druckeinstellungen aufgeklappt sind. */}
@@ -134,6 +138,12 @@ export function DecomposeStep() {
                     {num(tr.n)} Bahnpunkte: {num(tr.n_ok)} frei, {num(tr.n_warn)} unter Sollabstand, {num(tr.n_collision)} Kollision,{' '}
                     {num(tr.n_unreachable)} unerreichbar
                   </Text>
+                ) : null}
+                {partId === p.part_id ? (
+                  <Stack gap="xs" mt={4} data-testid={`part-pattern-${p.part_id}`}>
+                    <PartPatternStats partId={p.part_id} />
+                    <LayerPreview partId={p.part_id} />
+                  </Stack>
                 ) : null}
                 {!ok && art?.cause ? (
                   <Stack gap={0} data-testid={`part-cause-${p.part_id}`}>

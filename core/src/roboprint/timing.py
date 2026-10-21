@@ -10,6 +10,10 @@
 - Transfer (movej): gelenklinear mit hoechstens `joint_speed_fraction` der Achsgrenzen.
 - In jedem Abschnitt gilt zusaetzlich |dq_j| / dt <= Achsgrenze (Strang: volle Grenze, Travel:
   Anteil); wo das greift, wird die Zeit gestreckt.
+- Druckmuster (opt-in): Ein Muster ist ueber alle Ringe und Schichten ein Strang, also ein Abschnitt
+  mit einem Trapez. Offene Ringe zaehlen wie geschlossene. Ein Verbinder der Laenge 0 in der Schicht
+  ist ein Sample ohne Weg (dt = DT_FLOOR_S, Gelenke stehen, psi bleibt), ein senkrechter
+  Schichtwechsel ein Z-Hub um h mit v_print; beides ohne Rampe.
 - Pumpen-Vorlauf t_tot einmal je Strang: Das erste Sample des Strangs (Duplikat des Ringstarts nach
   der Anfahrt) bekommt t_tot zusaetzlich (Stillstand, Pumpe an, `wait(t_tot)` im DRL).
 

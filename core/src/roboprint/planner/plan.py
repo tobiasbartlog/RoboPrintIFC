@@ -18,6 +18,15 @@ Verweil-Sample (Pumpe an, wait t_tot) steht nur am Strangbeginn.
 einem Ring in Schicht L: k = L; lift nach Schicht L: k = L + 1; transfer/lower vor einem Strang:
 k = (Schicht des vorigen Rings) + 1, vor dem ersten Ring 0.
 
+Druckmuster (opt-in, docs/muster/ARTEFAKT-FORMAT.md): Ringe duerfen offen sein (`closed = false`,
+Ende != Anfang); der Planer behandelt jeden Ring als Wegpunktfolge vom ersten zum letzten Punkt,
+offen oder geschlossen gleich. Verbinder ohne waagrechte Laenge (`is_zero_link`, <= 0,5 mm) sind in
+der Schicht ein `link`-Sample am selben Ort, beim Schichtwechsel ein reiner Z-Hub um h (senkrechter
+Schichtwechsel, M4); der Folgering behaelt dort psi (`psi_hold`), damit sich die Duese mit
+laufender Pumpe nicht auf der Stelle dreht. So wird ein Muster ueber alle Ringe und Schichten ein
+Strang. Kurven bringen dichtere Wegpunkte (Sehnenfehler <= 0,5 mm); Knoten gibt es weiter je
+Wegpunkt (Laufzeit S1 mit Muster: docs/muster/ARTEFAKT-FORMAT.md, Nachtrag M3.2).
+
 Hoehensuche (`stop_at_bad`): Ein Praefix des Plans bis zu einer Schichtgrenze ist der Plan des
 niedrigeren Teils. Fuehrt dort ein Verbinder in die naechste Schicht, plant der Planer das Strangende
 (Abfahren, Abheben) zusaetzlich als `Tail`; `truncate` haengt es an. Die Hoehensuche stoppt an der
@@ -57,6 +66,9 @@ from .samples import (
 )
 
 _RING_RETRIES = 2
+#: Verbinder mit waagrechter Laenge bis hier sind "Laenge 0" (in der Schicht) bzw. ein reiner Z-Hub
+#: (Schichtwechsel, Muster-Regel M4: <= 0,5 mm); der Folgering behaelt dann psi (`psi_hold`).
+ZERO_LINK_MM = 0.5
 #: Planer, dessen Ring-Graphen die Pool-Prozesse bauen (fork erbt ihn, siehe `_graph_worker`)
 _POOL_PLANNER: Any = None
 
@@ -220,11 +232,19 @@ class PartPlanner:
             del self._graphs[k]
         return replace(g, d_real=np.full_like(g.d_real, np.nan))
 
-    def _solve(self, g: RingGraph, q_prev, b_prev, force_branch=None, link: bool = False) -> RingPath:
+    def _solve(
+        self,
+        g: RingGraph,
+        q_prev,
+        b_prev,
+        force_branch=None,
+        link: bool = False,
+        psi_hold: float | None = None,
+    ) -> RingPath:
         t = time.perf_counter()
         w = self.p.lambda_link if link else None
         real = self.real if self.aware else None
-        path = solve_ring(g, self.p, real, q_prev, b_prev, force_branch, w_start=w)
+        path = solve_ring(g, self.p, real, q_prev, b_prev, force_branch, w_start=w, psi_hold=psi_hold)
         self.timings["graph"] += time.perf_counter() - t
         return path
 
@@ -395,7 +415,8 @@ class PartPlanner:
         nicht, der Strang endet an `op`."""
         b = op.branch
         g = self._graph(task)
-        path = self._solve(g, op.q_end, b, b, link=True)
+        hold = op.psi_end if is_zero_link(op.task.p_W[-1], task.p_W[0]) else None
+        path = self._solve(g, op.q_end, b, b, link=True, psi_hold=hold)
         best: _Motion | None = None
         for attempt in range(_RING_RETRIES + 1):
             mo = self._link_motion(task, path, op, b)
@@ -408,7 +429,7 @@ class PartPlanner:
             if not self.aware or mo.bad_wp.size == 0 or attempt == _RING_RETRIES:
                 break
             mark_hard(g, path, mo.bad_wp)
-            path = self._solve(g, op.q_end, b, b, link=True)
+            path = self._solve(g, op.q_end, b, b, link=True, psi_hold=hold)
         if best is None:
             return False
         s = self.s
@@ -583,10 +604,15 @@ class PartPlanner:
         return path
 
 
+def is_zero_link(p_end: np.ndarray, p_start: np.ndarray) -> bool:
+    """Verbinder ohne waagrechte Laenge (<= ZERO_LINK_MM): Laenge 0 in der Schicht oder reiner Z-Hub."""
+    return bool(np.hypot(*(np.asarray(p_start, float)[:2] - np.asarray(p_end, float)[:2])) <= ZERO_LINK_MM)
+
+
 def _psi_q(kin: Kin, q: np.ndarray) -> float:
     from .kin import psi_of
 
     return float(psi_of(kin.tcp_W(q[None])[:, :3, :3])[0])
 
 
-__all__ = ["PartPlanner", "PlannedPath", "RingTask", "summarize", "truncate"]
+__all__ = ["ZERO_LINK_MM", "PartPlanner", "PlannedPath", "RingTask", "is_zero_link", "summarize", "truncate"]

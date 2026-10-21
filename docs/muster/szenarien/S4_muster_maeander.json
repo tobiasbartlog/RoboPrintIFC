@@ -1,0 +1,35 @@
+{
+  "schema_version": "1",
+  "id": "S4_muster_maeander",
+  "beschreibung": "Synthetischer Vollquader 600 x 200 x 400 mm (Laenge x Dicke x Hoehe), Modus Modul am Doosantisch. Platzierung am Standard-Druckplatz (0, -50) mm, lange Seite zum Roboter. Muster: Infill Maeander mit senkrechten Flanken, Wellenlaenge 250 mm, alternate (Radius im 50-mm-Band <= 26,5 mm, M6-Warnung).",
+  "mode": "modul",
+  "source": {
+    "kind": "box",
+    "size_mm": [
+      600,
+      200,
+      400
+    ]
+  },
+  "decompose": false,
+  "robot": "robots/doosan_m1013.json",
+  "urdf": "third_party/doosan_m1013/urdf/m1013.white.urdf",
+  "tool": "tools/30gut.json",
+  "workstation": "workstations/doosantisch.json",
+  "params": {
+    "pattern_preset": "core/src/roboprint/patterns/presets/maeander.json"
+  },
+  "planner_mode": "collision_aware",
+  "expect": {
+    "parts": "all_feasible",
+    "muster": {
+      "machbar": true,
+      "fast": false,
+      "preset": "core/src/roboprint/patterns/presets/maeander.json",
+      "hinweis": "Wenderadius 26,5 mm < w (M6-Ziel verfehlt)"
+    }
+  },
+  "limits": {
+    "wall_time_s": 400
+  }
+}

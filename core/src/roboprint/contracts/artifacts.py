@@ -12,9 +12,11 @@ from ._types import (
     ContractModel,
     Joints6,
     Kind,
+    LayerOrder,
     Mat4,
     ParamValue,
     PartStatus,
+    PatternParamValue,
     Pose7,
     RingKind,
     Status,
@@ -142,6 +144,8 @@ class Ring(ContractModel):
     layer: int = Field(ge=0)
     shell: int = Field(ge=0)
     kind: RingKind
+    # true: geschlossener Ring (letzter Wegpunkt == erster); false: offenes Segment eines Musters
+    # (docs/muster/ARTEFAKT-FORMAT.md), Anfang und Ende beliebig
     closed: bool
     # Verbinder zum Ring mit dem naechsthoeheren Index erlaubt (SPEC §5.3)
     link_next: bool = False
@@ -149,6 +153,8 @@ class Ring(ContractModel):
 
     @model_validator(mode="after")
     def _closed_ring(self) -> Ring:
+        if not self.closed and len(self.waypoints) < 2:
+            raise ValueError("offenes Segment braucht mindestens 2 Wegpunkte")
         if self.closed:
             if len(self.waypoints) < 2:
                 raise ValueError("geschlossener Ring braucht mindestens 2 Wegpunkte")
@@ -158,11 +164,24 @@ class Ring(ContractModel):
         return self
 
 
+class ToolpathPattern(ContractModel):
+    """Druckmuster eines Teils (opt-in, docs/muster/ARTEFAKT-FORMAT.md); nur zur Beschriftung."""
+
+    layer_order: LayerOrder
+    infill: str
+    outfill: str
+    params: dict[str, PatternParamValue] = Field(default_factory=dict)
+    # Hinweise des Plans (Infill entfällt, Rückfall auf Schalen, Insel ohne Strang …); fehlt ohne Hinweis
+    notes: list[str] = Field(default_factory=list, exclude_if=lambda v: not v)
+
+
 class Toolpath(ArtifactModel):
     part_id: str
     layer_height_mm: float
     bead_width_mm: float
     rings: list[Ring]
+    # Nur bei Teilen mit Muster; fehlt sonst ganz in der Datei (ohne Muster bitgleich zu vorher)
+    pattern: ToolpathPattern | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 # --------------------------------------------------------------------------- trajectory

@@ -12,6 +12,8 @@ import type { PrintProgress } from './progress';
 /** Polylinie eines Stuecks. */
 export interface PiecePath {
   layer: number;
+  /** Segmentart des Rings (`outer`, `inner`, `hole`, `infill`, `web`, `outfill`) oder `link` für einen Verbinder. */
+  kind: string;
   /** Punkte flach [x, y, z, ...]. */
   points: Float64Array;
   /** Bogenlaenge bis Punkt k. */
@@ -28,6 +30,17 @@ export interface StrandLayout {
   /** Anzahl der gedruckten Stuecke am Anfang von `paths`. */
   printed: number;
 }
+
+/** Arten, die erst mit einem Druckmuster vorkommen (docs/muster/ARTEFAKT-FORMAT.md). */
+export const PATTERN_KINDS = ['infill', 'web', 'outfill'] as const;
+
+/** Kommt im Layout eine Musterart vor? Nur dann färbt die 3D-Ansicht nach Segmentart. */
+export function hasPatternKinds(layout: StrandLayout): boolean {
+  return layout.paths.some((p) => (PATTERN_KINDS as readonly string[]).includes(p.kind));
+}
+
+/** Farbe (RGB 0..1) einer Segmentart. */
+export type KindColor = (kind: string) => readonly [number, number, number];
 
 /** Schnitt am Fortschritt `pos`: laufendes Stueck, fertige Segmente darin und die Spitze. */
 export interface StrandCut {
@@ -108,7 +121,7 @@ function miterVectors(normals: Float64Array, nSeg: number, closed: boolean): Flo
   return out;
 }
 
-function makePath(layer: number, pts: readonly P3[]): PiecePath {
+function makePath(layer: number, pts: readonly P3[], kind: string): PiecePath {
   const points = new Float64Array(pts.length * 3);
   pts.forEach((p, k) => points.set(p, 3 * k));
   const cum = new Float64Array(pts.length);
@@ -120,7 +133,7 @@ function makePath(layer: number, pts: readonly P3[]): PiecePath {
   const nSeg = Math.max(0, pts.length - 1);
   const closed = pts.length > 2 && samePoint(pts[0]!, pts[pts.length - 1]!);
   const normals = segmentNormals(points, nSeg);
-  return { layer, points, cum, normals, miters: miterVectors(normals, nSeg, closed) };
+  return { layer, kind, points, cum, normals, miters: miterVectors(normals, nSeg, closed) };
 }
 
 function ringPoints(ring: Toolpath['rings'][number] | undefined): P3[] {
@@ -142,18 +155,18 @@ export function strandLayout(toolpath: Toolpath, progress: PrintProgress | null)
   for (const piece of progress?.pieces ?? []) {
     if (piece.kind === 'ring') {
       seen.add(piece.ring);
-      paths.push(makePath(piece.layer, ringPoints(rings[piece.ring])));
+      paths.push(makePath(piece.layer, ringPoints(rings[piece.ring]), rings[piece.ring]?.kind ?? 'outer'));
     } else {
       const from = rings[piece.ring - 1]?.waypoints;
       const to = rings[piece.ring]?.waypoints;
       const a = from?.[from.length - 1];
       const b = to?.[0];
-      paths.push(makePath(piece.layer, a && b ? [[a[0], a[1], a[2]], [b[0], b[1], b[2]]] : []));
+      paths.push(makePath(piece.layer, a && b ? [[a[0], a[1], a[2]], [b[0], b[1], b[2]]] : [], 'link'));
     }
   }
   const printed = paths.length;
   rings.forEach((r, idx) => {
-    if (!seen.has(idx)) paths.push(makePath(r.layer, ringPoints(r)));
+    if (!seen.has(idx)) paths.push(makePath(r.layer, ringPoints(r), r.kind));
   });
   return { paths, printed };
 }
@@ -198,11 +211,13 @@ export function cutStart(layout: StrandLayout, cut: StrandCut): [number, number,
 export interface StrandLines {
   /** Linienstuecke (Punktpaare) aller Pfade in Reihenfolge. */
   positions: Float32Array;
+  /** Farbe je Vertex (RGB), nur mit `colorOf`. */
+  colors: Float32Array | null;
   /** Erster Vertex je Pfad; `start[paths.length]` ist die Gesamtzahl. */
   start: Int32Array;
 }
 
-export function strandLines(layout: StrandLayout): StrandLines {
+export function strandLines(layout: StrandLayout, colorOf?: KindColor): StrandLines {
   const start = new Int32Array(layout.paths.length + 1);
   let verts = 0;
   layout.paths.forEach((p, j) => {
@@ -211,14 +226,20 @@ export function strandLines(layout: StrandLayout): StrandLines {
   });
   start[layout.paths.length] = verts;
   const positions = new Float32Array(verts * 3);
+  const colors = colorOf ? new Float32Array(verts * 3) : null;
   let o = 0;
   for (const p of layout.paths) {
+    const c = colorOf?.(p.kind);
     for (let k = 0; k + 1 < p.cum.length; k++) {
       positions.set(p.points.subarray(3 * k, 3 * k + 6), o);
+      if (colors && c) {
+        colors.set(c, o);
+        colors.set(c, o + 3);
+      }
       o += 6;
     }
   }
-  return { positions, start };
+  return { positions, colors, start };
 }
 
 /** Vertices der fertigen Bahn (`start` aus `strandLines`): alle ganzen Segmente bis zum Schnitt. */
@@ -313,6 +334,8 @@ export function offsetAt(path: PiecePath, k: number, halfWidth: number): [number
 export interface BeadBuffer {
   positions: Float32Array;
   normals: Float32Array;
+  /** Farbe je Vertex (RGB), nur mit `colorOf`. */
+  colors: Float32Array | null;
   /** Erster Vertex je Pfad aus [from, to), relativ; letzter Eintrag = Gesamtzahl. */
   start: Int32Array;
   from: number;
@@ -320,7 +343,7 @@ export interface BeadBuffer {
 }
 
 /** Raupen aller Segmente der Pfade [from, to). */
-export function beadBuffer(layout: StrandLayout, from: number, to: number, width: number, height: number): BeadBuffer {
+export function beadBuffer(layout: StrandLayout, from: number, to: number, width: number, height: number, colorOf?: KindColor): BeadBuffer {
   const paths = layout.paths.slice(from, to);
   const start = new Int32Array(paths.length + 1);
   let verts = 0;
@@ -331,15 +354,18 @@ export function beadBuffer(layout: StrandLayout, from: number, to: number, width
   start[paths.length] = verts;
   const positions = new Float32Array(verts * 3);
   const normals = new Float32Array(verts * 3);
+  const colors = colorOf ? new Float32Array(verts * 3) : null;
   const hw = width / 2;
   let v = 0;
   for (const p of paths) {
+    const c = colorOf?.(p.kind);
     for (let k = 0; k + 1 < p.cum.length; k++) {
       writeBead(positions, normals, v, at(p.points, k), at(p.points, k + 1), offsetAt(p, k, hw), offsetAt(p, k + 1, hw), height);
+      if (colors && c) for (let j = 0; j < BEAD_VERTS; j++) colors.set(c, 3 * (v + j));
       v += BEAD_VERTS;
     }
   }
-  return { positions, normals, start, from, to };
+  return { positions, normals, colors, start, from, to };
 }
 
 /** Vertices der fertigen Raupen der Schicht bis zum Schnitt. */

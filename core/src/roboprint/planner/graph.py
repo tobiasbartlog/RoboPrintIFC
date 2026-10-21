@@ -229,12 +229,21 @@ def solve_ring(
     force_branch: int | None = None,
     max_iter: int = 12,
     w_start: float | None = None,
+    psi_hold: float | None = None,
 ) -> RingPath:
-    """Viterbi mit lazy Pruefung der Pfadknoten gegen die echte Welt (`real`; None = ohne)."""
+    """Viterbi mit lazy Pruefung der Pfadknoten gegen die echte Welt (`real`; None = ohne).
+
+    `psi_hold`: Der Ringstart soll dieses psi behalten (Verbinder ohne waagrechte Laenge, Muster):
+    Startzustaende mit anderem psi kosten BIG. So dreht sich die Duese an einem Verbinder der
+    Laenge 0 bzw. einem reinen Z-Hub nicht auf der Stelle (Pumpe laeuft, Materialklecks); geht es
+    mit diesem psi gar nicht, bleibt die Drehung als teurer Ausweg erlaubt."""
     collision_aware = real is not None
     sc = start_costs(g, params, q_prev, b_prev, w_start)
     if force_branch is not None:
         sc = sc + np.where(np.arange(len(sc)) % N_BRANCH == force_branch, 0.0, HARD)
+    if psi_hold is not None:
+        p_of = g.psi[np.arange(len(sc)) // N_BRANCH]
+        sc = sc + np.where(np.abs(wrap_pi(p_of - psi_hold)) <= 1e-9, 0.0, BIG)
     for _ in range(max_iter):
         nc = node_costs(g, params, collision_aware)
         states, total, restarts = viterbi(g, nc, sc)

@@ -875,3 +875,17 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
   Einzelringe), Orakel bestätigt 70 464 (vorher 75 778).
 - Offene Punkte der Umsetzer (Eintrag 16:30, Punkte 1–10) bleiben beim Nutzer; die Cloud-Prüfung hat keinen davon
   rot gemacht.
+
+### 2026-10-21 09:15 Druckmuster-Nachtlauf (Branch `v2/muster`, Draft-PR nach `v2/strang`)
+- Auftrag `docs/muster/AUFTRAG.md` mit Nutzer-Nachtrag 18:20 (Outfill = Sollbruchstellen nach Foto,
+  parametrischer 2D-Musterersteller). Bericht: `MORGENBERICHT-MUSTER.md`; Verlauf und Belege:
+  `MUSTER-PROGRESS.md`.
+- Neu: Musterkern `core/src/roboprint/patterns/` (parametrische Segmentmuster mit Kontakten), 17 Vorlagen in
+  7 Familien (Fugenwand mit Rautenkette als Empfehlung), Musterersteller (API `/api/patterns*`, CLI
+  `pattern-preview`, Web-Reiter „Muster“), Einbau in Slicer, Planer, Timing und DRL (opt-in; ohne Muster ist
+  S1 bitgleich), Orakel `verify_muster/` (M1–M7), Runner `scripts/verify_muster.py` (Vorschlag G9),
+  12 Testdruck-Programme, Musterkatalog, Parameterstudie.
+- `scripts/verify.py` voll (06:28): G1–G8 grün, Exit 0.
+- Stillstand 06:52–08:30 nach vollem Datenträger (Worktrees fertiger Agenten); Lehre: Worktrees und Laufordner
+  nach dem Merge sofort löschen.
+- Gate-Einwände (G3-Abdeckung gegen Muster) und drei Weichen stehen im Morgenbericht.

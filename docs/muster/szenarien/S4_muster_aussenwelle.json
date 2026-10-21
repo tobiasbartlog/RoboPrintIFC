@@ -1,0 +1,36 @@
+{
+  "schema_version": "1",
+  "id": "S4_muster_aussenwelle",
+  "beschreibung": "Synthetischer Vollquader 600 x 200 x 400 mm (Laenge x Dicke x Hoehe), Modus Modul am Doosantisch. Platzierung am Standard-Druckplatz (0, -50) mm, lange Seite zum Roboter. Muster: Outfill O1 gewellte Aussenschale (Sinus, Wellenlaenge 150 mm, Amplitude 8 mm, eine Schale je Seite), alternate.",
+  "mode": "modul",
+  "source": {
+    "kind": "box",
+    "size_mm": [
+      600,
+      200,
+      400
+    ]
+  },
+  "decompose": false,
+  "robot": "robots/doosan_m1013.json",
+  "urdf": "third_party/doosan_m1013/urdf/m1013.white.urdf",
+  "tool": "tools/30gut.json",
+  "workstation": "workstations/doosantisch.json",
+  "params": {
+    "pattern_preset": "core/src/roboprint/patterns/presets/aussenwelle.json"
+  },
+  "planner_mode": "collision_aware",
+  "expect": {
+    "parts": "all_feasible",
+    "muster": {
+      "machbar": true,
+      "fast": false,
+      "abdeckung_untergrenze": 0.5,
+      "abdeckung_untergrenze_grund": "O1 druckt gewollt nur eine Schale je Seite ohne Infill: Abdeckung des Zwei-Schalen-Bereichs 53,3 %",
+      "preset": "core/src/roboprint/patterns/presets/aussenwelle.json"
+    }
+  },
+  "limits": {
+    "wall_time_s": 400
+  }
+}

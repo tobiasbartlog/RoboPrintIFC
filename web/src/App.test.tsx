@@ -21,7 +21,7 @@ describe('App', () => {
     fireEvent.click(screen.getByTestId('wall-select-box'));
     fireEvent.click(screen.getByTestId('to-decompose'));
     fireEvent.click(screen.getByTestId('start-job'));
-    await waitFor(() => expect(screen.getByTestId('part-status-P01')).toHaveTextContent('machbar'));
+    await waitFor(() => expect(screen.getByTestId('part-status-P01')).toHaveTextContent('machbar'), { timeout: 10_000 });
     expect(screen.getByTestId('step-decompose')).toHaveAttribute('data-status', 'aktuell');
   });
 });

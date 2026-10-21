@@ -30,6 +30,8 @@ function unavailable(): ApiPort {
     wallMeshUrl: (projectId, wallId, frame = 'L') =>
       `/api/projects/${projectId}/walls/${encodeURIComponent(wallId)}.stl${frame === 'L' ? '' : `?frame=${frame}`}`,
     contextMeshUrl: (projectId) => `/api/projects/${projectId}/context.stl`,
+    patternReport: fail,
+    patternLayer: fail,
     assetBase: '/api/assets',
   };
 }

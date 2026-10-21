@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "name": "Gewellte Außenschale, Zickzack (O1)",
+  "pattern": "aussenwelle",
+  "params": {
+    "bead_width_mm": 30.0,
+    "layer_height_mm": 10.0,
+    "shells": 1,
+    "layer_order": "alternate",
+    "outer_wavelength_mm": 150.0,
+    "outer_amplitude_mm": 8.0,
+    "outer_shape": "zickzack",
+    "outer_round_radius_mm": 60.0,
+    "outer_faces": "beide"
+  },
+  "outline": {
+    "length_mm": 600.0,
+    "thickness_mm": 200.0
+  },
+  "description": "O1 als gerundetes Zickzack (Scheitelradius 60 mm), eine Schale je Seite."
+}

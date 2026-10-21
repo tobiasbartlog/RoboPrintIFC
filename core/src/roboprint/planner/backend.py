@@ -193,6 +193,15 @@ def _self_pairs() -> list[tuple[int, int]]:
     return pairs
 
 
+#: Zusatzpaar des Doubles fuer Teile mit Druckmuster (opt-in, M3.2): Werkzeugkoerper <-> link_4.
+#: Mit `layer_order = alternate` endet jede ungerade Schicht an der Naht der Aussenschale; an der
+#: Oberkante von S1 (400 mm) faltet das Handgelenk dort so, dass der Werkzeugkoerper link_4 auf
+#: < d_hard nahekommt. Ohne das Paar sieht das Double das nicht, die Abschlusspruefung verwirft den
+#: Plan, und die Nachplanung mit der echten Welt kostet das 2,6- bis 2,8-Fache von S1. Ohne Muster
+#: bleibt das Double unveraendert (S1-S3 bitgleich).
+PATTERN_SELF_PAIRS: tuple[tuple[int, int], ...] = ((4, 7),)
+
+
 def _unit(u: np.ndarray) -> np.ndarray:
     return u / np.maximum(np.linalg.norm(u, axis=-1, keepdims=True), 1e-9)
 
@@ -223,6 +232,7 @@ class SphereWorld:
         root: Path = REPO_ROOT,
         r_free_mm: float = 40.0,
         part_bbox_P: np.ndarray | None = None,  # noqa: N803
+        extra_self_pairs: tuple[tuple[int, int], ...] = (),
     ) -> None:
         self.root = Path(root)
         self._tpw: np.ndarray | None = None
@@ -231,7 +241,7 @@ class SphereWorld:
         self.h = float(layer_height_mm)
         self.bodies = _bodies(self.root, float(r_free_mm))
         self._first = {o: next(i for i, b in enumerate(self.bodies) if b.owner == o) for o in (0, 2)}
-        own = {(a, c) for a, c in _self_pairs()}
+        own = {(a, c) for a, c in (*_self_pairs(), *extra_self_pairs)}
         self._pairs = [
             (i, j)
             for i, A in enumerate(self.bodies)

@@ -21,6 +21,14 @@ anderes als `link` folgt. Ein Ring ohne Verbinder ist ein Strang aus einem Ring 
   die Pumpe dort und nicht in der Blending-Zone schaltet).
 - Ziele naeher als `_MERGE_MM` am vorigen Ziel desselben Strangs werden zusammengefasst (das
   spaetere Sample bleibt), damit kein radius 0 und damit kein Halt im Strang entsteht.
+
+**Druckmuster** (opt-in, docs/muster/ARTEFAKT-FORMAT.md): Offene Ringe (`closed = false`) laufen
+wie geschlossene, je Wegpunkt ein `movel` bis zum letzten Wegpunkt. Ein Verbinder der Laenge 0 in
+der Schicht faellt mit dem Ringende zusammen und wird dessen Ziel (kein Segment der Laenge 0, kein
+radius 0); ein senkrechter Schichtwechsel ist ein `movel` um h nach oben, radius = min(r_blend,
+h/2, ...). Der Ringkommentar nennt beides ("ueber Verbinder, senkrecht, Z +10.0 mm" bzw.
+"Laenge 0", nur wenn `Toolpath.pattern` gesetzt ist); Verbinder mit waagrechter Laenge und alle
+Verbinder ohne Muster behalten den bisherigen Text.
 """
 
 from __future__ import annotations
@@ -38,6 +46,7 @@ LINEAR_TOL_RAD = 1e-6  # dito fuer gelenklineare Transfers
 _SAME_MM = 1e-4
 _SAME_RAD = 1e-7
 _MERGE_MM = 1e-3  # Ziele im Strang naeher als das: ein Ziel (radius bleibt > 0 nach Abrunden)
+ZERO_LINK_MM = 0.5  # waagrechte Laenge, bis zu der ein Verbinder "Laenge 0" bzw. ein Z-Hub ist (M4)
 
 CARTESIAN_KINDS = ("lift", "lower", "approach", "retract")
 STRAND_KINDS = ("print", "link")
@@ -139,9 +148,19 @@ def match_waypoints(
     return out
 
 
-def ring_label(toolpath: Toolpath, ring: int, via_link: bool = False) -> str:
+def link_note(a: np.ndarray, b: np.ndarray) -> str:
+    """Zusatz im Ringkommentar fuer Verbinder ohne waagrechte Laenge (Muster, M4): reiner Z-Hub
+    ("senkrecht, Z +10.0 mm") oder Laenge 0 in der Schicht; sonst leer (Text wie bisher)."""
+    d = np.asarray(b, float) - np.asarray(a, float)
+    if math.hypot(d[0], d[1]) > ZERO_LINK_MM:
+        return ""
+    return f"senkrecht, Z {d[2]:+.1f} mm" if abs(d[2]) > ZERO_LINK_MM else "Laenge 0"
+
+
+def ring_label(toolpath: Toolpath, ring: int, via_link: bool = False, note: str = "") -> str:
     rp = toolpath.rings[ring] if 0 <= ring < len(toolpath.rings) else None
-    head = f"Ring {ring}" + (" (ueber Verbinder)" if via_link else "")
+    via = (f" (ueber Verbinder, {note})" if note else " (ueber Verbinder)") if via_link else ""
+    head = f"Ring {ring}{via}"
     return head + (f": Schicht {rp.layer}, Schale {rp.shell}, {rp.kind}" if rp else "")
 
 
@@ -156,10 +175,16 @@ class _Strand:
     links: int = 0
     items: list[Comment | tuple[int, str, int]] = field(default_factory=list)
 
-    def target(self, i: int, kind: str, ring: int, P_B: np.ndarray) -> None:  # noqa: N803
+    def target(self, i: int, kind: str, ring: int, P_B: np.ndarray, R_B: np.ndarray | None = None) -> None:  # noqa: N803
+        """Ziel anhaengen. Ein Ziel am selben Ort wie das vorige ersetzt dieses nur bei gleicher
+        Orientierung (`R_B`, Drehmatrizen in B); dreht sich die Duese dort auf der Stelle (Ausweg
+        des Planers, wenn psi am Verbinder der Laenge 0 nicht zu halten ist), bleiben beide Ziele,
+        damit das Programm die Drehung so faehrt wie die Trajektorie und nicht auf das Segment davor
+        verschmiert."""
         prev = next((it for it in reversed(self.items) if isinstance(it, tuple)), None)
-        ref = P_B[prev[0]] if prev else P_B[self.start]
-        if np.linalg.norm(P_B[i] - ref) < _MERGE_MM:
+        j = prev[0] if prev else self.start
+        same_rot = R_B is None or np.allclose(R_B[i], R_B[j], atol=1e-9)
+        if np.linalg.norm(P_B[i] - P_B[j]) < _MERGE_MM and same_rot:
             if prev is None:
                 return  # faellt auf den Strangbeginn: kein eigenes Ziel
             self.items.remove(prev)
@@ -261,7 +286,7 @@ def plan_steps(
         if tr.status[i] == "unreachable":
             raise ValueError(f"Bewegungsziel Sample {i} ist unreachable")
         assert strand is not None
-        strand.target(i, kinds[i], rings[i], P_B)
+        strand.target(i, kinds[i], rings[i], P_B, T_BT[:, :3, :3])
         cur = i
 
     steps.append(Comment("Start (Home)"))
@@ -276,7 +301,10 @@ def plan_steps(
             steps += strand.close(P_B, r_blend_mm)
             strand = None
         if ring != labeled:
-            label = Comment(ring_label(toolpath, ring, via_link=kind == "link"))
+            # Zusatz nur bei Druckmustern (opt-in); ohne Muster bleibt der Text wie bisher
+            with_note = kind == "link" and toolpath.pattern is not None
+            note = link_note(P_W[cur], P_W[idx[-1]]) if with_note else ""
+            label = Comment(ring_label(toolpath, ring, via_link=kind == "link", note=note))
             if strand is not None and kind == "link":
                 strand.items.append(label)  # im Strang zwischen dem Ende von r und dem Verbinder
             else:

@@ -26,6 +26,10 @@ Festlegungen
   Projektion im Querschnitt der Schicht L(r + 1) liegt, beim Schichtwechsel auch in dem von L(r)
   (Toleranz LINK_TOL_MM). Ein Verbinder führt so nie über eine Öffnung oder zwischen zwei Inseln.
   Die Reihenfolge der Ringe bleibt dieselbe; ob der Planer den Verbinder nutzt, zeigt die Trajektorie.
+- Druckmuster (opt-in, `roboprint.slicer_patterns`): Weicht ein Musterparameter vom Standard ab
+  (`layer_order`, `infill_pattern`, `outfill_pattern`, `pattern_params`, `pattern_preset`), kommen
+  die Ringe aus `roboprint.patterns.plan_pattern` (offene Segmente, `kind` infill/web/outfill,
+  senkrechter Schichtwechsel). Ohne Musterparameter gilt alles oben unverändert.
 """
 
 from __future__ import annotations
@@ -39,7 +43,8 @@ from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
 
-from roboprint.contracts import Ring, Toolpath
+from roboprint import slicer_patterns
+from roboprint.contracts import Ring, Toolpath, ToolpathPattern
 
 #: Düsenachse nach unten, X_T = X_W (psi = 0): Drehung um 180 deg um X_W.
 NOZZLE_DOWN_QUAT = (0.0, 1.0, 0.0, 0.0)
@@ -59,17 +64,24 @@ class SliceParams:
     step_mm: float = 20.0
     approach_mm: float = 20.0
     link_max_mm: float = 60.0  # längster Verbinder (SPEC §5.3); <= 0: keine Verbinder
+    # Druckmuster (opt-in, roboprint.slicer_patterns); Standard = kein Muster
+    layer_order: str = ""  # "" (nicht gesetzt) | same | alternate
+    infill_pattern: str = "none"
+    outfill_pattern: str = "none"
+    pattern_params: str = ""  # JSON-Objekt als Text
+    pattern_preset: str = ""  # Pfad zu einem Preset-JSON
 
 
 @dataclass
 class SlicedRing:
     layer: int
     shell: int
-    kind: str  # outer | inner | hole
-    points: np.ndarray  # (n, 3) in P, geschlossen
+    kind: str  # outer | inner | hole (mit Muster auch infill | web | outfill)
+    points: np.ndarray  # (n, 3) in P, geschlossen (closed) oder offenes Segment
     approach: np.ndarray  # (3,) approach_mm über Start
     retract: np.ndarray  # (3,) approach_mm über Ende
     link_next: bool = False  # Verbinder zum nächsten Ring erlaubt (SPEC §5.3)
+    closed: bool = True  # False: offenes Segment eines Druckmusters
 
 
 @dataclass
@@ -78,6 +90,7 @@ class SlicedPart:
     bead_width_mm: float
     n_layers: int
     rings: list[SlicedRing] = field(default_factory=list)
+    pattern: dict[str, Any] | None = None  # Toolpath.pattern, nur mit Druckmuster
 
 
 def _section_polygons(mesh: Any, z: float) -> list[Polygon]:
@@ -210,6 +223,9 @@ def slice_part(part_mesh_P: Any, params: SliceParams | None = None) -> SlicedPar
     height = float(part_mesh_P.bounds[1][2])
     n = int(round(height / h))
     out = SlicedPart(h, p.bead_width_mm, n)
+    pp = slicer_patterns.pattern_params(p)
+    if pp is not None:
+        return _slice_pattern(part_mesh_P, p, pp, out)
     cur: np.ndarray | None = None
     sections: dict[int, Any] = {}
     for layer in range(n):
@@ -233,6 +249,20 @@ def slice_part(part_mesh_P: Any, params: SliceParams | None = None) -> SlicedPar
                 up = np.array([0.0, 0.0, p.approach_mm])
                 out.rings.append(SlicedRing(layer, s, kind, pts, pts[0] + up, pts[-1] + up))
                 cur = pts[-1, :2]
+    for a, b in zip(out.rings[:-1], out.rings[1:], strict=True):
+        a.link_next = link_allowed(a, b, sections, p.link_max_mm)
+    return out
+
+
+def _slice_pattern(part_mesh_P: Any, p: SliceParams, pp: Any, out: SlicedPart) -> SlicedPart:
+    """Ringe aus Druckmustern (roboprint.slicer_patterns), Verbinder wie oben."""
+    sections: dict[int, Any] = {}
+    for layer in range(out.n_layers):
+        polys = _section_polygons(part_mesh_P, (layer + 0.5) * p.layer_height_mm)
+        sections[layer] = unary_union(polys) if polys else Polygon()
+    notes: list[str] = []
+    out.rings = slicer_patterns.pattern_rings(sections, pp, p, notes)
+    out.pattern = slicer_patterns.pattern_info(pp, notes)
     for a, b in zip(out.rings[:-1], out.rings[1:], strict=True):
         a.link_next = link_allowed(a, b, sections, p.link_max_mm)
     return out
@@ -263,11 +293,14 @@ def to_toolpath(sliced: SlicedPart, T_WP: np.ndarray, part_id: str) -> Toolpath:
     for r in sliced.rings:
         w = pts_h(r.points)
         poses = [[*map(float, x), *NOZZLE_DOWN_QUAT] for x in w]
-        poses[-1] = list(poses[0])
+        if r.closed:
+            poses[-1] = list(poses[0])
         rings.append(
             Ring(
-                layer=r.layer, shell=r.shell, kind=r.kind, closed=True, link_next=r.link_next, waypoints=poses
+                layer=r.layer, shell=r.shell, kind=r.kind, closed=r.closed, link_next=r.link_next,
+                waypoints=poses,
             )
         )
+    pattern = ToolpathPattern.model_validate(sliced.pattern) if sliced.pattern is not None else None
     return Toolpath(part_id=part_id, layer_height_mm=sliced.layer_height_mm,
-                    bead_width_mm=sliced.bead_width_mm, rings=rings)
+                    bead_width_mm=sliced.bead_width_mm, rings=rings, pattern=pattern)

@@ -127,6 +127,10 @@ def format_posj(q: np.ndarray) -> str:
 # --------------------------------------------------------------------------- Parameter
 
 
+#: Laufparameter der Druckmuster (summary.params, nur wenn gesetzt), eigener Block im Programmkopf
+PATTERN_KEYS = ("layer_order", "infill_pattern", "outfill_pattern", "pattern_preset", "pattern_params")
+
+
 @dataclass(frozen=True)
 class DrlParams:
     """Emitter-Parameter (SPEC §10). Felder mit Kommentar "A" sind Annahmen fuer den Programmkopf."""
@@ -231,6 +235,16 @@ def _ascii(text: object) -> str:
     return s.encode("ascii", "replace").decode("ascii")
 
 
+def _names_pattern(pattern: dict) -> bool:
+    """True, wenn die Laufparameter ein Druckmuster wählen (wie `slicer_patterns.uses_pattern`):
+    `layer_order = same` allein bzw. Infill/Outfill `none` ist kein Muster."""
+    if pattern.get("layer_order") == "alternate" or pattern.get("pattern_preset"):
+        return True
+    if pattern.get("infill_pattern", "none") != "none" or pattern.get("outfill_pattern", "none") != "none":
+        return True
+    return bool(pattern.get("pattern_params"))
+
+
 def _header(pp: PlannedPart, dialect: str, steps: list[Step]) -> list[str]:
     prm, prov = pp.params, pp.provenance
     jv = ", ".join(_f(v, 1) for v in prm.joint_vel_deg_s())
@@ -287,7 +301,21 @@ def _header(pp: PlannedPart, dialect: str, steps: list[Step]) -> list[str]:
         "                              Position (134, 0, 73) mm, 90 deg um Flansch-Y)",
         f"  A Dialekt                   {dialect} (Firmware am Teach Pendant pruefen)",
     ]
-    known = {f.name for f in fields(DrlParams)}
+    pattern = {k: pp.run_params[k] for k in PATTERN_KEYS if k in pp.run_params}
+    info = getattr(pp.toolpath, "pattern", None)  # aufgelöst (Preset, Szenario, Kern); ohne Muster None
+    if info is not None or _names_pattern(pattern):  # Druckmuster (opt-in, ARTEFAKT-FORMAT.md)
+        order = info.layer_order if info else pattern.get("layer_order") or "same"
+        infill = info.infill if info else pattern.get("infill_pattern", "none")
+        outfill = info.outfill if info else pattern.get("outfill_pattern", "none")
+        lines += [
+            f"  A Schichtfolge              {order} (Druckmuster, opt-in)",
+            f"  A Muster                    Infill {infill}, Outfill {outfill}",
+        ]
+        if "pattern_preset" in pattern:
+            lines.append(f"  A Muster-Preset             {pattern['pattern_preset']}")
+        if "pattern_params" in pattern:
+            lines.append(f"  A Musterparameter           {pattern['pattern_params']}")
+    known = {f.name for f in fields(DrlParams)} | set(PATTERN_KEYS)
     extra = {k: v for k, v in pp.run_params.items() if k not in known}
     if extra:
         lines.append("Weitere Laufparameter: " + ", ".join(f"{k}={v}" for k, v in sorted(extra.items())))

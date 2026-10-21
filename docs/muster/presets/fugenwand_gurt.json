@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "Fugenwand mit Gurt, gespiegelt (a)",
+  "pattern": "fugenwand",
+  "params": {
+    "bead_width_mm": 30.0,
+    "layer_height_mm": 10.0,
+    "layer_order": "alternate",
+    "belt": true,
+    "back_offset": "gespiegelt",
+    "field_length_mm": 300.0
+  },
+  "outline": {
+    "length_mm": 600.0,
+    "thickness_mm": 200.0
+  },
+  "description": "Vorschlag des Nutzers: je Fuge Schleife Haken – Steg – Knoten – Gurt – Knoten – Steg – Haken; Doppelgurt in Wandmitte, Fugen beider Seiten gegenüber (durchgehende Sollbruchebene)."
+}

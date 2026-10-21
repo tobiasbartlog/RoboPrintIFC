@@ -29,6 +29,8 @@ from .contracts.api import (
     JobCreate,
     JobCreated,
     JobState,
+    PartPatternLayer,
+    PartPatternReport,
     ProjectCreate,
     ProjectCreated,
     ProjectInfo,
@@ -179,19 +181,25 @@ def create_app(
     root: Path | None = None,
     *,
     pipeline: str | None = None,
+    presets_dir: Path | None = None,
 ) -> FastAPI:
     """Baut die FastAPI-Anwendung.
 
     `root` ist die Repo-Wurzel (Beispiele, Szenarien, Assets), Default: Elternordner von
     `core/`. `projects_dir` Default: `<runs_dir>/projects`. Jobläufe landen in
     `<runs_dir>/jobs/<job_id>/run`. `pipeline` ("modul:funktion") ist für Tests austauschbar.
+    `presets_dir`: eigene Muster-Presets (`api_patterns`), Default `<runs_dir>/presets`.
     """
+    from fastapi.exceptions import RequestValidationError
+
     from roboprint import __version__
     from roboprint.api_jobs import DEFAULT_PIPELINE, JobManager
+    from roboprint.api_patterns import PRESET_ID, PresetStore, make_router, validation_error_handler
 
     root = (root or Path(__file__).resolve().parents[3]).resolve()
     runs_dir = Path(runs_dir)
     projects_dir = Path(projects_dir) if projects_dir is not None else runs_dir / "projects"
+    presets_dir = Path(presets_dir) if presets_dir is not None else runs_dir / "presets"
     jobs = JobManager(runs_dir / "jobs", root, pipeline or DEFAULT_PIPELINE)
 
     @asynccontextmanager
@@ -204,6 +212,10 @@ def create_app(
     app.state.projects_dir = projects_dir
     app.state.root = root
     app.state.jobs = jobs
+    app.state.presets = PresetStore(presets_dir)
+    app.include_router(make_router(app.state.presets))
+    # NaN in einer Eingabe ließ den Standard-Handler beim Serialisieren abstürzen (500)
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
 
     # ------------------------------------------------------------------ health / examples
     @app.get("/api/health")
@@ -384,6 +396,26 @@ def create_app(
         return Response(data, media_type="model/stl")
 
     # ------------------------------------------------------------------ jobs
+    def resolve_preset(value: str) -> str:
+        """`pattern_preset` als Preset-id (mitgeliefert oder eigen) in einen Dateipfad auflösen, den der
+        Jobprozess lädt (relativ zur Repo-Wurzel, sonst absolut). Ein Pfad bleibt, wie er ist."""
+        if "/" in value or "\\" in value or value.endswith(".json"):
+            return value
+        store = app.state.presets
+        for base in (store.builtin_dir, store.user_dir):
+            cand = base / f"{value}.json"
+            if PRESET_ID.match(value) and cand.is_file():
+                resolved = cand.resolve()
+                return resolved.relative_to(root).as_posix() if root in resolved.parents else str(resolved)
+        raise _err(422, f"Muster-Preset „{value}“ nicht gefunden. Anderes Muster wählen.")
+
+    def check_pattern(params: Any) -> None:
+        """Muster und Parameter prüfen, ohne zu schneiden (ValueError bei Widerspruch oder Unbekanntem)."""
+        from roboprint import slicer_patterns
+        from roboprint.planner import slice_params
+
+        slicer_patterns.pattern_params(slice_params(params))
+
     @app.post("/api/projects/{project_id}/jobs", status_code=202)
     def create_job(project_id: str, body: JobCreate) -> JobCreated:
         pdir = project_dir(project_id)
@@ -392,9 +424,12 @@ def create_app(
             raise _err(404, "Wand nicht gefunden")
         from roboprint.planner.params import from_overrides
 
+        job_params = dict(body.params)
+        if job_params.get("pattern_preset"):
+            job_params["pattern_preset"] = resolve_preset(str(job_params["pattern_preset"]))
         try:  # sofort melden statt erst im Jobprozess scheitern
-            from_overrides(dict(body.params))
-        except ValueError as exc:
+            check_pattern(from_overrides(job_params))
+        except (ValueError, OSError) as exc:
             raise _err(422, str(exc)) from exc
         source = project_source(pdir)
         job_id = uuid.uuid4().hex[:12]
@@ -405,7 +440,7 @@ def create_app(
             scenario.update(
                 id=f"job_{job_id}",
                 beschreibung=beschreibung,
-                params=dict(body.params),
+                params=job_params,
                 expect={},
                 limits={"wall_time_s": 3600},
             )
@@ -421,7 +456,7 @@ def create_app(
                 "urdf": ROBOT_URDF,
                 "tool": "tools/30gut.json",
                 "workstation": "workstations/doosantisch.json",
-                "params": dict(body.params),
+                "params": job_params,
                 "planner_mode": body.planner_mode,
                 "expect": {},
                 "limits": {"wall_time_s": 3600},
@@ -456,6 +491,36 @@ def create_app(
                     raise _err(404, "Artefaktpfad fehlt")
                 return cand, rest
         raise _err(404, "Lauf nicht gefunden")
+
+    def part_report_inputs(run_id: str, part_id: str) -> tuple[Any, Any, float]:
+        from roboprint import pattern_report
+
+        run_dir, _ = find_run(f"{run_id}/summary.json")
+        if not _ID.match(part_id):
+            raise _err(404, "Teil nicht gefunden")
+        try:
+            return pattern_report.load_part(run_dir, part_id)
+        except OSError as exc:
+            raise _err(404, "Teil nicht gefunden") from exc
+
+    @app.get("/api/pattern-report/metrics")
+    def pattern_report_metrics(run_id: str, part_id: str) -> PartPatternReport:
+        """Kennzahlen des Druckmusters eines Teils aus `toolpath.json` (SPEC §9: gerechnet im Kern)."""
+        from roboprint import pattern_report
+
+        toolpath, _part, v_print = part_report_inputs(run_id, part_id)
+        return PartPatternReport.model_validate(pattern_report.metrics(toolpath, v_print))
+
+    @app.get("/api/pattern-report/layer")
+    def pattern_report_layer(run_id: str, part_id: str, layer: int = 0) -> PartPatternLayer:
+        """Eine Schicht des Teils im Teil-Frame P samt Nachbarschicht, für die 2D-Vorschau."""
+        from roboprint import pattern_report
+
+        toolpath, part, _v = part_report_inputs(run_id, part_id)
+        try:
+            return PartPatternLayer.model_validate(pattern_report.layer_view(toolpath, part, layer))
+        except IndexError as exc:
+            raise _err(404, str(exc)) from exc
 
     @app.get("/api/runs")
     def list_runs() -> list[str]:
