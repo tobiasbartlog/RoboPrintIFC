@@ -302,7 +302,8 @@ def plan_steps(
             strand = None
         if ring != labeled:
             # Zusatz nur bei Druckmustern (opt-in); ohne Muster bleibt der Text wie bisher
-            note = link_note(P_W[cur], P_W[idx[-1]]) if kind == "link" and toolpath.pattern is not None else ""
+            with_note = kind == "link" and toolpath.pattern is not None
+            note = link_note(P_W[cur], P_W[idx[-1]]) if with_note else ""
             label = Comment(ring_label(toolpath, ring, via_link=kind == "link", note=note))
             if strand is not None and kind == "link":
                 strand.items.append(label)  # im Strang zwischen dem Ende von r und dem Verbinder
