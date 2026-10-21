@@ -37,7 +37,7 @@ from __future__ import annotations
 import math
 import threading
 from collections import OrderedDict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
@@ -232,6 +232,10 @@ class KopfGeometry:
         raise GeometryError(last or "keine Lage gefunden")
 
 
+def _pieces_length(pieces: list[Piece]) -> float:
+    return float(sum(np.linalg.norm(np.diff(q.pts, axis=0), axis=1).sum() for q in pieces))
+
+
 def _to_pieces(pp: list[PPiece], p: PatternParams) -> list[Piece]:
     out = []
     for pc in pp:
@@ -309,13 +313,20 @@ def _monotone_right_leg(
         cap = float(raw[L][0].pts[-1, 1])
 
 
-def align_ends(layers: dict[int, list[Piece]], t: Mapping[int, float], order: str) -> dict[int, list[Piece]]:
+def align_ends(
+    layers: dict[int, list[Piece]],
+    t: Mapping[int, float],
+    order: str,
+    keep: Collection[int] = (),
+) -> dict[int, list[Piece]]:
     """Senkrechter Schichtwechsel (M4, `alternate`) wie `topologie._align_bevel_ends`: Von oben nach
     unten wird Schicht L an der mit L + 1 gemeinsamen Seite (L gerade: Ende, ungerade: Anfang) bis
     auf das Strangende von L + 1 gekürzt; das nimmt nur Raupe weg, über der nichts liegt (M3).
     Zusätzlich: Hat L + 1 denselben Querschnitt (Stufe in der Schräge), wird L auch an der anderen
     Seite wie L + 1 gekürzt, damit L + 1 vollständig bleibt (Orakel M3: bei gleichem Querschnitt
-    auch L in L + 1 ⊕ δ)."""
+    auch L in L + 1 ⊕ δ). Nicht für Schichten in `keep` (Vollschichten): Eine dort gekürzte letzte
+    Vollschicht (Dickensprung, siehe `plan_part`) darf die Vollschichten darunter nicht mitkürzen,
+    sonst fehlte Spur 1 im ganzen Teil, ohne dass eine Regel anschlägt."""
     if order != "alternate":
         return layers
     out = dict(layers)
@@ -334,7 +345,7 @@ def align_ends(layers: dict[int, list[Piece]], t: Mapping[int, float], order: st
         new = cut(cur, nxt[-1].pts[-1] if even else nxt[0].pts[0], even)
         if new:
             cur = new
-        if abs(t[L] - t.get(L + 1, -1.0)) < 1e-6:
+        if L not in keep and abs(t[L] - t.get(L + 1, -1.0)) < 1e-6:
             new = cut(cur, nxt[0].pts[0] if even else nxt[-1].pts[-1], not even)
             if new:
                 cur = new
@@ -403,7 +414,12 @@ def plan_part(
     flip = bool(full_layers) and p.layer_order == "alternate" and max(full_layers) % 2 == 1
     if flip:
         raw = {L: reverse_pieces(v) for L, v in raw.items()}
-    aligned = align_ends(raw, t, p.layer_order)
+    aligned = align_ends(raw, t, p.layer_order, keep=full_layers)
+    # Dickensprung: Hat die erste dünnere Schicht keine Spur 1 mehr (Dicke < ≈ 104 mm bei w = 30),
+    # endet sie nicht am Ende von Spur 1, und die letzte Vollschicht wird für den senkrechten Wechsel
+    # bis auf Spur 0 gekürzt. Das bleibt auf diese eine Schicht beschränkt (`keep`) und wird gemeldet
+    # (das Orakel zählt sie als unvollständig, bei gleichem Querschnitt wie darunter).
+    cut_mm = _pieces_length(full) - _pieces_length(aligned[max(full_layers)]) if full_layers else 0.0
     thin = [L for L in layers if not aligned.get(L)]
     printed = [L for L in layers if aligned.get(L)]
     info = {
@@ -456,6 +472,21 @@ def plan_part(
                 contacts = []
             cache[ck] = IslandPlan(segs, contacts, meta)
         out[L] = cache[ck]
+    if cut_mm > 1.0 and max(full_layers) in out:
+        top_full = max(full_layers)
+        nxt = min((L for L in printed if L > top_full), default=None)
+        m = dict(out[top_full].meta)
+        m["cut_mm"] = round(cut_mm, 1)
+        t_next = _de(t[nxt]) if nxt is not None else "–"
+        m["step_note"] = (
+            f"Dickensprung über Schicht {top_full}: Die nächste Schicht ({t_next} mm) trägt keine "
+            f"Spur 1 mehr; für den senkrechten Wechsel ist Schicht {top_full} um "
+            f"{_de(cut_mm)} mm Bahn gekürzt und damit unvollständig (Spur 1 fehlt). Die Vollschichten "
+            "darunter bleiben vollständig."
+        )
+        m["note"] = m["step_note"]
+        out[top_full] = IslandPlan(out[top_full].segments, out[top_full].contacts, m)
+        info["last_full_cut_mm"] = round(cut_mm, 1)
     if thin and printed:
         top = max(printed)
         lo_t, hi_t = min(t[L] for L in thin), max(t[L] for L in thin)
@@ -495,13 +526,15 @@ def part_for(ctx: Any, vals: dict[str, Any], full_plan: Callable[[Any], IslandPl
     Rückgabe: `(plans je Schicht, info)` oder `("fallback", Grund)`, wenn die Fugenwand im
     Kopfmodul nicht baubar ist. `full_plan(region)` liefert den prismatischen Inselpfad des
     Vollquerschnitts (Einteilung wie in den Modulen darunter)."""
-    refs = tuple(ctx.sections.values())
+    # Schichtnummer und Objekt: dieselben Querschnitte unter anderen Schichtnummern (Teil beginnt
+    # höher) sind ein anderer Plan (Schichtzuordnung, Parität des Übergangs)
+    refs = tuple(ctx.sections.items())
     with _LOCK:
         last = _LAST[0]
         if (
             last is not None
             and len(last[0]) == len(refs)
-            and all(a is b for a, b in zip(last[0], refs, strict=True))
+            and all(a[0] == b[0] and a[1] is b[1] for a, b in zip(last[0], refs, strict=True))
             and last[1] == ctx.params
         ):
             return last[2]

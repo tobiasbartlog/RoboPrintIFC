@@ -282,3 +282,55 @@ def test_rectangle_sections_unchanged(dims, kw):
             assert a.kind == b.kind and a.shell == b.shell and np.array_equal(a.points, b.points)
         assert lp.meta == ref.meta and "zone" not in lp.meta
     assert kopf.detect(sec) is None
+
+
+# --------------------------------------------------------------------------- Gegenprüfung
+
+
+def _step(T: float, jump: float, n_full: int = 4, n_top: int = 4):
+    """Dickensprung statt Schräge: n_full Schichten T dick, darüber n_top Schichten T − jump."""
+    sec = {L: box(-300, -T / 2, 300, T / 2) for L in range(n_full)}
+    sec.update({L: box(-300, -T / 2, 300, T / 2 - jump) for L in range(n_full, n_full + n_top)})
+    return sec
+
+
+@pytest.mark.parametrize("T, jump", [(200.0, 100.0), (200.0, 140.0), (250.0, 150.0), (300.0, 200.0)])
+def test_thickness_jump_cuts_only_the_last_full_layer(T, jump):
+    """Dickensprung, über dem keine Spur 1 mehr passt (Dicke < ≈ 104 mm): Für den senkrechten Wechsel
+    wird nur die letzte Vollschicht gekürzt (gemeldet); die Vollschichten darunter behalten Spur 1.
+    Vorher kürzte `align_ends` über „gleicher Querschnitt“ alle Vollschichten mit: Spur 1 fehlte im
+    ganzen Teil (−19 … −24 % Raupenfläche), ohne dass eine Regel oder ein Hinweis anschlug."""
+    sec = _step(T, jump)
+    paths = pt.plan_pattern(sec, S6)
+    rep = pt.measure(paths, sec, S6)
+    assert rep.ok, [v.to_dict() for v in rep.errors][:5]
+    assert {c["status"] for c in rep.layer_changes} == {"vertical"}
+    # Bezug: Vollschicht des Kopfmoduls ohne Kürzung (kleiner Sprung, Spur 1 läuft weiter)
+    ref = _beads(pt.plan_pattern(_step(T, 20.0), S6), 0, S6.w).area
+    areas = [_beads(paths, L, S6.w).area for L in range(4)]
+    assert areas[:3] == pytest.approx([ref] * 3, abs=1.0)  # unter der letzten Vollschicht vollständig
+    assert areas[3] < ref - 1000.0
+    by = {lp.layer: lp for lp in paths}
+    assert by[3].meta["cut_mm"] > 100.0 and "Dickensprung" in by[3].meta["note"]
+    assert "inner" in {s.kind for s in by[2].segments}
+    assert "cut_mm" not in by[2].meta
+
+
+@pytest.mark.parametrize("jump", [50.0, 80.0, 96.0])
+def test_moderate_thickness_jump_keeps_all_full_layers(jump):
+    sec = _step(200.0, jump)
+    paths = pt.plan_pattern(sec, S6)
+    assert_kopf_valid(sec, S6, paths)
+    assert all("cut_mm" not in lp.meta for lp in paths)
+    _, miss = own_m3(paths, sec, S6.w)
+    assert miss <= 1.0
+
+
+def test_part_cache_respects_layer_numbers():
+    """Dieselben Querschnittsobjekte unter verschobenen Schichtnummern (Teil beginnt eine Schicht
+    höher) sind ein anderer Plan: Der Identitäts-Cache prüfte nur die Objekte, die Schichtzuordnung
+    stammte dann aus dem vorigen Aufruf (oberste druckbare Schicht fehlte)."""
+    sec = bevel()
+    pt.plan_pattern(sec, S6)
+    shifted = {L + 1: g for L, g in sec.items()}
+    assert_kopf_valid(shifted, S6, pt.plan_pattern(shifted, S6))

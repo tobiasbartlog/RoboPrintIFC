@@ -124,8 +124,8 @@ Stand 21.10.2026, Fix-Aufgabe „Fugenwand an Abschrägungen“. Code:
 `families/_fugenwand_kopf.py` (wird von `fugenwand.build` gerufen), Tests:
 `core/tests/test_patterns_fugenwand_kopf.py`. **E** = gerechnet, **A** = Annahme.
 
-**Problem.** In S6 tragen die 22 obersten Module jeder Wand die 45°-Schräge des Wandkopfs: Ab Schicht 10
-bzw. 13 wird die Wand je Schicht um 10 mm dünner (200 → 190,7 → … → 0,7 mm, eine Seite bleibt stehen).
+**Problem.** In S6 tragen die 20 obersten Module (left r9: 10, right front r9: 3, right back r5: 7)
+die 45°-Schräge des Wandkopfs: Ab Schicht 10 bzw. 13 wird die Wand je Schicht um 10 mm dünner (200 → 190,7 → … → 0,7 mm, eine Seite bleibt stehen).
 Die prismatische Fugenwand teilte jede Schicht neu ein, ihre Raupen wanderten: M3-Überhang bis
 4279 mm², M4 nur 35–41 % senkrecht, M2-Kreuzung 0,74 mm, M6-Radius 6,7 mm, ab 110 mm Rückfall auf
 Schalen mit abgesetztem Strang (`S2-RAUTENKETTE.md`).
@@ -215,10 +215,21 @@ M3-Überhang 4279 mm². Zum Vergleich `topologie` auf dem S6-Kopf: 0 Fehler, Pfa
 X = 300…1200, T = 120…365, 30°/45°/60°, beide Seiten, 1/4/5 Vollschichten, Rautenkette, Gurt,
 gespiegelt, F = 225, r = 20): kein Fehler, kein Überhang, keine unvollständige Schicht.
 
-**Grenzen.** Nur Schrägen von einer Seite, nur abnehmend, eine Insel. Ein Sprung von mehr als ≈ 95 mm
-Dicke in einer Schicht (Stufe statt Schräge) lässt die erste dünnere Schicht ohne Spur 1; dann wird die
-letzte Vollschicht für den senkrechten Wechsel gekürzt (Orakel: unvollständige Schicht). Gurt und
-gespiegelte Fugen gelten nur in Modulen mit vollem Querschnitt; im Kopfmodul hängen an der Schrägseite
+**Grenzen.** Nur Schrägen von einer Seite, nur abnehmend, eine Insel. Ein Sprung auf unter ≈ 104 mm
+Dicke in einer Schicht (Stufe statt Schräge, w = 30 mm) lässt die erste dünnere Schicht ohne Spur 1;
+dann wird die letzte Vollschicht für den senkrechten Wechsel bis auf Spur 0 gekürzt, nur sie
+(`meta.cut_mm`, `step_note`; Orakel: unvollständige Schicht). Gegenprüfung 21.10.2026 (E): Vorher
+kürzte `align_ends` über die Regel „gleicher Querschnitt“ alle Vollschichten mit, Spur 1 fehlte im
+ganzen Teil (600 × 200, Sprung 100 mm: 60 039 statt 78 575 mm² Raupe je Vollschicht; 600 × 300, Sprung
+200 mm: 80 059 statt 99 029 mm²), ohne Hinweis und ohne Fehler in `measure` (das Orakel vergleicht
+gleiche Querschnitte nur untereinander, und die waren alle gleich gekürzt;
+`test_thickness_jump_cuts_only_the_last_full_layer`). Beidseitige Schrägen (beide Außenflächen
+weichen zurück) erkennt weder `fugenwand` noch `topologie`; sie bleiben prismatisch je Schicht
+(unverändert gegenüber vorher, E: 600 × 200, 45°, je Seite 5 mm je Schicht: M3-Überhang
+1550…2000 mm² je Schicht, dazu M2/M4/M6; `topologie` 2900…3600 mm²). Über einer Kerbe oder einem
+Hohlraum kann keine Raupe nach innen wandern; ein Kopfmodul mit beidseitiger Schräge bräuchte
+vermutlich einen Querschnitt ohne Kerben und Hohlraum am Rand (A), den keines der Muster plant. In S2/S6
+kommt der Fall nicht vor. Gurt und gespiegelte Fugen gelten nur in Modulen mit vollem Querschnitt; im Kopfmodul hängen an der Schrägseite
 immer Rauten (in den Fugenlagen der gewählten Variante).
 
 ## Parameter

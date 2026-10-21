@@ -112,7 +112,7 @@ Resampling des Slicers (`step_mm = 20`). Kein Fehler, nur Hinweis.
 
 ## Kopfmodule: Ursache (vor dem Fix)
 
-Die 22 Kopfmodule tragen die 45°-Schräge des Wandkopfs. Ihr Querschnitt bleibt 600 mm lang, die Dicke
+Die 20 Kopfmodule tragen die 45°-Schräge des Wandkopfs. Ihr Querschnitt bleibt 600 mm lang, die Dicke
 nimmt ab Schicht 10 (left/front r9) bzw. 13 (back r5) je Schicht um 10 mm ab (200 → 190,7 → … → 0,7 mm). Eine
 Laibung gibt es nicht (S2 enthält keine Öffnungen, `topologie.md`).
 
