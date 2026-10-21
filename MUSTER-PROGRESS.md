@@ -35,7 +35,7 @@ Die erste Zeile setzt nur das Skript.
 | Fugenwand bei veränderlichem Querschnitt (Abschrägung am Wandkopf): Köpfe M2–M7 fehlerfrei | M6 | erledigt, gemergt | v2/muster-fugenschraege | 2e1539e |
 | Kernfehler `shells.shell_chain`/`clear_end` bei Inseln < ~4·w | M6 | erledigt (Wellen-Fix + Härtung R1) | v2/muster-haertung | bf01933 |
 | Voller Lauf `scripts/verify.py` (G1–G8) nach M6 | M6 | erledigt: G1–G8 grün, Exit 0 | v2/muster | |
-| Neuerzeugung Musterlauf, Testdrucke, Katalog nach M6 | M6 | Testdrucke 12/12 neu (c9b6502); Musterlauf 15/15 wie erwartet; Katalog-Neulauf nach der Nachprüfung | v2/muster | c9b6502 |
+| Neuerzeugung Musterlauf, Testdrucke, Katalog nach M6 | M6 | Testdrucke 12/12 neu (c9b6502); Musterlauf 15/15 grün; Katalog neu | v2/muster | c9b6502 |
 | Katalog-Fix (Robotererwartung, entfallenes Infill) | M6 | erledigt, gemergt | v2/muster-katalogfix | 68c5e8d |
 | Runner: Abdeckungs-Untergrenze je Szenario (O1 eine Schale 53,3 % < 55 %) | M6 | erledigt | v2/muster | 8e6bc7d |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR #2 | M7 | erledigt | v2/muster | |
@@ -271,3 +271,4 @@ Die erste Zeile setzt nur das Skript.
 ### 2026-10-21 10:00 M7 abgeschlossen (Session start)
 - Musterlauf nach M6 vollständig: 15/15 wie erwartet (aussenwelle nach Runner-Fix 8e6bc7d). Morgenbericht,
   PROGRESS-Eintrag, Draft-PR #2 `v2/muster → v2/strang`. Herzschlag FERTIG.
+- 10:10: Nachprüfung mit dem neuen Runner GRÜN (15/15), Katalog neu erzeugt.

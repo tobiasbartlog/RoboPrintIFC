@@ -11,95 +11,95 @@ Neu erzeugen: `python scripts/muster_katalog.py`. Nur der Text zwischen den Mark
 <!-- KATALOG:VERGLEICH:BEGIN -->
 ## Vergleich
 
-Material je m relativ zu „schalen“ (zwei Schalen ohne Infill = 1,00). Zeit und Pfad je Schicht. Die Spalte „Roboter machbar“ kommt aus `runs/verify_muster/report.json` („offen“ = Muster nicht im Musterlauf, nicht etwa unbestanden).
+Material je m relativ zu „schalen“ (zwei Schalen ohne Infill = 1,00). Zeit und Pfad je Schicht. Die Spalte „Roboter machbar“ kommt aus `runs/verify_muster/report.json` („offen“ = Muster nicht im Musterlauf, nicht etwa unbestanden). „ja 1/3 (S4); 2 belegt nicht machbar“: 1 von 3 Szenarien mit Erwartung „machbar“ ist machbar; Szenarien mit belegt erwarteter Nicht-Machbarkeit zählen nicht als Fehlschlag. Status „Infill entfällt“: Der Querschnitt ist zu schmal für das Infill-Muster, es wird nur die Schale gedruckt.
 
 **600x200 mm** (Schicht 0)
 
 | Muster | Status | Pfad mm | Zeit s | Material rel. | Kontakte/m | Zelle mm | gerade Außen mm | R min mm | Roboter machbar |
 |---|---|---|---|---|---|---|---|---|---|
-| [schalen](#schalen) | ok | 2552 | 25,5 | 1,00 | 8,3 | 509 | 510 | 30,0 | ja |
-| [aussenwelle](#aussenwelle) | ok | 1449 | 14,5 | 0,57 | 0,0 | 600 | 110 | 30,0 | ja |
+| [schalen](#schalen) | ok | 2552 | 25,5 | 1,00 | 8,3 | 509 | 510 | 30,0 | ja 1/1 (S4) |
+| [aussenwelle](#aussenwelle) | ok | 1449 | 14,5 | 0,57 | 0,0 | 600 | 110 | 30,0 | ja 1/1 (S4) |
 | [aussenwelle_zickzack](#aussenwelle_zickzack) | ok | 1443 | 14,4 | 0,57 | 0,0 | 600 | 110 | 30,0 | offen |
 | [aussenwelle_zwei_schalen](#aussenwelle_zwei_schalen) | ok | 2554 | 25,5 | 1,00 | 11,7 | 600 | 110 | 30,0 | offen |
-| [doppelwelle](#doppelwelle) | ok | 2552 | 25,5 | 1,00 | 8,3 | 509 | 510 | 30,0 | ja |
-| [fermat](#fermat) | ok, 12 Warn. | 3529 | 35,3 | 1,38 | 106,7 | 420 | 510 | 15,0 | ja |
+| [doppelwelle](#doppelwelle) | Infill entfällt | 2552 | 25,5 | 1,00 | 8,3 | 509 | 510 | 30,0 | ja 1/1 (S4) |
+| [fermat](#fermat) | ok, 12 Warn. | 3529 | 35,3 | 1,38 | 106,7 | 420 | 510 | 15,0 | ja 1/1 (S4) |
 | [fugenwand](#fugenwand) | ok, 30 Warn. | 2420 | 24,2 | 0,95 | 13,3 | 140 | 110 | 27,0 | offen |
 | [fugenwand_foto](#fugenwand_foto) | ok, 16 Warn. | 3540 | 35,4 | 1,39 | 23,3 | 481 | 220 | 20,0 | offen |
-| [fugenwand_gurt](#fugenwand_gurt) | ok, 16 Warn. | 3550 | 35,5 | 1,39 | 43,3 | 182 | 170 | 21,0 | ja |
-| [fugenwand_raute](#fugenwand_raute) | ok, 30 Warn. | 2420 | 24,2 | 0,95 | 13,3 | 140 | 110 | 27,0 | nein |
-| [fugenwand_versetzt](#fugenwand_versetzt) | ok, 24 Warn. | 3533 | 35,3 | 1,38 | 60,0 | 182 | 170 | 21,0 | ja |
-| [maeander](#maeander) | ok, 16 Warn. | 3160 | 31,6 | 1,24 | 16,7 | 145 | 510 | 26,5 | ja |
-| [sinus](#sinus) | ok | 3097 | 31,0 | 1,21 | 16,7 | 195 | 510 | 30,0 | ja |
-| [topologie](#topologie) | ok | 2552 | 25,5 | 1,00 | 8,3 | 509 | 510 | 30,0 | ja |
-| [trapez](#trapez) | ok | 3119 | 31,2 | 1,22 | 16,7 | 167 | 510 | 30,0 | ja |
-| [waben](#waben) | ok | 2552 | 25,5 | 1,00 | 8,3 | 509 | 510 | 30,0 | ja |
-| [zickzack](#zickzack) | ok | 3093 | 30,9 | 1,21 | 16,7 | 199 | 510 | 29,9 | ja |
+| [fugenwand_gurt](#fugenwand_gurt) | ok, 16 Warn. | 3550 | 35,5 | 1,39 | 43,3 | 182 | 170 | 21,0 | ja 2/2 (S4, S4) |
+| [fugenwand_raute](#fugenwand_raute) | ok, 30 Warn. | 2420 | 24,2 | 0,95 | 13,3 | 140 | 110 | 27,0 | ja 1/1 (S4); 2 belegt nicht machbar |
+| [fugenwand_versetzt](#fugenwand_versetzt) | ok, 24 Warn. | 3533 | 35,3 | 1,38 | 60,0 | 182 | 170 | 21,0 | ja 1/1 (S4) |
+| [maeander](#maeander) | ok, 16 Warn. | 3160 | 31,6 | 1,24 | 16,7 | 145 | 510 | 26,5 | ja 1/1 (S4) |
+| [sinus](#sinus) | ok | 3097 | 31,0 | 1,21 | 16,7 | 195 | 510 | 30,0 | ja 1/1 (S4) |
+| [topologie](#topologie) | ok | 2552 | 25,5 | 1,00 | 8,3 | 509 | 510 | 30,0 | ja 1/1 (S5) |
+| [trapez](#trapez) | ok | 3119 | 31,2 | 1,22 | 16,7 | 167 | 510 | 30,0 | ja 1/1 (S4) |
+| [waben](#waben) | Infill entfällt | 2552 | 25,5 | 1,00 | 8,3 | 509 | 510 | 30,0 | ja 1/1 (S4) |
+| [zickzack](#zickzack) | ok | 3093 | 30,9 | 1,21 | 16,7 | 199 | 510 | 29,9 | ja 1/1 (S4) |
 
 **1000x200 mm** (Schicht 0)
 
 | Muster | Status | Pfad mm | Zeit s | Material rel. | Kontakte/m | Zelle mm | gerade Außen mm | R min mm | Roboter machbar |
 |---|---|---|---|---|---|---|---|---|---|
-| [schalen](#schalen) | ok | 4152 | 41,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja |
-| [aussenwelle](#aussenwelle) | ok | 2275 | 22,8 | 0,55 | 0,0 | 1000 | 110 | 30,0 | ja |
+| [schalen](#schalen) | ok | 4152 | 41,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja 1/1 (S4) |
+| [aussenwelle](#aussenwelle) | ok | 2275 | 22,8 | 0,55 | 0,0 | 1000 | 110 | 30,0 | ja 1/1 (S4) |
 | [aussenwelle_zickzack](#aussenwelle_zickzack) | ok | 2259 | 22,6 | 0,54 | 0,0 | 1000 | 110 | 30,0 | offen |
 | [aussenwelle_zwei_schalen](#aussenwelle_zwei_schalen) | ok | 4155 | 41,5 | 1,00 | 5,0 | 1000 | 110 | 30,0 | offen |
-| [doppelwelle](#doppelwelle) | ok | 4152 | 41,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja |
-| [fermat](#fermat) | ok, 12 Warn. | 5929 | 59,3 | 1,43 | 58,0 | 820 | 910 | 15,0 | ja |
+| [doppelwelle](#doppelwelle) | Infill entfällt | 4152 | 41,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja 1/1 (S4) |
+| [fermat](#fermat) | ok, 12 Warn. | 5929 | 59,3 | 1,43 | 58,0 | 820 | 910 | 15,0 | ja 1/1 (S4) |
 | [fugenwand](#fugenwand) | ok, 50 Warn. | 4024 | 40,2 | 0,97 | 14,0 | 140 | 114 | 27,0 | offen |
 | [fugenwand_foto](#fugenwand_foto) | ok, 48 Warn. | 5841 | 58,4 | 1,41 | 36,0 | 286 | 181 | 20,0 | offen |
-| [fugenwand_gurt](#fugenwand_gurt) | ok, 32 Warn. | 5909 | 59,1 | 1,42 | 50,0 | 212 | 198 | 21,0 | ja |
-| [fugenwand_raute](#fugenwand_raute) | ok, 50 Warn. | 4024 | 40,2 | 0,97 | 14,0 | 140 | 114 | 27,0 | nein |
-| [fugenwand_versetzt](#fugenwand_versetzt) | ok, 40 Warn. | 5891 | 58,9 | 1,42 | 58,0 | 212 | 198 | 21,0 | ja |
-| [maeander](#maeander) | ok, 28 Warn. | 5249 | 52,5 | 1,26 | 13,0 | 154 | 910 | 26,5 | ja |
-| [sinus](#sinus) | ok | 5133 | 51,3 | 1,24 | 13,0 | 214 | 910 | 30,0 | ja |
-| [topologie](#topologie) | ok | 4152 | 41,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja |
-| [trapez](#trapez) | ok | 5165 | 51,6 | 1,24 | 13,0 | 184 | 910 | 30,0 | ja |
-| [waben](#waben) | ok | 4152 | 41,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja |
-| [zickzack](#zickzack) | ok | 5124 | 51,2 | 1,23 | 13,0 | 219 | 910 | 30,0 | ja |
+| [fugenwand_gurt](#fugenwand_gurt) | ok, 32 Warn. | 5909 | 59,1 | 1,42 | 50,0 | 212 | 198 | 21,0 | ja 2/2 (S4, S4) |
+| [fugenwand_raute](#fugenwand_raute) | ok, 50 Warn. | 4024 | 40,2 | 0,97 | 14,0 | 140 | 114 | 27,0 | ja 1/1 (S4); 2 belegt nicht machbar |
+| [fugenwand_versetzt](#fugenwand_versetzt) | ok, 40 Warn. | 5891 | 58,9 | 1,42 | 58,0 | 212 | 198 | 21,0 | ja 1/1 (S4) |
+| [maeander](#maeander) | ok, 28 Warn. | 5249 | 52,5 | 1,26 | 13,0 | 154 | 910 | 26,5 | ja 1/1 (S4) |
+| [sinus](#sinus) | ok | 5133 | 51,3 | 1,24 | 13,0 | 214 | 910 | 30,0 | ja 1/1 (S4) |
+| [topologie](#topologie) | ok | 4152 | 41,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja 1/1 (S5) |
+| [trapez](#trapez) | ok | 5165 | 51,6 | 1,24 | 13,0 | 184 | 910 | 30,0 | ja 1/1 (S4) |
+| [waben](#waben) | Infill entfällt | 4152 | 41,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja 1/1 (S4) |
+| [zickzack](#zickzack) | ok | 5124 | 51,2 | 1,23 | 13,0 | 219 | 910 | 30,0 | ja 1/1 (S4) |
 
 **1000x300 mm** (Schicht 0)
 
 | Muster | Status | Pfad mm | Zeit s | Material rel. | Kontakte/m | Zelle mm | gerade Außen mm | R min mm | Roboter machbar |
 |---|---|---|---|---|---|---|---|---|---|
-| [schalen](#schalen) | ok | 4552 | 45,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja |
-| [aussenwelle](#aussenwelle) | ok | 2475 | 24,8 | 0,54 | 0,0 | 1000 | 210 | 30,0 | ja |
+| [schalen](#schalen) | ok | 4552 | 45,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja 1/1 (S4) |
+| [aussenwelle](#aussenwelle) | ok | 2475 | 24,8 | 0,54 | 0,0 | 1000 | 210 | 30,0 | ja 1/1 (S4) |
 | [aussenwelle_zickzack](#aussenwelle_zickzack) | ok | 2459 | 24,6 | 0,54 | 0,0 | 1000 | 210 | 30,0 | offen |
 | [aussenwelle_zwei_schalen](#aussenwelle_zwei_schalen) | ok | 4555 | 45,5 | 1,00 | 6,0 | 1000 | 210 | 30,0 | offen |
-| [doppelwelle](#doppelwelle) | ok | 6574 | 65,7 | 1,44 | 19,0 | 231 | 910 | 30,0 | ja |
-| [fermat](#fermat) | ok | 4552 | 45,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja |
+| [doppelwelle](#doppelwelle) | ok | 6574 | 65,7 | 1,44 | 19,0 | 231 | 910 | 30,0 | ja 1/1 (S4) |
+| [fermat](#fermat) | ok | 4552 | 45,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja 1/1 (S4) |
 | [fugenwand](#fugenwand) | ok | 4968 | 49,7 | 1,09 | 14,0 | 240 | 210 | 30,0 | offen |
 | [fugenwand_foto](#fugenwand_foto) | ok, 48 Warn. | 6149 | 61,5 | 1,35 | 36,0 | 286 | 181 | 20,0 | offen |
-| [fugenwand_gurt](#fugenwand_gurt) | ok | 6268 | 62,7 | 1,38 | 25,0 | 411 | 244 | 30,0 | ja |
-| [fugenwand_raute](#fugenwand_raute) | ok | 4968 | 49,7 | 1,09 | 14,0 | 240 | 210 | 30,0 | nein |
-| [fugenwand_versetzt](#fugenwand_versetzt) | ok | 6287 | 62,9 | 1,38 | 28,0 | 411 | 244 | 30,0 | ja |
-| [maeander](#maeander) | ok | 6328 | 63,3 | 1,39 | 13,0 | 165 | 910 | 30,0 | ja |
-| [sinus](#sinus) | ok | 5773 | 57,7 | 1,27 | 11,0 | 314 | 910 | 30,0 | ja |
-| [topologie](#topologie) | ok | 4552 | 45,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja |
-| [trapez](#trapez) | ok | 6098 | 61,0 | 1,34 | 13,0 | 202 | 910 | 30,0 | ja |
-| [waben](#waben) | ok | 6838 | 68,4 | 1,50 | 22,0 | 146 | 910 | 30,0 | ja |
-| [zickzack](#zickzack) | ok | 6022 | 60,2 | 1,32 | 13,0 | 221 | 910 | 30,0 | ja |
+| [fugenwand_gurt](#fugenwand_gurt) | ok | 6268 | 62,7 | 1,38 | 25,0 | 411 | 244 | 30,0 | ja 2/2 (S4, S4) |
+| [fugenwand_raute](#fugenwand_raute) | ok | 4968 | 49,7 | 1,09 | 14,0 | 240 | 210 | 30,0 | ja 1/1 (S4); 2 belegt nicht machbar |
+| [fugenwand_versetzt](#fugenwand_versetzt) | ok | 6287 | 62,9 | 1,38 | 28,0 | 411 | 244 | 30,0 | ja 1/1 (S4) |
+| [maeander](#maeander) | ok | 6328 | 63,3 | 1,39 | 13,0 | 165 | 910 | 30,0 | ja 1/1 (S4) |
+| [sinus](#sinus) | ok | 5773 | 57,7 | 1,27 | 11,0 | 314 | 910 | 30,0 | ja 1/1 (S4) |
+| [topologie](#topologie) | ok | 4552 | 45,5 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja 1/1 (S5) |
+| [trapez](#trapez) | ok | 6098 | 61,0 | 1,34 | 13,0 | 202 | 910 | 30,0 | ja 1/1 (S4) |
+| [waben](#waben) | ok | 6838 | 68,4 | 1,50 | 22,0 | 146 | 910 | 30,0 | ja 1/1 (S4) |
+| [zickzack](#zickzack) | ok | 6022 | 60,2 | 1,32 | 13,0 | 221 | 910 | 30,0 | ja 1/1 (S4) |
 
 **1000x365 mm** (Schicht 0)
 
 | Muster | Status | Pfad mm | Zeit s | Material rel. | Kontakte/m | Zelle mm | gerade Außen mm | R min mm | Roboter machbar |
 |---|---|---|---|---|---|---|---|---|---|
-| [schalen](#schalen) | ok | 4812 | 48,1 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja |
-| [aussenwelle](#aussenwelle) | ok | 2605 | 26,1 | 0,54 | 0,0 | 1000 | 275 | 30,0 | ja |
+| [schalen](#schalen) | ok | 4812 | 48,1 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja 1/1 (S4) |
+| [aussenwelle](#aussenwelle) | ok | 2605 | 26,1 | 0,54 | 0,0 | 1000 | 275 | 30,0 | ja 1/1 (S4) |
 | [aussenwelle_zickzack](#aussenwelle_zickzack) | ok | 2589 | 25,9 | 0,54 | 0,0 | 1000 | 275 | 30,0 | offen |
 | [aussenwelle_zwei_schalen](#aussenwelle_zwei_schalen) | ok | 4815 | 48,1 | 1,00 | 5,0 | 1000 | 275 | 30,0 | offen |
-| [doppelwelle](#doppelwelle) | ok | 7111 | 71,1 | 1,48 | 19,0 | 223 | 910 | 30,0 | ja |
-| [fermat](#fermat) | ok | 4812 | 48,1 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja |
+| [doppelwelle](#doppelwelle) | ok | 7111 | 71,1 | 1,48 | 19,0 | 223 | 910 | 30,0 | ja 1/1 (S4) |
+| [fermat](#fermat) | ok | 4812 | 48,1 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja 1/1 (S4) |
 | [fugenwand](#fugenwand) | ok | 5687 | 56,9 | 1,18 | 14,0 | 305 | 275 | 30,0 | offen |
 | [fugenwand_foto](#fugenwand_foto) | ok, 48 Warn. | 6487 | 64,9 | 1,35 | 36,0 | 286 | 181 | 20,0 | offen |
-| [fugenwand_gurt](#fugenwand_gurt) | ok | 6434 | 64,3 | 1,34 | 25,0 | 411 | 244 | 30,0 | ja |
-| [fugenwand_raute](#fugenwand_raute) | ok | 5687 | 56,9 | 1,18 | 14,0 | 305 | 275 | 30,0 | nein |
-| [fugenwand_versetzt](#fugenwand_versetzt) | ok | 6478 | 64,8 | 1,35 | 28,0 | 411 | 244 | 30,0 | ja |
-| [maeander](#maeander) | ok | 7043 | 70,4 | 1,46 | 13,0 | 230 | 910 | 30,0 | ja |
-| [sinus](#sinus) | ok | 6113 | 61,1 | 1,27 | 10,0 | 397 | 910 | 30,0 | ja |
-| [topologie](#topologie) | ok | 4812 | 48,1 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja |
-| [trapez](#trapez) | ok | 6767 | 67,7 | 1,41 | 13,0 | 257 | 910 | 30,0 | ja |
-| [waben](#waben) | ok | 7052 | 70,5 | 1,47 | 16,0 | 253 | 910 | 30,0 | ja |
-| [zickzack](#zickzack) | ok | 6697 | 67,0 | 1,39 | 13,0 | 260 | 910 | 30,0 | ja |
+| [fugenwand_gurt](#fugenwand_gurt) | ok | 6434 | 64,3 | 1,34 | 25,0 | 411 | 244 | 30,0 | ja 2/2 (S4, S4) |
+| [fugenwand_raute](#fugenwand_raute) | ok | 5687 | 56,9 | 1,18 | 14,0 | 305 | 275 | 30,0 | ja 1/1 (S4); 2 belegt nicht machbar |
+| [fugenwand_versetzt](#fugenwand_versetzt) | ok | 6478 | 64,8 | 1,35 | 28,0 | 411 | 244 | 30,0 | ja 1/1 (S4) |
+| [maeander](#maeander) | ok | 7043 | 70,4 | 1,46 | 13,0 | 230 | 910 | 30,0 | ja 1/1 (S4) |
+| [sinus](#sinus) | ok | 6113 | 61,1 | 1,27 | 10,0 | 397 | 910 | 30,0 | ja 1/1 (S4) |
+| [topologie](#topologie) | ok | 4812 | 48,1 | 1,00 | 5,0 | 909 | 910 | 30,0 | ja 1/1 (S5) |
+| [trapez](#trapez) | ok | 6767 | 67,7 | 1,41 | 13,0 | 257 | 910 | 30,0 | ja 1/1 (S4) |
+| [waben](#waben) | ok | 7052 | 70,5 | 1,47 | 16,0 | 253 | 910 | 30,0 | ja 1/1 (S4) |
+| [zickzack](#zickzack) | ok | 6697 | 67,0 | 1,39 | 13,0 | 260 | 910 | 30,0 | ja 1/1 (S4) |
 
 ### Entwurf der Empfehlung
 
@@ -177,9 +177,9 @@ Kennzahlen (Schicht 0):
 
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S4_muster_schalen_alternate | ja | 10,83 | 1 | 100 % | 1031,70 | 88,17 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S4_muster_schalen_alternate | machbar | machbar | ja | 10,83 | 1 | 100 % | 1031,70 | 66,42 |
 
 **Vorteile**
 
@@ -231,9 +231,9 @@ Kennzahlen (Schicht 0):
 
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S4_muster_aussenwelle | ja | 10,83 | 1 | 100 % | 590,30 | 36,73 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S4_muster_aussenwelle | machbar | machbar | ja | 10,83 | 1 | 100 % | 590,30 | 35,79 |
 
 **Vorteile**
 
@@ -365,7 +365,7 @@ Kennzahlen (Schicht 0):
 
 | Kennzahl | 600x200 | 1000x200 | 1000x300 | 1000x365 |
 |---|---|---|---|---|
-| Status (M1–M7) | ok | ok | ok | ok |
+| Status (M1–M7) | Infill entfällt | Infill entfällt | ok | ok |
 | Pfadlänge je Schicht | 2552 mm | 4152 mm | 6574 mm | 7111 mm |
 | Druckzeit je Schicht (100 mm/s) | 25,5 s | 41,5 s | 65,7 s | 71,1 s |
 | Material je m, relativ zu „schalen“ | 1,00 | 1,00 | 1,44 | 1,48 |
@@ -378,11 +378,15 @@ Kennzahlen (Schicht 0):
 | Schalenabdeckung | 94,4 % | 96,5 % | 96,9 % | 97,1 % |
 | Stränge je Schicht | 1 | 1 | 1 | 1 |
 
+**Infill entfällt (600x200)**: Infill entfällt: Band 50.0 mm zu schmal für zwei Wellen: Hub 2A = 12.25 mm < 15.0 mm (braucht Band ≥ 55.5 mm) (Schicht 0). Die Zahlen entsprechen daher denen von „schalen“.
+
+**Infill entfällt (1000x200)**: Infill entfällt: Band 50.0 mm zu schmal für zwei Wellen: Hub 2A = 12.25 mm < 15.0 mm (braucht Band ≥ 55.5 mm) (Schicht 0). Die Zahlen entsprechen daher denen von „schalen“.
+
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S4_muster_doppelwelle_300 | ja | 10,83 | 1 | 100 % | 1618,90 | 81,62 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S4_muster_doppelwelle_300 | machbar | machbar | ja | 10,83 | 1 | 100 % | 1618,90 | 55,50 |
 
 **Vorteile**
 
@@ -434,9 +438,9 @@ Kennzahlen (Schicht 0):
 
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S4_muster_fermat | ja | 10,83 | 1 | 100 % | 1422,70 | 64,57 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S4_muster_fermat | machbar | machbar | ja | 10,83 | 1 | 100 % | 1422,70 | 57,11 |
 
 **Vorteile**
 
@@ -602,10 +606,10 @@ Kennzahlen (Schicht 0):
 
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S4_muster_fugenwand_gurt | ja | 10,83 | 1 | 100 % | 1431,00 | 90,40 |
-| S4_muster_fugenwand_gurt_300 | ja | 10,83 | 1 | 100 % | 1543,00 | 75,92 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S4_muster_fugenwand_gurt | machbar | machbar | ja | 10,83 | 1 | 100 % | 1431,00 | 59,69 |
+| S4_muster_fugenwand_gurt_300 | machbar | machbar | ja | 10,83 | 1 | 100 % | 1543,00 | 64,70 |
 
 **Vorteile**
 
@@ -657,10 +661,11 @@ Kennzahlen (Schicht 0):
 
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S4_muster_fugenwand_raute | ja | 10,83 | 1 | 100 % | 979,10 | 109,77 |
-| S5_muster_oeffnung_fugenwand | nein | 10,83 | 1–2 | 97 % | 946,30 | 65,43 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S4_muster_fugenwand_raute | machbar | machbar | ja | 10,83 | 1 | 100 % | 979,10 | 70,43 |
+| S5_muster_oeffnung_fugenwand | belegt nicht machbar | belegt nicht machbar | nein | 10,83 | 1–2 | 97 % | 946,30 | 46,83 |
+| S6_muster_s2_raute | belegt nicht machbar | belegt nicht machbar | nein | 10,83 | 1 | 100 % | 168287,30 | 0,00 |
 
 **Vorteile**
 
@@ -711,9 +716,9 @@ Kennzahlen (Schicht 0):
 
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S4_muster_fugenwand_versetzt | ja | 10,83 | 1 | 100 % | 1424,30 | 275,09 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S4_muster_fugenwand_versetzt | machbar | machbar | ja | 10,83 | 1 | 100 % | 1424,30 | 70,16 |
 
 **Vorteile**
 
@@ -765,9 +770,9 @@ Kennzahlen (Schicht 0):
 
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S4_muster_maeander | ja | 10,83 | 1 | 100 % | 1274,70 | 162,98 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S4_muster_maeander | machbar | machbar | ja | 10,83 | 1 | 100 % | 1274,70 | 49,93 |
 
 **Vorteile**
 
@@ -832,9 +837,9 @@ Kennzahlen (Schicht 0):
 
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S4_muster_sinus | ja | 10,83 | 1 | 100 % | 1249,70 | 56,17 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S4_muster_sinus | machbar | machbar | ja | 10,83 | 1 | 100 % | 1249,70 | 68,54 |
 
 **Vorteile**
 
@@ -885,9 +890,9 @@ Kennzahlen (Schicht 0):
 
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S5_muster_oeffnung | ja | 10,83 | 1–2 | 97 % | 1016,40 | 39,69 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S5_muster_oeffnung | machbar | machbar | ja | 10,83 | 1–2 | 97 % | 1016,40 | 70,72 |
 
 **Vorteile**
 
@@ -937,9 +942,9 @@ Kennzahlen (Schicht 0):
 
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S4_muster_trapez | ja | 10,83 | 1 | 100 % | 1258,60 | 76,16 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S4_muster_trapez | machbar | machbar | ja | 10,83 | 1 | 100 % | 1258,60 | 54,41 |
 
 **Vorteile**
 
@@ -976,7 +981,7 @@ Kennzahlen (Schicht 0):
 
 | Kennzahl | 600x200 | 1000x200 | 1000x300 | 1000x365 |
 |---|---|---|---|---|
-| Status (M1–M7) | ok | ok | ok | ok |
+| Status (M1–M7) | Infill entfällt | Infill entfällt | ok | ok |
 | Pfadlänge je Schicht | 2552 mm | 4152 mm | 6838 mm | 7052 mm |
 | Druckzeit je Schicht (100 mm/s) | 25,5 s | 41,5 s | 68,4 s | 70,5 s |
 | Material je m, relativ zu „schalen“ | 1,00 | 1,00 | 1,50 | 1,47 |
@@ -989,11 +994,15 @@ Kennzahlen (Schicht 0):
 | Schalenabdeckung | 94,4 % | 96,5 % | 96,9 % | 97,1 % |
 | Stränge je Schicht | 1 | 1 | 1 | 1 |
 
+**Infill entfällt (600x200)**: Infill entfällt: Band 50.0 mm zu schmal für zwei Wellen: Hub 2A = 12.25 mm < 15.0 mm (braucht Band ≥ 55.5 mm) (Schicht 0). Die Zahlen entsprechen daher denen von „schalen“.
+
+**Infill entfällt (1000x200)**: Infill entfällt: Band 50.0 mm zu schmal für zwei Wellen: Hub 2A = 12.25 mm < 15.0 mm (braucht Band ≥ 55.5 mm) (Schicht 0). Die Zahlen entsprechen daher denen von „schalen“.
+
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S4_muster_waben_300 | ja | 10,83 | 1 | 100 % | 1692,50 | 66,95 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S4_muster_waben_300 | machbar | machbar | ja | 10,83 | 1 | 100 % | 1692,50 | 66,15 |
 
 **Vorteile**
 
@@ -1045,9 +1054,9 @@ Kennzahlen (Schicht 0):
 
 Roboter (aus `verify_muster`):
 
-| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
-|---|---|---|---|---|---|---|
-| S4_muster_zickzack | ja | 10,83 | 1 | 100 % | 1247,90 | 72,92 |
+| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |
+|---|---|---|---|---|---|---|---|---|
+| S4_muster_zickzack | machbar | machbar | ja | 10,83 | 1 | 100 % | 1247,90 | 50,17 |
 
 **Vorteile**
 

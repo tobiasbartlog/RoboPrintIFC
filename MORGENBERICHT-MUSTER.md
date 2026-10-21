@@ -4,8 +4,8 @@ Branch `v2/muster` (Draft-PR nach `v2/strang`). Auftrag: `docs/muster/AUFTRAG.md
 Verlauf, Aufgabenliste und Belege: `MUSTER-PROGRESS.md`.
 
 <!-- STAND -->
-**Stand:** 21.10. 10:00, fertig. Musterprüfung nach M6: alle 15 Szenarien neu gerechnet, 14 wie erwartet, dazu
-`aussenwelle` nach einem Runner-Fix (Nachprüfung der Altläufe mit dem neuen Runner wird nachgetragen).
+**Stand:** 21.10. 10:10, fertig. Musterprüfung nach M6 mit dem korrigierten Runner: **15/15 grün** (13 machbar,
+2 belegt nicht machbar). Testdrucke und Katalog neu erzeugt.
 <!-- /STAND -->
 
 ## Kurzfassung
@@ -104,7 +104,7 @@ Haken sauber, Knoten haften; Fotos nach 1, 3 und 7 Tagen), 3. `sinus`, dann Gurt
 | Prüfung | Ergebnis | Kennzahlen |
 |---|---|---|
 | `scripts/verify.py` (G1–G8, voll, 21.10. 06:28) | **grün**, Exit 0 | G1 12 s, G2 50 s, G3 S1 41 + 32 s, G4 S2/S3 grün, G5 36 s, G6 e2e 108 s, G7 S1 40,8 s ≤ 180, S2 129,1 s ≤ 1800, G8 ruff, pytest core (676 s), web lint/typecheck/test |
-| `scripts/verify_muster.py` (Vorschlag G9), Neulauf nach M6 | **15/15 gerechnet**, 14 wie erwartet, 1 rot → behoben | Grün (machbar, je 1 Strang/Schicht, 100 % senkrechte Wechsel, d_min 10,83 mm): fugenwand_raute, schalen_alternate, sinus, zickzack, trapez, maeander, S5_oeffnung, doppelwelle_300, waben_300, fermat, fugenwand_gurt, gurt_300, versetzt. Grün (belegt nicht machbar): S5_oeffnung_fugenwand (M3), S6_s2_raute (M1, Kopfmodule mit Schräge, Weiche 3). Rot war `aussenwelle`: Die Abdeckungs-Untergrenze des Runners (55 %) liegt über der gewollten Abdeckung von O1 mit einer Schale (53,3 %), alle anderen Kriterien grün. Untergrenze je Szenario eingeführt (8e6bc7d) |
+| `scripts/verify_muster.py` (Vorschlag G9), Neulauf nach M6 | **15/15 gerechnet**, 14 wie erwartet, 1 rot → behoben | Grün (machbar, je 1 Strang/Schicht, 100 % senkrechte Wechsel, d_min 10,83 mm): fugenwand_raute, schalen_alternate, sinus, zickzack, trapez, maeander, S5_oeffnung, doppelwelle_300, waben_300, fermat, fugenwand_gurt, gurt_300, versetzt. Grün (belegt nicht machbar): S5_oeffnung_fugenwand (M3), S6_s2_raute (M1, Kopfmodule mit Schräge, Weiche 3). Rot war `aussenwelle`: Die Abdeckungs-Untergrenze des Runners (55 %) liegt über der gewollten Abdeckung von O1 mit einer Schale (53,3 %), alle anderen Kriterien grün. Untergrenze je Szenario eingeführt (8e6bc7d); Nachprüfung aller Läufe mit dem neuen Runner: **GRÜN** |
 | Testdrucke nach M6 | **12/12** machbar, fake_drcf v2/v3 und Orakel grün | `docs/muster/testdrucke/` |
 | Rote Szenarien des Laufs 06:29 (`doppelwelle_300`, `fugenwand_versetzt`) | einzeln nachgerechnet **grün** | Ursache: Datenträger voll, keine Regression |
 <!-- /GATES -->
