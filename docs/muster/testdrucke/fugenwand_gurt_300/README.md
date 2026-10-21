@@ -21,7 +21,7 @@ Bild: Vorschau des Musterkerns für diesen Querschnitt (Schicht 0, Schicht 1 bla
 | senkrechte Schichtwechsel | 9 von 9 (100 %) |
 | d_min | 10,8 mm (d_hard = 10 mm) |
 | Ringe / Samples | 90 / 14521 |
-| Planerlaufzeit | 30,8 s |
+| Planerlaufzeit | 28,2 s |
 
 Materialannahme (A): Raupenquerschnitt rechteckig w × h = 30 × 10 mm, mal Pfadlänge der Mittellinie (Ringe plus Verbinder). Überlappung an Kontakten, Ecken und Schwinden sind nicht abgezogen; Vorlauf t_tot und Anfahrmaterial nicht eingerechnet.
 
@@ -55,7 +55,7 @@ Vergleich zu fugenwand_gurt: Sind die Haken mit r = w sichtbar sauberer?
 
 ## Prüfstatus
 
-Stand 2026-10-20, Lauf `runs/muster_testdrucke/testdruck_fugenwand_gurt_300`:
+Stand 2026-10-21, Lauf `runs/muster_testdrucke/testdruck_fugenwand_gurt_300`:
 
 - Planer: machbar (box_01 machbar), 0 collision, 0 unreachable
 - G3 `python -m verify.check_run`: grün außer Abdeckung (min. 62,7 % < 95 %; Gate-Einwand 1 in MUSTER-PROGRESS.md)

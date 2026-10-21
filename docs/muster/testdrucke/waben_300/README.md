@@ -21,7 +21,7 @@ Bild: Vorschau des Musterkerns für diesen Querschnitt (Schicht 0, Schicht 1 bla
 | senkrechte Schichtwechsel | 9 von 9 (100 %) |
 | d_min | 10,8 mm (d_hard = 10 mm) |
 | Ringe / Samples | 30 / 16363 |
-| Planerlaufzeit | 46,8 s |
+| Planerlaufzeit | 32,4 s |
 
 Materialannahme (A): Raupenquerschnitt rechteckig w × h = 30 × 10 mm, mal Pfadlänge der Mittellinie (Ringe plus Verbinder). Überlappung an Kontakten, Ecken und Schwinden sind nicht abgezogen; Vorlauf t_tot und Anfahrmaterial nicht eingerechnet.
 
@@ -55,7 +55,7 @@ Gerade Kontaktstrecken zwischen den Trapezwellen haften, keine Lücke; Zellen zu
 
 ## Prüfstatus
 
-Stand 2026-10-20, Lauf `runs/muster_testdrucke/testdruck_waben_300`:
+Stand 2026-10-21, Lauf `runs/muster_testdrucke/testdruck_waben_300`:
 
 - Planer: machbar (box_01 machbar), 0 collision, 0 unreachable
 - G3 `python -m verify.check_run`: grün, auch die Abdeckung (min. 95,3 %)

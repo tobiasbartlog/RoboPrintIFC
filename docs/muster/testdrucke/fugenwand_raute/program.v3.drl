@@ -2,7 +2,7 @@
 # Dialekt: v3 (Befehle ab V3 erlaubt), Druck als movel mit Blending
 # Szenario: testdruck_fugenwand_raute
 # Teil: box_01 (Wand box), Status: machbar, 70 Ringe in 1 Straengen (69 Verbinder), 9800 Samples, 1884 Bewegungsbefehle
-# Provenienz: git 08f0585dcad38b058c95c31438aacbd6f659f245, erstellt 2026-10-20T22:31:29+00:00, Kommando: /home/user/RoboPrintIFC/.claude/worktrees/wf_77155298-1fb-3/core/src/roboprint/__main__.py run-scenario docs/muster/testdrucke/fugenwand_raute/scenario.json --out runs/muster_testdrucke/testdruck_fugenwand_raute --jobs 2
+# Provenienz: git 794843386fa82a5260373ca2cf60da0c2624f4b4, erstellt 2026-10-21T06:48:30+00:00, Kommando: /home/user/RoboPrintIFC/core/src/roboprint/__main__.py run-scenario docs/muster/testdrucke/fugenwand_raute/scenario.json --out runs/muster_testdrucke/testdruck_fugenwand_raute --jobs 2
 # Posen: posx = T_BT (TCP in Roboterbasis B) in mm und Grad, Euler ZYZ, ref=DR_BASE;
 #        posj in Grad, Doosan-Konvention. Alle Ziele stammen aus trajectory.json.
 # Strang: Ringe und Verbinder ohne Halt, die Pumpe laeuft durch. Pumpe an + wait(t_tot) nur am

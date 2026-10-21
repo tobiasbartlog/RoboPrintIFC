@@ -21,7 +21,7 @@ Bild: Vorschau des Musterkerns für diesen Querschnitt (Schicht 0, Schicht 1 bla
 | senkrechte Schichtwechsel | 9 von 9 (100 %) |
 | d_min | 10,8 mm (d_hard = 10 mm) |
 | Ringe / Samples | 70 / 9800 |
-| Planerlaufzeit | 23,2 s |
+| Planerlaufzeit | 21,7 s |
 
 Materialannahme (A): Raupenquerschnitt rechteckig w × h = 30 × 10 mm, mal Pfadlänge der Mittellinie (Ringe plus Verbinder). Überlappung an Kontakten, Ecken und Schwinden sind nicht abgezogen; Vorlauf t_tot und Anfahrmaterial nicht eingerechnet.
 
@@ -55,7 +55,7 @@ Fugen: Haken berühren sich, laufen aber nicht ineinander; nach dem Trocknen rei
 
 ## Prüfstatus
 
-Stand 2026-10-20, Lauf `runs/muster_testdrucke/testdruck_fugenwand_raute`:
+Stand 2026-10-21, Lauf `runs/muster_testdrucke/testdruck_fugenwand_raute`:
 
 - Planer: machbar (box_01 machbar), 0 collision, 0 unreachable
 - G3 `python -m verify.check_run`: grün außer Abdeckung (min. 64,6 % < 95 %; Gate-Einwand 1 in MUSTER-PROGRESS.md)

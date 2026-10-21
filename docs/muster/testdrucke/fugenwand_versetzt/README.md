@@ -21,7 +21,7 @@ Bild: Vorschau des Musterkerns für diesen Querschnitt (Schicht 0, Schicht 1 bla
 | senkrechte Schichtwechsel | 9 von 9 (100 %) |
 | d_min | 10,8 mm (d_hard = 10 mm) |
 | Ringe / Samples | 130 / 13244 |
-| Planerlaufzeit | 23,9 s |
+| Planerlaufzeit | 37,1 s |
 
 Materialannahme (A): Raupenquerschnitt rechteckig w × h = 30 × 10 mm, mal Pfadlänge der Mittellinie (Ringe plus Verbinder). Überlappung an Kontakten, Ecken und Schwinden sind nicht abgezogen; Vorlauf t_tot und Anfahrmaterial nicht eingerechnet.
 
@@ -55,7 +55,7 @@ Kleine Haken (Radius < w): sauber oder verschmiert? Gurt in der Wandmitte haftet
 
 ## Prüfstatus
 
-Stand 2026-10-20, Lauf `runs/muster_testdrucke/testdruck_fugenwand_versetzt`:
+Stand 2026-10-21, Lauf `runs/muster_testdrucke/testdruck_fugenwand_versetzt`:
 
 - Planer: machbar (box_01 machbar), 0 collision, 0 unreachable
 - G3 `python -m verify.check_run`: grün außer Abdeckung (min. 88,1 % < 95 %; Gate-Einwand 1 in MUSTER-PROGRESS.md)

@@ -21,7 +21,7 @@ Bild: Vorschau des Musterkerns für diesen Querschnitt (Schicht 0, Schicht 1 bla
 | senkrechte Schichtwechsel | 9 von 9 (100 %) |
 | d_min | 10,8 mm (d_hard = 10 mm) |
 | Ringe / Samples | 30 / 12734 |
-| Planerlaufzeit | 24,3 s |
+| Planerlaufzeit | 22,3 s |
 
 Materialannahme (A): Raupenquerschnitt rechteckig w × h = 30 × 10 mm, mal Pfadlänge der Mittellinie (Ringe plus Verbinder). Überlappung an Kontakten, Ecken und Schwinden sind nicht abgezogen; Vorlauf t_tot und Anfahrmaterial nicht eingerechnet.
 
@@ -55,7 +55,7 @@ Kontakte der Welle an der inneren Schale haften (Überlappung 0 … 4,5 mm); kei
 
 ## Prüfstatus
 
-Stand 2026-10-20, Lauf `runs/muster_testdrucke/testdruck_sinus`:
+Stand 2026-10-21, Lauf `runs/muster_testdrucke/testdruck_sinus`:
 
 - Planer: machbar (box_01 machbar), 0 collision, 0 unreachable
 - G3 `python -m verify.check_run`: grün außer Abdeckung (min. 94,6 % < 95 %; Gate-Einwand 1 in MUSTER-PROGRESS.md)

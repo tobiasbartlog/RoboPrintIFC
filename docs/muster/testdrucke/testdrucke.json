@@ -1,5 +1,5 @@
 {
-  "created": "2026-10-20",
+  "created": "2026-10-21",
   "tests": [
     {
       "name": "schalen_alternate",
@@ -20,12 +20,13 @@
         "strands_per_layer": "1",
         "vertical_layer_change_share": 1.0,
         "print_time_s": 263.0,
-        "planner_runtime_s": 29.687,
-        "runtime_s": null,
+        "planner_runtime_s": 25.948,
+        "runtime_s": 29.1,
         "g3": "gruen",
         "g3_abdeckung": "einwand",
         "g5": "gruen",
         "muster": "gruen",
+        "pattern_applied": "gruen",
         "metrics": {
           "n_parts": 1,
           "machbar": true,
@@ -44,10 +45,10 @@
           "waypoints": 1610,
           "samples": 10777,
           "print_time_s": 263.0,
-          "planner_runtime_s": 29.687,
-          "plan_final_check_s": 5.446,
-          "decompose_s": 0.004,
-          "total_runtime_s": 30.624
+          "planner_runtime_s": 25.948,
+          "plan_final_check_s": 5.563,
+          "decompose_s": 0.003,
+          "total_runtime_s": 27.228
         },
         "expect_detail": {
           "machbar": true,
@@ -124,12 +125,13 @@
         "strands_per_layer": "1",
         "vertical_layer_change_share": 1.0,
         "print_time_s": 249.8,
-        "planner_runtime_s": 23.231,
-        "runtime_s": null,
+        "planner_runtime_s": 21.688,
+        "runtime_s": 24.4,
         "g3": "gruen",
         "g3_abdeckung": "einwand",
         "g5": "gruen",
         "muster": "gruen",
+        "pattern_applied": "gruen",
         "metrics": {
           "n_parts": 1,
           "machbar": true,
@@ -148,10 +150,10 @@
           "waypoints": 1940,
           "samples": 9800,
           "print_time_s": 249.8,
-          "planner_runtime_s": 23.231,
-          "plan_final_check_s": 2.593,
+          "planner_runtime_s": 21.688,
+          "plan_final_check_s": 2.362,
           "decompose_s": 0.002,
-          "total_runtime_s": 24.0
+          "total_runtime_s": 22.577
         },
         "expect_detail": {
           "machbar": true,
@@ -228,12 +230,13 @@
         "strands_per_layer": "1",
         "vertical_layer_change_share": 1.0,
         "print_time_s": 317.5,
-        "planner_runtime_s": 24.336,
-        "runtime_s": null,
+        "planner_runtime_s": 22.342,
+        "runtime_s": 25.1,
         "g3": "gruen",
         "g3_abdeckung": "einwand",
         "g5": "gruen",
         "muster": "gruen",
+        "pattern_applied": "gruen",
         "metrics": {
           "n_parts": 1,
           "machbar": true,
@@ -252,10 +255,10 @@
           "waypoints": 1970,
           "samples": 12734,
           "print_time_s": 317.5,
-          "planner_runtime_s": 24.336,
-          "plan_final_check_s": 5.416,
+          "planner_runtime_s": 22.342,
+          "plan_final_check_s": 4.098,
           "decompose_s": 0.002,
-          "total_runtime_s": 25.43
+          "total_runtime_s": 23.461
         },
         "expect_detail": {
           "machbar": true,
@@ -332,12 +335,13 @@
         "strands_per_layer": "1",
         "vertical_layer_change_share": 1.0,
         "print_time_s": 361.1,
-        "planner_runtime_s": 23.862,
-        "runtime_s": null,
+        "planner_runtime_s": 37.079,
+        "runtime_s": 40.6,
         "g3": "gruen",
         "g3_abdeckung": "einwand",
         "g5": "gruen",
         "muster": "gruen",
+        "pattern_applied": "gruen",
         "metrics": {
           "n_parts": 1,
           "machbar": true,
@@ -356,10 +360,10 @@
           "waypoints": 2590,
           "samples": 13244,
           "print_time_s": 361.1,
-          "planner_runtime_s": 23.862,
-          "plan_final_check_s": 2.394,
-          "decompose_s": 0.001,
-          "total_runtime_s": 25.007
+          "planner_runtime_s": 37.079,
+          "plan_final_check_s": 2.847,
+          "decompose_s": 0.002,
+          "total_runtime_s": 38.478
         },
         "expect_detail": {
           "machbar": true,
@@ -437,12 +441,13 @@
         "strands_per_layer": "1",
         "vertical_layer_change_share": 1.0,
         "print_time_s": 362.8,
-        "planner_runtime_s": 18.777,
-        "runtime_s": null,
+        "planner_runtime_s": 31.287,
+        "runtime_s": 34.0,
         "g3": "gruen",
         "g3_abdeckung": "einwand",
         "g5": "gruen",
         "muster": "gruen",
+        "pattern_applied": "gruen",
         "metrics": {
           "n_parts": 1,
           "machbar": true,
@@ -461,10 +466,10 @@
           "waypoints": 2370,
           "samples": 13126,
           "print_time_s": 362.8,
-          "planner_runtime_s": 18.777,
-          "plan_final_check_s": 2.763,
-          "decompose_s": 0.001,
-          "total_runtime_s": 19.775
+          "planner_runtime_s": 31.287,
+          "plan_final_check_s": 2.833,
+          "decompose_s": 0.002,
+          "total_runtime_s": 32.479
         },
         "expect_detail": {
           "machbar": true,
@@ -542,12 +547,13 @@
         "strands_per_layer": "1",
         "vertical_layer_change_share": 1.0,
         "print_time_s": 317.0,
-        "planner_runtime_s": 16.055,
-        "runtime_s": null,
+        "planner_runtime_s": 29.34,
+        "runtime_s": 32.0,
         "g3": "gruen",
         "g3_abdeckung": "einwand",
         "g5": "gruen",
         "muster": "gruen",
+        "pattern_applied": "gruen",
         "metrics": {
           "n_parts": 1,
           "machbar": true,
@@ -566,10 +572,10 @@
           "waypoints": 2060,
           "samples": 12777,
           "print_time_s": 317.0,
-          "planner_runtime_s": 16.055,
-          "plan_final_check_s": 3.592,
+          "planner_runtime_s": 29.34,
+          "plan_final_check_s": 6.258,
           "decompose_s": 0.001,
-          "total_runtime_s": 17.068
+          "total_runtime_s": 30.379
         },
         "expect_detail": {
           "machbar": true,
@@ -646,12 +652,13 @@
         "strands_per_layer": "1",
         "vertical_layer_change_share": 1.0,
         "print_time_s": 319.7,
-        "planner_runtime_s": 16.19,
-        "runtime_s": null,
+        "planner_runtime_s": 27.953,
+        "runtime_s": 30.6,
         "g3": "gruen",
         "g3_abdeckung": "einwand",
         "g5": "gruen",
         "muster": "gruen",
+        "pattern_applied": "gruen",
         "metrics": {
           "n_parts": 1,
           "machbar": true,
@@ -670,10 +677,10 @@
           "waypoints": 2240,
           "samples": 13051,
           "print_time_s": 319.7,
-          "planner_runtime_s": 16.19,
-          "plan_final_check_s": 3.668,
-          "decompose_s": 0.001,
-          "total_runtime_s": 17.299
+          "planner_runtime_s": 27.953,
+          "plan_final_check_s": 5.491,
+          "decompose_s": 0.002,
+          "total_runtime_s": 29.072
         },
         "expect_detail": {
           "machbar": true,
@@ -750,12 +757,13 @@
         "strands_per_layer": "1",
         "vertical_layer_change_share": 1.0,
         "print_time_s": 323.7,
-        "planner_runtime_s": 24.653,
-        "runtime_s": null,
+        "planner_runtime_s": 22.197,
+        "runtime_s": 24.9,
         "g3": "gruen",
         "g3_abdeckung": "einwand",
         "g5": "gruen",
         "muster": "gruen",
+        "pattern_applied": "gruen",
         "metrics": {
           "n_parts": 1,
           "machbar": true,
@@ -774,10 +782,10 @@
           "waypoints": 2290,
           "samples": 13349,
           "print_time_s": 323.7,
-          "planner_runtime_s": 24.653,
-          "plan_final_check_s": 5.396,
+          "planner_runtime_s": 22.197,
+          "plan_final_check_s": 4.883,
           "decompose_s": 0.001,
-          "total_runtime_s": 25.793
+          "total_runtime_s": 23.31
         },
         "expect_detail": {
           "machbar": true,
@@ -855,12 +863,13 @@
         "strands_per_layer": "1",
         "vertical_layer_change_share": 1.0,
         "print_time_s": 390.8,
-        "planner_runtime_s": 30.778,
-        "runtime_s": null,
+        "planner_runtime_s": 28.22,
+        "runtime_s": 31.2,
         "g3": "gruen",
         "g3_abdeckung": "einwand",
         "g5": "gruen",
         "muster": "gruen",
+        "pattern_applied": "gruen",
         "metrics": {
           "n_parts": 1,
           "machbar": true,
@@ -879,10 +888,10 @@
           "waypoints": 2540,
           "samples": 14521,
           "print_time_s": 390.8,
-          "planner_runtime_s": 30.778,
-          "plan_final_check_s": 2.76,
-          "decompose_s": 0.001,
-          "total_runtime_s": 31.92
+          "planner_runtime_s": 28.22,
+          "plan_final_check_s": 3.191,
+          "decompose_s": 0.002,
+          "total_runtime_s": 29.528
         },
         "expect_detail": {
           "machbar": true,
@@ -959,12 +968,13 @@
         "strands_per_layer": "1",
         "vertical_layer_change_share": 1.0,
         "print_time_s": 409.6,
-        "planner_runtime_s": 41.056,
-        "runtime_s": null,
+        "planner_runtime_s": 32.469,
+        "runtime_s": 35.6,
         "g3": "gruen",
         "g3_abdeckung": "gruen",
         "g5": "gruen",
         "muster": "gruen",
+        "pattern_applied": "gruen",
         "metrics": {
           "n_parts": 1,
           "machbar": true,
@@ -983,10 +993,10 @@
           "waypoints": 2410,
           "samples": 15189,
           "print_time_s": 409.6,
-          "planner_runtime_s": 41.056,
-          "plan_final_check_s": 6.875,
+          "planner_runtime_s": 32.469,
+          "plan_final_check_s": 4.716,
           "decompose_s": 0.002,
-          "total_runtime_s": 42.254
+          "total_runtime_s": 33.723
         },
         "expect_detail": {
           "machbar": true,
@@ -1063,12 +1073,13 @@
         "strands_per_layer": "1",
         "vertical_layer_change_share": 1.0,
         "print_time_s": 428.0,
-        "planner_runtime_s": 46.835,
-        "runtime_s": null,
+        "planner_runtime_s": 32.368,
+        "runtime_s": 35.7,
         "g3": "gruen",
         "g3_abdeckung": "gruen",
         "g5": "gruen",
         "muster": "gruen",
+        "pattern_applied": "gruen",
         "metrics": {
           "n_parts": 1,
           "machbar": true,
@@ -1087,10 +1098,10 @@
           "waypoints": 3120,
           "samples": 16363,
           "print_time_s": 428.0,
-          "planner_runtime_s": 46.835,
-          "plan_final_check_s": 11.108,
+          "planner_runtime_s": 32.368,
+          "plan_final_check_s": 4.814,
           "decompose_s": 0.002,
-          "total_runtime_s": 48.528
+          "total_runtime_s": 34.113
         },
         "expect_detail": {
           "machbar": true,
@@ -1167,12 +1178,13 @@
         "strands_per_layer": "1",
         "vertical_layer_change_share": 1.0,
         "print_time_s": 180.9,
-        "planner_runtime_s": 26.65,
-        "runtime_s": null,
+        "planner_runtime_s": 16.266,
+        "runtime_s": 18.9,
         "g3": "gruen",
         "g3_abdeckung": "einwand",
         "g5": "gruen",
         "muster": "gruen",
+        "pattern_applied": "gruen",
         "metrics": {
           "n_parts": 1,
           "machbar": true,
@@ -1191,10 +1203,10 @@
           "waypoints": 1430,
           "samples": 8066,
           "print_time_s": 180.9,
-          "planner_runtime_s": 26.65,
-          "plan_final_check_s": 6.526,
-          "decompose_s": 0.001,
-          "total_runtime_s": 27.45
+          "planner_runtime_s": 16.266,
+          "plan_final_check_s": 3.695,
+          "decompose_s": 0.002,
+          "total_runtime_s": 17.243
         },
         "expect_detail": {
           "machbar": true,

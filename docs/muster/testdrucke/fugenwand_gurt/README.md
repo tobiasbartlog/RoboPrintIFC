@@ -21,7 +21,7 @@ Bild: Vorschau des Musterkerns für diesen Querschnitt (Schicht 0, Schicht 1 bla
 | senkrechte Schichtwechsel | 9 von 9 (100 %) |
 | d_min | 10,8 mm (d_hard = 10 mm) |
 | Ringe / Samples | 90 / 13126 |
-| Planerlaufzeit | 18,8 s |
+| Planerlaufzeit | 31,3 s |
 
 Materialannahme (A): Raupenquerschnitt rechteckig w × h = 30 × 10 mm, mal Pfadlänge der Mittellinie (Ringe plus Verbinder). Überlappung an Kontakten, Ecken und Schwinden sind nicht abgezogen; Vorlauf t_tot und Anfahrmaterial nicht eingerechnet.
 
@@ -55,7 +55,7 @@ Gespiegelte Fugen: Riss quer durch die Wand in der Fugenebene? Haken bei r = 21 
 
 ## Prüfstatus
 
-Stand 2026-10-20, Lauf `runs/muster_testdrucke/testdruck_fugenwand_gurt`:
+Stand 2026-10-21, Lauf `runs/muster_testdrucke/testdruck_fugenwand_gurt`:
 
 - Planer: machbar (box_01 machbar), 0 collision, 0 unreachable
 - G3 `python -m verify.check_run`: grün außer Abdeckung (min. 88,6 % < 95 %; Gate-Einwand 1 in MUSTER-PROGRESS.md)

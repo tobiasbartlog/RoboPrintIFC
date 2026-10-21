@@ -2,7 +2,7 @@
 
 Kleine Testkörper (10 Schichten, 100 mm hoch) je Muster am Standard-Druckplatz (0, −50) mm,
 vom Planer als machbar eingestuft und geprüft. Erzeugt mit `python scripts/muster_testdrucke.py`
-(Stand 2026-10-20). Je Ordner: `scenario.json`, `program.v2.drl`, `program.v3.drl`, `schicht0.svg`,
+(Stand 2026-10-21). Je Ordner: `scenario.json`, `program.v2.drl`, `program.v3.drl`, `schicht0.svg`,
 `README.md`.
 
 **Trockenlauf mit reduzierter Geschwindigkeit vor dem ersten Druck** (ohne Material, `change_operation_speed` 10 … 20 %). Alle Werte mit (A) im
