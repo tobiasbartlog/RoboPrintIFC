@@ -55,6 +55,11 @@ SCEN_DIR = ROOT / "docs" / "muster" / "szenarien"
 OUT = ROOT / "runs" / "verify_muster"
 PY = sys.executable
 COVERAGE_RE = re.compile(r"^[^:]+: Abdeckung < 95 %")
+COVERAGE_PCT_RE = re.compile(r"Schicht \d+: ([0-9.]+) %")
+#: (A) Untergrenze der Abdeckung, die noch als musterbedingt gilt (Einwand statt rot). Gate-Einwand 1/3
+#: belegen 60–95 % (kleinster Wert Fugenwand-Gurt 300 mm: 62,7 %); darunter fehlt Material (z. B. eine
+#: unvollständige Schicht mit 0 %), das ist ein Fehler und kein Einwand.
+COVERAGE_FLOOR = 0.55
 EINWAND_REF = "MUSTER-PROGRESS.md, Gate-Einwände 1 (G3-Abdeckung gegen Muster)"
 VERTICAL_TOL_MM = 0.5  # M4 (A)
 
@@ -226,6 +231,15 @@ def check_run_result(run: Path, step: dict[str, Any]) -> dict[str, Any]:
         for m in (rep.get("parts") or {}).values()
         if isinstance(m, dict) and m.get("coverage_min") is not None
     ]
+    # Einwand nur für musterbedingte Lücken: Liegt die Abdeckung eines Teils (Bericht oder Beispiel
+    # in der Meldung) unter COVERAGE_FLOOR, fehlt Material, und G3 bleibt rot.
+    seen = [float(v) for v in cov_min] if cov else []
+    seen += [float(x) / 100.0 for e in cov for x in COVERAGE_PCT_RE.findall(e)]
+    if seen and min(seen) < COVERAGE_FLOOR:
+        hard.append(
+            f"Abdeckung {100 * min(seen):.1f} % unter der Untergrenze {100 * COVERAGE_FLOOR:.0f} % für "
+            "musterbedingte Lücken (Gate-Einwand 1/3 begründet nur 60–95 %): Material fehlt"
+        )
     return {
         "status": "gruen" if not hard else "rot",
         "abdeckung": "gruen" if not cov else "einwand",

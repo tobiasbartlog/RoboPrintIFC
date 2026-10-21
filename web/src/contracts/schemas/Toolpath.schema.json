@@ -66,6 +66,12 @@
           ],
           "type": "string"
         },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "outfill": {
           "type": "string"
         },

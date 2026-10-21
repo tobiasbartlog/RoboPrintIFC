@@ -1,4 +1,4 @@
-import { Group, Paper, Stack, Table, Text } from '@mantine/core';
+import { Alert, Group, Paper, Stack, Table, Text } from '@mantine/core';
 import { useEffect } from 'react';
 import type { PartPatternReport } from '../contracts';
 import { CHOICE_LABEL, length, mm, num, segmentStyle, seconds } from '../state/patterns';
@@ -97,6 +97,18 @@ export function PartPatternStats({ partId }: { partId: string }) {
             </Table.Tr>
           </Table.Tbody>
         </Table>
+        {report.notes.length ? (
+          // Hinweise des Plans: z. B. Infill entfällt, Rückfall auf Schalen, Insel ohne Strang
+          <Alert color="yellow" p={6} title="Hinweise zum Muster" data-testid={`pattern-stats-notes-${partId}`}>
+            <Stack gap={2}>
+              {report.notes.map((n, i) => (
+                <Text size="xs" key={i}>
+                  {n}
+                </Text>
+              ))}
+            </Stack>
+          </Alert>
+        ) : null}
         <Stack gap={2} data-testid={`pattern-stats-kinds-${partId}`}>
           {report.kinds.map((k) => (
             <Group key={k.kind} gap={6} wrap="nowrap" data-testid={`pattern-stats-kind-${partId}-${k.kind}`}>

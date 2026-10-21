@@ -330,6 +330,7 @@ def test_dropped_rest_ring_removes_self_overlap(monkeypatch):
     with monkeypatch.context() as m:
         _use_reference(m)
         m.setattr(shells, "MIN_RING_W", 0.0)  # Rückfall aus: Stand vor der Gegenprüfung
+        m.setattr(shells, "_chain_errors", lambda ctx, plan: 0)  # auch der Rückfall nach Messung
         old = pt.plan_pattern(sections, p)
     assert {"M2", "M6"} <= errors(old)
     assert not errors(new) & {"M2", "M6"}

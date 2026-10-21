@@ -10,10 +10,12 @@ Ablauf je Schicht L (aufsteigend) und Insel i (Polygone nach (x_min, y_min) sort
 3. Schichtfolge: `same` → jede Schicht außen → innen. `alternate` → Schichten mit geradem L außen →
    innen, mit ungeradem L die exakte Umkehrung (`reverse_layer`: Inseln rückwärts, jeder Pfad
    rückwärts). Ende L = Anfang L + 1 in XY, solange sich der Querschnitt nicht ändert.
-4. Neubeginn: Ändert sich der Querschnitt (Fläche der symmetrischen Differenz > 1 mm²) oder die
-   Inselzahl gegenüber L − 1, bekommt der erste Pfad von L `restart = True`. Die Richtung folgt
-   trotzdem der Parität von L; ob Ende und Anfang zufällig übereinanderliegen, misst M4 nicht als
-   Fehler (Ausnahme laut AUFTRAG M4, Übergang nach SPEC §5.3: Verbinder oder Travel).
+4. Neubeginn: Ändert sich die Inselzahl gegenüber L − 1, bekommt der erste Pfad von L
+   `restart = True`. Die Richtung folgt trotzdem der Parität von L; ob Ende und Anfang zufällig
+   übereinanderliegen, misst M4 nicht als Fehler (Ausnahme laut AUFTRAG M4, Übergang nach
+   SPEC §5.3: Verbinder oder Travel). Ändert sich nur der Querschnitt (gleiche Inselzahl, z. B.
+   Abschrägung), ist das kein Neubeginn: Der Wechsel muss senkrecht sein, sonst meldet M4 einen
+   Fehler (wie das Orakel `verify_muster`).
 
 Muster mit `layer_invariant = True` werden je gleicher Inselgeometrie nur einmal gerechnet.
 """
@@ -40,9 +42,6 @@ from roboprint.patterns.types import (
     Segment,
     reverse_layer,
 )
-
-#: Fläche der symmetrischen Differenz, ab der ein Querschnitt als geändert gilt (mm²)
-SECTION_CHANGE_MM2 = 1.0
 
 
 def _normalize(res: IslandPlan | list[Segment]) -> IslandPlan:
@@ -194,20 +193,11 @@ def plan_pattern(sections: Mapping[int, Any], params: PatternParams | None = Non
             )
         if p.layer_order == "alternate" and L % 2 == 1:
             paths = reverse_layer(paths)
-        changed = prev_geom is None or len(isl) != prev_n or _changed(prev_geom, geom)
-        if paths and changed and prev_geom is not None:
+        if paths and prev_geom is not None and len(isl) != prev_n:
             paths[0].restart = True
         prev_geom, prev_n = geom, len(isl)
         result.extend(paths)
     return result
-
-
-def _changed(a: Any, b: Any) -> bool:
-    if a is None or b is None or a.is_empty or b.is_empty:
-        return True
-    if a.equals_exact(b, 1e-9):
-        return False
-    return float(a.symmetric_difference(b).area) > SECTION_CHANGE_MM2
 
 
 def section_union(polys: list[Any]) -> Any:

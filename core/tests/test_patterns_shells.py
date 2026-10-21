@@ -121,3 +121,91 @@ def test_layer_invariant_cache_shares_geometry():
     paths = pt.plan_pattern(sec)
     assert paths[0].segments[0].points is paths[2].segments[0].points
     assert not paths[0].segments[0].points.flags.writeable
+
+
+@pytest.mark.parametrize(
+    "name,w,shells,size",
+    [("schalen", 40, 3, (600, 200)), ("sinus", 35, 3, (1200, 150)), ("waben", 40, 3, (600, 180))],
+)
+def test_missing_offset_ring_reports_dropped_shells(name, w, shells, size):
+    """Passt eine Schale gar nicht mehr (Offset-Ring leer), steht das wie beim Restring in
+    meta.shells_dropped mit Hinweis, statt die Schalenzahl still zu verringern."""
+    d = pt.preview({"pattern": name, "params": {"bead_width_mm": w, "shells": shells}}, size)
+    m = d["paths"][0]["meta"]
+    assert m["shells"] < shells
+    note = m["shells_dropped"]
+    assert note["from_shell"] == m["shells"] and note["count"] == shells - m["shells"]
+    assert "passt nicht" in note["hint"]
+
+
+@pytest.mark.parametrize(
+    "spec,size",
+    [
+        ({"pattern": "schalen", "params": {"bead_width_mm": 30, "shells": 2}}, (600, 120)),
+        ({"pattern": "schalen", "params": {"bead_width_mm": 35, "shells": 3}}, (600, 200)),
+        ({"pattern": "schalen", "params": {"bead_width_mm": 40, "shells": 2}}, (600, 150)),
+        ({"pattern": "trapez", "params": {"bead_width_mm": 40, "shells": 2}}, (600, 150)),
+        ({"pattern": "aussenwelle", "params": {"bead_width_mm": 35, "shells": 2}}, (2000, 120)),
+        (
+            {
+                "pattern": "fugenwand",
+                "params": {
+                    "bead_width_mm": 35,
+                    "belt": True,
+                    "web_angle_deg": 80,
+                    "joint_gap_mm": 30,
+                    "hook_radius_mm": 15,
+                },
+            },
+            (250, 120),
+        ),
+    ],
+)
+def test_too_narrow_inner_shell_falls_back_to_fewer_shells(spec, size):
+    """Ein innerer Schalenring, der lang genug, aber zu schmal ist (Stadion von w Breite, Radius
+    < w/2), entfällt mit Hinweis statt M2/M5/M6-Fehler zu erzeugen (wie `topologie`)."""
+    d = pt.preview(spec, size)
+    assert d["ok"], [v for v in d["violations"] if v["severity"] == "error"][:3]
+    metas = [d["paths"][0]["meta"]]
+    metas += [v for k, v in metas[0].items() if isinstance(v, dict)]
+    note = next(m["shells_dropped"] for m in metas if "shells_dropped" in m)
+    assert note["count"] >= 1 and note["hint"]
+
+
+@pytest.mark.parametrize("name", ["schalen", "sinus", "fugenwand"])
+def test_narrow_second_pier_planned_without_errors(name):
+    from roboprint.patterns.preview import params_for
+
+    g = MultiPolygon([box(0, 0, 400, 200), box(600, 0, 710, 200)])
+    sec = {0: g, 1: g}
+    pp = params_for(name)
+    rep = pt.measure(pt.plan_pattern(sec, pp), sec, pp)
+    assert rep.ok, [v.to_dict() for v in rep.errors][:3]
+
+
+@pytest.mark.parametrize("T,depth", [(250, 60), (200, 80), (250, 80), (200, 60)])
+@pytest.mark.parametrize("extra", [{}, {"infill": "sinus"}, {"infill": "trapez"}])
+def test_v_notch_base_pattern_stays_inside_and_printable(T, depth, extra):
+    """V-Kerbe 60 mm breit, 60…80 mm tief: Das Grundmuster (und die Infill-Familien darauf)
+    druckte außerhalb des Teils (M5) bzw. mit Knick (M6); jetzt Rückfall auf weniger Schalen."""
+    g = Polygon([(0, 0), (270, 0), (300, depth), (330, 0), (600, 0), (600, T), (0, T)])
+    p = pt.params_from_dict({"shells": 2, **extra})
+    sec = {0: g, 1: g}
+    rep = pt.measure(pt.plan_pattern(sec, p), sec, p)
+    assert rep.ok, [v.to_dict() for v in rep.errors][:3]
+
+
+@pytest.mark.parametrize("length", [600.0, 1200.0])
+@pytest.mark.parametrize("extra", [{}, {"outfill": "topologie"}, {"infill": "sinus"}])
+def test_rect_notch_single_shell_has_no_near_duplicate_kink(length, extra):
+    """Rechteckkerbe, eine Schale: Der gerundete Offset-Ring hatte am Bogenstoß einen Rückwärts-
+    schritt von 0,006 mm; er blieb beim Abtasten als Ecke erhalten (falscher M6-Fehler r = 1,3 mm)."""
+    g = box(0, 0, length, 200).difference(box(length / 2 - 30, -1, length / 2 + 30, 20))
+    p = pt.params_from_dict({"shells": 1, **extra})
+    sec = {0: g, 1: g}
+    paths = pt.plan_pattern(sec, p)
+    for seg in paths[0].segments:
+        steps = np.linalg.norm(np.diff(seg.points, axis=0), axis=1)
+        assert steps.min() > 0.02, (seg.kind, steps.min())
+    rep = pt.measure(paths, sec, p)
+    assert rep.ok, [v.to_dict() for v in rep.errors][:3]

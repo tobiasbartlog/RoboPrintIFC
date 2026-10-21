@@ -171,6 +171,8 @@ class ToolpathPattern(ContractModel):
     infill: str
     outfill: str
     params: dict[str, PatternParamValue] = Field(default_factory=dict)
+    # Hinweise des Plans (Infill entfällt, Rückfall auf Schalen, Insel ohne Strang …); fehlt ohne Hinweis
+    notes: list[str] = Field(default_factory=list, exclude_if=lambda v: not v)
 
 
 class Toolpath(ArtifactModel):

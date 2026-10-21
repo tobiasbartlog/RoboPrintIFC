@@ -235,3 +235,47 @@ def test_no_trajectory_mode(tmp_path):
     (tmp_path / "parts" / "box_m0" / "trajectory.json").unlink()
     assert check.main([str(tmp_path)]) == 2  # Pflichtartefakt fehlt
     assert check.main([str(tmp_path), "--no-trajectory"]) == 0
+
+
+@pytest.mark.parametrize("mode", ["travel", "retract_approach"])
+def test_pump_off_after_layer_change_link_is_detected(tmp_path, mode):
+    """Gegenpruefung: Der Schichtwechsel 0 -> 1 hat link-Samples (senkrecht), danach setzt die
+    Trajektorie trotzdem ab (retract/lift/transfer/lower/approach bzw. nur retract + approach).
+    Vorher galt der Wechsel als link, sobald irgendein link-Sample des Folgerings existierte."""
+    rings = synth.stack(lambda L: [synth.two_shells()], N_LAYERS)
+    first_of_layer1 = min(i for i, r in enumerate(rings) if r["layer"] == 1)
+
+    def mut(traj):
+        out, done = [], False
+        for i, s in enumerate(traj):
+            out.append(s)
+            nxt = traj[i + 1] if i + 1 < len(traj) else None
+            at_change = s[1] == "link" and s[2] == first_of_layer1
+            if not done and at_change and nxt is not None and nxt[1] == "print":
+                p, r, k = s[0], s[2], s[3]
+                if mode == "travel":
+                    seq = [(p, "retract"), (p + [0, 0, 10.0], "lift"), (p + [0, 0, 50.0], "transfer"),
+                           (p + [0, 0, 10.0], "lower"), (p, "approach")]
+                else:
+                    seq = [(p + [0, 0, 10.0], "retract"), (p, "approach")]
+                out.extend((np.asarray(q, float), kd, r, k) for q, kd in seq)
+                done = True
+        assert done
+        return out
+
+    code, p = _run(tmp_path, rings, traj_mutator=mut)
+    assert code != 0 and "M4" in _failed(p), _failed(p)
+    first = p["rules"]["M4"]["first"]
+    assert first["layer"] == 0 and "Pumpe aus" in first["message"], first
+
+
+def test_incomplete_top_layer_is_detected(tmp_path):
+    """Gegenpruefung: Oberste Schicht ohne Aussenbahn (nur der Infill-Ring). L+1 liegt in L ⊕ delta,
+    also kein Ueberhang; bei gleichem Querschnitt fehlt aber Raupe (M3-Grundsatz: gleiche XY-Geometrie)."""
+    full = synth.stack(lambda L: [synth.sine_infill()], N_LAYERS)
+    rings = [r for r in full if not (r["layer"] == N_LAYERS - 1 and r["kind"] == "outer")]
+    rings[-1]["link_next"] = False
+    code, p = _run(tmp_path, rings)
+    assert code != 0 and "M3" in _failed(p), _failed(p)
+    first = p["rules"]["M3"]["first"]
+    assert first["layer"] == N_LAYERS - 1 and "unvollstaendig" in first["message"], first

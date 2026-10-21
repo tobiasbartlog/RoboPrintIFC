@@ -23,6 +23,10 @@ export interface PartPatternReport {
    * Stränge im ganzen Teil (Pumpe an, kein Halt)
    */
   n_strands: number;
+  /**
+   * Hinweise des Plans aus toolpath.pattern.notes (Infill entfällt …)
+   */
+  notes: string[];
   outfill: string | null;
   part_id: string;
   print_time_s: number;

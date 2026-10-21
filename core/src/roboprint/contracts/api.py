@@ -308,6 +308,10 @@ class PatternPreview(ContractModel):
     contacts: list[PatternContact]
     violations: list[PatternViolation]
     ok: bool
+    notes: list[str] = Field(
+        default_factory=list,
+        description="Hinweise: was das Muster nicht wie gewählt druckt (Infill entfällt …)",
+    )
     metrics: PatternMetrics
     fit: list[PatternFit] = Field(default_factory=list)
     timing_ms: PatternTiming
@@ -428,6 +432,9 @@ class PartPatternReport(ContractModel):
     kinds: list[PartKindStat]
     layer_changes: PartLayerChanges
     layers: list[PartLayerStat]
+    notes: list[str] = Field(
+        default_factory=list, description="Hinweise des Plans aus toolpath.pattern.notes (Infill entfällt …)"
+    )
 
 
 class PartLayerSegment(ContractModel):

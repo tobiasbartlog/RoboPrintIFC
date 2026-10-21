@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -85,8 +86,8 @@ def add_arguments(ap: argparse.ArgumentParser, *, svg_positional: bool) -> None:
 
 def run(args: argparse.Namespace) -> int:
     """Argumente ausführen; ungültige Eingaben ergeben Exit-Code 2 mit Meldung."""
-    if args.length is not None and args.length <= 0 or args.thickness is not None and args.thickness <= 0:
-        print("Fehler: --length und --thickness müssen > 0 sein", file=sys.stderr)
+    if any(v is not None and not (math.isfinite(v) and v > 0) for v in (args.length, args.thickness)):
+        print("Fehler: --length und --thickness müssen endliche Zahlen > 0 sein", file=sys.stderr)
         return 2
     if args.layer < 0 or args.width_px < 200 or args.width_px > 4000:
         print("Fehler: --layer muss ≥ 0 und --width-px in [200, 4000] liegen (wie die API)", file=sys.stderr)

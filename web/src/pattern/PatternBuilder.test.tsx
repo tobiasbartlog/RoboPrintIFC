@@ -61,6 +61,18 @@ describe('Musterersteller', () => {
     expect(screen.getByTestId('pattern-rules-bad')).toHaveTextContent('0 Fehler, 1 Warnung');
   });
 
+  it('Hinweise des Kerns (Infill entfällt, Rückfall) stehen sichtbar über der Vorschau', async () => {
+    setup({ notes: ['Infill entfällt: Band 50 mm zu schmal für zwei Wellen (Schicht 0)'] });
+    expect(await screen.findByTestId('pattern-notes')).toHaveTextContent('Infill entfällt');
+    expect(screen.getByTestId('pattern-note-0')).toHaveTextContent('Band 50 mm');
+  });
+
+  it('ohne Hinweise kein Hinweiskasten', async () => {
+    setup();
+    await screen.findByTestId('pattern-svg');
+    expect(screen.queryByTestId('pattern-notes')).toBeNull();
+  });
+
   it('Serverfehler in Klartext, letzte Vorschau fehlt dann noch', async () => {
     setup({ previewError: 'Strangbreite darf höchstens 60 sein' });
     expect(await screen.findByTestId('pattern-error')).toHaveTextContent('höchstens 60');

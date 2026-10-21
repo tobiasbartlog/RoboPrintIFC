@@ -17,6 +17,7 @@ export interface Toolpath {
 export interface ToolpathPattern {
   infill: string;
   layer_order: "same" | "alternate";
+  notes?: string[];
   outfill: string;
   params: {
     [k: string]: number | string | boolean | number[];

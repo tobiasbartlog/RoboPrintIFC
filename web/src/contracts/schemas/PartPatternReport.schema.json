@@ -181,6 +181,13 @@
       "minimum": 0,
       "type": "integer"
     },
+    "notes": {
+      "description": "Hinweise des Plans aus toolpath.pattern.notes (Infill entfällt …)",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "outfill": {
       "anyOf": [
         {
@@ -229,7 +236,8 @@
     "max_strands_per_layer",
     "kinds",
     "layer_changes",
-    "layers"
+    "layers",
+    "notes"
   ],
   "title": "PartPatternReport",
   "type": "object"

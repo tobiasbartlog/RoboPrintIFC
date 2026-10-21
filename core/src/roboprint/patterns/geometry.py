@@ -281,11 +281,18 @@ def chord_error_estimate(points: np.ndarray, closed: bool = False) -> np.ndarray
 # --------------------------------------------------------------------------- Ringe und Kurven
 
 
+#: Beinahe-Duplikate eines Rings (mm), die `Loop` entfernt: shapely-Puffer mit Rundung liefern an
+#: Bogenstößen gelegentlich zwei Punkte im Abstand weniger µm mit Rückwärtsschritt (Rechteckkerbe,
+#: eine Schale: 0,006 mm). Der Knick bliebe beim Neu-Abtasten als „Ecke“ erhalten und gäbe einen
+#: falschen M6-Fehler (r = 1,3 mm); 0,02 mm liegt weit unter dem Sehnenfehler 0,5 mm.
+LOOP_DEDUPE_MM = 0.02
+
+
 class Loop:
     """Geschlossener Ring mit Bogenlängen-Parametrisierung s ∈ [0, length)."""
 
     def __init__(self, ring: np.ndarray):
-        p = dedupe(ring)
+        p = dedupe(ring, LOOP_DEDUPE_MM)
         if np.linalg.norm(p[0] - p[-1]) > 1e-9:
             p = np.vstack([p, p[:1]])
         self.pts = p
