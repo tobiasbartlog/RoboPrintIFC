@@ -267,3 +267,15 @@ def test_pump_off_after_layer_change_link_is_detected(tmp_path, mode):
     assert code != 0 and "M4" in _failed(p), _failed(p)
     first = p["rules"]["M4"]["first"]
     assert first["layer"] == 0 and "Pumpe aus" in first["message"], first
+
+
+def test_incomplete_top_layer_is_detected(tmp_path):
+    """Gegenpruefung: Oberste Schicht ohne Aussenbahn (nur der Infill-Ring). L+1 liegt in L ⊕ delta,
+    also kein Ueberhang; bei gleichem Querschnitt fehlt aber Raupe (M3-Grundsatz: gleiche XY-Geometrie)."""
+    full = synth.stack(lambda L: [synth.sine_infill()], N_LAYERS)
+    rings = [r for r in full if not (r["layer"] == N_LAYERS - 1 and r["kind"] == "outer")]
+    rings[-1]["link_next"] = False
+    code, p = _run(tmp_path, rings)
+    assert code != 0 and "M3" in _failed(p), _failed(p)
+    first = p["rules"]["M3"]["first"]
+    assert first["layer"] == N_LAYERS - 1 and "unvollstaendig" in first["message"], first

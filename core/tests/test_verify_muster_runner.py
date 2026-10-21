@@ -64,6 +64,21 @@ def test_check_run_only_coverage_is_einwand(vm, tmp_path):
     assert r["status"] == "gruen" and r["abdeckung"] == "einwand"
 
 
+@pytest.mark.parametrize(
+    "check",
+    [
+        {"errors": ["p1: Abdeckung < 95 %: 1 Verstoesse, z. B. Schicht 9: 0.0 % von 81600 mm2"], "parts": {}},
+        {"errors": [COV], "parts": {"p1": {"coverage_min": 0.31}}},
+    ],
+)
+def test_check_run_coverage_below_floor_is_red(vm, tmp_path, check):
+    """Gegenprüfung: Eine Abdeckung weit unter den musterbedingten 60–95 % (z. B. eine Schicht mit
+    0 %) ist kein Einwand, sondern rot (vorher pauschal Einwand und grün)."""
+    _write(tmp_path / "check.json", {"passed": False, **check})
+    r = vm.check_run_result(tmp_path, _step(1))
+    assert r["status"] == "rot" and any("Untergrenze" in e for e in r["errors"]), r
+
+
 def test_check_run_hard_error_is_red(vm, tmp_path):
     _write(tmp_path / "check.json", {"passed": False, "errors": [COV, "p1: 2 collision, 0 unreachable"]})
     assert vm.check_run_result(tmp_path, _step(1))["status"] == "rot"

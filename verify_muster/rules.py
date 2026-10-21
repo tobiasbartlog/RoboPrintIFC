@@ -235,9 +235,10 @@ def check_m2(C: Ctx) -> Rule:
 
 
 def check_m3(C: Ctx, delta: float = DELTA_MM) -> Rule:
-    R = Rule("M3", "Ueberhangfrei: Raupenflaeche L+1 in Raupenflaeche L ⊕ delta", True)
+    R = Rule("M3", "Ueberhangfrei: Raupenflaeche L+1 in Raupenflaeche L ⊕ delta; bei gleichem Querschnitt "
+             "auch L in L+1 ⊕ delta (vollstaendige Schicht)", True)
     beads = {L: g.bead_region(C.paths.get(L, []), C.w) for L in C.layers}
-    worst = 0.0
+    worst = worst_miss = 0.0
     for L in C.layers:
         if L + 1 not in beads or L not in beads:
             continue
@@ -251,8 +252,31 @@ def check_m3(C: Ctx, delta: float = DELTA_MM) -> Rule:
             ring = _nearest_ring(C, L + 1, pt)
             R.fail(L + 1, ring, pt, f"Ueberhang {a:.1f} mm² ueber Schicht {L} (groesstes Stueck "
                    f"{pieces[0].area:.1f} mm²)", area_mm2=a)
+        # Grundsatz M3: gleiche XY-Geometrie je Schicht. Bei gleichem Querschnitt darf L+1 auch nicht
+        # schrumpfen (z. B. oberste Schicht ohne Aussenbahn): Raupe von L muss in L+1 ⊕ delta liegen.
+        if C.paths.get(L + 1) and _same_section(C, L, L + 1):  # ganz leere Schicht meldet M1
+            miss = beads[L].difference(beads[L + 1].buffer(delta, quad_segs=16))
+            m = float(miss.area)
+            worst_miss = max(worst_miss, m)
+            if m > M3_AREA_TOL_MM2:
+                pieces = sorted(getattr(miss, "geoms", [miss]), key=lambda p: -p.area)
+                pt = np.asarray(pieces[0].representative_point().coords[0])
+                R.fail(L + 1, _nearest_ring(C, L, pt), pt,
+                       f"Schicht {L + 1} unvollstaendig: {m:.1f} mm² Raupe von Schicht {L} fehlt bei "
+                       f"gleichem Querschnitt (groesstes Stueck {pieces[0].area:.1f} mm²)",
+                       missing_area_mm2=m)
     R.metrics["max_overhang_area_mm2"] = round(worst, 3)
+    R.metrics["max_missing_area_mm2"] = round(worst_miss, 3)
     return R
+
+
+def _same_section(C: Ctx, a: int, b: int) -> bool:
+    """Gleicher Querschnitt in Schicht a und b (symmetrische Differenz <= Toleranz)."""
+    sa, sb = C.sections.get(a), C.sections.get(b)
+    if sa is None or sb is None or sa.is_empty or sb.is_empty:
+        return False
+    tol = max(M3_AREA_TOL_MM2, 1e-4 * float(sa.area))
+    return float(sa.symmetric_difference(sb).area) <= tol
 
 
 def _nearest_ring(C: Ctx, L: int, pt) -> int | None:
