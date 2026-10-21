@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "id": "S6_muster_s2_raute",
-  "beschreibung": "Wie S2: alle Waende aus examples/Building-Architecture.ifc, Modus Modul am Doosantisch, Zerlegung an (Module 600 x 200 mm, Hoehe 296-380 mm). Muster: Fugenwand Rautenkette (Katalog-Empfehlung, Preset fugenwand_raute) mit Ziel-Feldlaenge 225 mm statt 300 mm: Die Zerlegung liefert 600 mm lange Module, fit_to_length ergibt damit 3 Felder zu 200 mm (Hakenradius 30 mm, 0 M6-Warnungen). Ziel 250 mm ergaebe round(600/250) = 2 Felder zu 300 mm, dort passt r = 30 mm bei 200 mm Wand nicht (r = 27 mm, 15 M6-Warnpunkte; docs/muster/PARAMETERSTUDIE.md, studie/fugenwand.csv). Bericht docs/muster/S2-RAUTENKETTE.md.",
+  "beschreibung": "Wie S2: alle Waende aus examples/Building-Architecture.ifc, Modus Modul am Doosantisch, Zerlegung an (Module 600 x 200 mm, Hoehe 296-380 mm). Muster: Fugenwand Rautenkette (Katalog-Empfehlung, Preset fugenwand_raute) mit Ziel-Feldlaenge 225 mm statt 300 mm: Die Zerlegung liefert 600 mm lange Module, fit_to_length ergibt damit 3 Felder zu 200 mm (Hakenradius 30 mm, 0 M6-Warnungen). Ziel 250 mm ergaebe round(600/250) = 2 Felder zu 300 mm, dort passt r = 30 mm bei 200 mm Wand nicht (r = 27 mm, 15 M6-Warnpunkte; docs/muster/PARAMETERSTUDIE.md, studie/fugenwand.csv). Kopfmodule mit Abschraegung: Fugenwand aus dem Vollquerschnitt, darueber U-Formen (fugenwand.md, Abschnitt Abschraegung). Bericht docs/muster/S2-RAUTENKETTE.md.",
   "mode": "modul",
   "source": { "kind": "ifc", "path": "examples/Building-Architecture.ifc", "walls": "all" },
   "decompose": true,
@@ -21,8 +21,8 @@
       "machbar": false,
       "fast": false,
       "preset": "docs/muster/presets/fugenwand_raute.json",
-      "erwartete_regeln": ["M1", "M2", "M3", "M4", "M6"],
-      "beleg": "Lauf 21.10.2026 (docs/muster/S2-RAUTENKETTE.md): alle 172 Teile roboterseitig machbar, G5 gruen; die 150 Module mit vollem Querschnitt erfuellen M1-M7 (G3 nur Abdeckungs-Einwand 71,9 %). Die 22 Kopfmodule (45-Grad-Schraege am Wandkopf, house_left/house_right_front r9, house_right_back r5) verletzen M1/M2/M3/M4/M6: die prismatische Fugenwand wird je Schicht neu eingeteilt (Hakenradius 30 -> 15 mm), ab 110,7 mm Dicke Rueckfall auf Schalen, die drei obersten Schichten (< w) bleiben leer (G3-Abdeckung 0 %). Fund: Kopfmodule brauchen topologie/abschraegung (gleiche Querschnitte: 0 Regelfehler)."
+      "erwartete_regeln": ["M1"],
+      "beleg": "Lauf 21.10.2026 nach Fix 'Fugenwand an Abschraegungen' (docs/muster/S2-RAUTENKETTE.md, docs/muster/fugenwand.md Abschnitt Abschraegung): alle 172 Teile roboterseitig machbar, G5 gruen, 100 % senkrechte Schichtwechsel, M2-M7 in allen Teilen gruen (Ueberhang 0 mm2). Die 20 Kopfmodule (45-Grad-Schraege, house_left/house_right_front r9, house_right_back r5) planen die Fugenwand aus dem Vollquerschnitt (Fugen an der Schraegseite, darueber U-Formen). Rot bleibt nur M1: die drei obersten Schichten jedes Kopfmoduls sind 20,7 / 10,7 / 0,7 mm dick, duenner als eine Raupe (w = 30 mm, M5), dort ist nichts druckbar (Insel ohne Strang, G3-Abdeckung 0 %). Physikalisch nicht behebbar; machbar = true erst mit einer Regel fuer Schichten duenner als w (SPEC-Nachtrag) oder einer Zerlegung, die den Kopf anders schneidet."
     }
   },
   "limits": { "wall_time_s": 1800 }

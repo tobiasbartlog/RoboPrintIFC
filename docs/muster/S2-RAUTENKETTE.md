@@ -9,24 +9,30 @@ Agenten liefen parallel). Geprüft mit `verify.check_run` (G3), `verify.fake_drc
 
 ## Kurzfassung
 
+Nachtrag 21.10.2026 (Fix „Fugenwand an Abschrägungen“, Branch `v2/muster-fugenschraege`): Die Kopfmodule
+planen die Fugenwand jetzt aus dem Vollquerschnitt, darüber fallen Raupen nur weg (`fugenwand.md`,
+Abschnitt „Abschrägung“). Die Zahlen unten stammen aus dem neuen Lauf; die Tabellen „vor dem Fix“ sind
+als Beleg stehen geblieben.
+
 - **Roboterseitig ist alles machbar (E):** 172 von 172 Teilen `machbar`, d_min 10,83 mm (wie S2),
-  Orakel d_min_lb 10,10 mm, 0 Kollisionen, 0 Zweigwechsel im Strang. G5 (fake_drcf): 0 Fehler.
-- **Muster: 150 von 172 Teilen grün, 22 Kopfmodule rot (E).** Die 150 Module mit vollem Querschnitt
-  erfüllen M1–M7 ohne Fehler (1 Strang je Schicht, 100 % senkrechte Schichtwechsel, 3 Felder à 200 mm).
-  Die 22 obersten Module jeder Wand (45°-Schräge am Wandkopf) verletzen M1, M2, M3, M4 und M6, und
-  in ihren drei obersten Schichten fehlt Material (G3-Abdeckung 0 %, hart rot).
-- **Ursache: Abschrägung am Wandkopf, nicht Laibung** (S2 hat keine Öffnungen). Die Fugenwand ist
-  prismatisch und wird in jeder dünneren Schicht neu eingeteilt. Im Muster behebbar: dieselben
-  Querschnitte mit `topologie` (Abschrägung, Fermat-Doppelring) haben 0 Regelfehler (Fund unten).
-- **Laufzeit (E):** run-scenario 217 s bzw. 267 s (zwei Läufe, Last durch andere Agenten) gegen
-  S2 ohne Muster 168 s, Grenze G7 1800 s. Prüfung: check_run 109 s, fake_drcf 44 s, verify_muster 363…371 s.
-- **Material (E):** volle Module 1,022-fach gegenüber den S2-Schalen (Pfad 2781 gegen 2720 mm je
-  Schicht), 1,090-fach gegenüber dem Grundmuster „schalen“ des Katalogs (2552 mm). Ganzes Haus
-  1,008-fach (Kopfmodule drucken weniger, siehe unten). Druckzeit Summe 171 598 s gegen 174 379 s (−1,6 %).
-- **Musterrunner:** S6 ist aufgenommen (`expect.muster.machbar = false`, `erwartete_regeln` M1, M2, M3,
-  M4, M6, Beleg im Szenario, `fast = false`, `wall_time_s = 1800`). Der Runner meldet damit
-  „belegt nicht machbar“ (grün). Sobald die Kopfmodule behoben sind, wird S6 „machbar entgegen der
-  Erwartung“ (rot) und die Erwartung ist auf `machbar = true` umzustellen.
+  Orakel d_min_lb 10,0 mm, 0 Kollisionen, 0 Zweigwechsel im Strang. G5 (fake_drcf): 0 Fehler.
+- **Muster: M2–M7 in allen 172 Teilen grün (E, `verify_muster`).** 1 Strang je gedruckter Schicht,
+  100 % senkrechte Schichtwechsel, Überhang 0 mm², keine unvollständige Schicht. Die 152 Module mit
+  vollem Querschnitt sind unverändert (3 Felder à 200 mm). Die 20 Kopfmodule (45°-Schräge,
+  left/front r9: 13, back r5: 7; früher hier als 22 gezählt) haben Fugen und Rauten an der Schrägseite in
+  den Lagen der Module darunter bis zur letzten Vollschicht, darüber die U-Formen der Gegenseite.
+- **Rot bleibt nur M1 in den 20 Kopfmodulen (physikalisch):** Ihre drei obersten Schichten sind 20,7 /
+  10,7 / 0,7 mm dick, dünner als eine Raupe (w = 30 mm passt nicht in den Querschnitt ⊕ 1 mm, M5). Dort
+  ist nichts druckbar; das Orakel meldet „Insel ohne Strang“, die G3-Abdeckung dieser Schichten ist 0 %.
+  S2 ohne Muster druckt dort einen Ring, der über den Querschnitt hinausragt.
+- **Musterrunner:** S6 bleibt „belegt nicht machbar“, jetzt mit `erwartete_regeln` = M1 (vorher M1, M2,
+  M3, M4, M6). `machbar = true` geht erst mit einer Regel für Schichten dünner als w (SPEC-Nachtrag) oder
+  einer Zerlegung, die den Kopf anders schneidet.
+- **Laufzeit (E):** run-scenario 611 s (Last durch andere Agenten und parallele Tests; vorher 217–267 s),
+  Grenze G7 1800 s. Prüfung: check_run 166–179 s, fake_drcf 40–66 s, verify_muster 359 s.
+- **Material/Druckzeit (E):** Druckzeit Summe 168 287 s (vorher 171 598 s, S2 ohne Muster 174 379 s).
+  Kopfmodul left/front r9 436,9 s, back r5 515,7 s (vorher 600,7 / 684,5 s, S2 702,3 / 786,5 s): Die
+  Schrägschichten drucken nur die U-Formen der Gegenseite.
 
 ## Wahl der Feldlänge (Begründung)
 
@@ -49,13 +55,30 @@ mit 300-mm-Feldern (2781 gegen 2420 mm je Schicht).
 
 | Wand | Länge × Höhe | Module | Teile | Ergebnis |
 |---|---|---|---|---|
-| house left | 6000 × 3626 mm | 10 Spalten × 10 Reihen | 100 | r0–r8 (90) grün; r9 (10, Kopf) rot |
-| house right front | 1800 × 3626 mm | 3 × 10 | 30 | r0–r8 (27) grün; r9 (3, Kopf) rot |
-| house right back | 4200 × 2226 mm | 7 × 6 | 42 | r0–r4 (35) grün; r5 (7, Kopf) rot |
+| house left | 6000 × 3626 mm | 10 Spalten × 10 Reihen | 100 | r0–r8 (90) grün; r9 (10, Kopf) nur M1 rot (3 Schichten < w) |
+| house right front | 1800 × 3626 mm | 3 × 10 | 30 | r0–r8 (27) grün; r9 (3, Kopf) nur M1 rot |
+| house right back | 4200 × 2226 mm | 7 × 6 | 42 | r0–r4 (35) grün; r5 (7, Kopf) nur M1 rot |
 | plumbing wall | 3800 × 2226 mm, 24 mm dick | – | 0 | ungeeignet: 24 mm < 60 mm (2·w), wie S2 |
 
 Die Teile sind inhaltsgleich zu vier Vertretern (`same_as`); die Zahlen gelten je Vertreter für alle
 Teile seiner Gruppe. Material = Pfadlänge aller Ringe; S2 = derselbe Teil ohne Muster.
+
+**Kopfmodule nach dem Fix (E, Lauf `runs/verify_muster/S6_muster_s2_raute`):**
+
+| Kennzahl | Kopf 296 (left/front r9) | Kopf 326 (back r5) |
+|---|---|---|
+| M1–M7 (Orakel) | M2–M7 grün; M1 rot: 3 leere Schichten (27–29, Dicke < w) | M2–M7 grün; M1 rot: Schichten 30–32 |
+| Stränge je Schicht / je Teil | 1 / 27 (eine je gedruckter Schicht) | 1 / 30 |
+| Senkrechte Schichtwechsel | 26 / 26 (100 %), 12 Nähte an einer Fläche (Warnung) | 29 / 29 (100 %) |
+| Überhang / fehlende Raupe bei gleichem Querschnitt | 0 / 0 mm² | 0 / 0 mm² |
+| Vollschichten mit Fugenwand | 0–9: Fugen y+ bei x = −200, 0, 200 mm (wie darunter), Rauten r = 27 mm, y− zwei Spuren ohne Fuge | 0–12 |
+| Schrägschichten | 10–25: U-Formen (Doppel-U bis 104 mm Dicke, dann einfaches U, ab 59 mm ein Lauf) | 13–28 |
+| M6 (Orakel) | kleinster Radius 14,5 mm (Wende r = w/2, in Toleranz), 24 Pfade unter Ziel | wie links |
+| Kontaktzonen je m (M7, Schicht 0) | 7,6 (Fuge 1,7, Schale 5,9) | wie links |
+| Druckzeit je Teil (S6 / S2) | 436,9 / 702,3 s | 515,7 / 786,5 s |
+| Hinweise im Toolpath | Kopfmodul (Schichten 0–9), Abschrägung (10–25), „Schichten 27–29 ohne Strang: Dicke 20,7…0,7 mm, dünner als eine Raupe“ | entsprechend |
+
+**Vor dem Fix (prismatische Fugenwand, Beleg):**
 
 | Kennzahl | Voll 370 (left/front r0–r8) | Voll 380 (back r0–r4) | Kopf 296 (left/front r9) | Kopf 326 (back r5) |
 |---|---|---|---|---|
@@ -87,9 +110,9 @@ Sicht- oder Stoßfläche (`n_seam_on_surface = 0`).
 hart 15). Der Kern misst auf seiner Sollkurve 0 Warnungen; das Orakel sieht die Polylinie nach dem
 Resampling des Slicers (`step_mm = 20`). Kein Fehler, nur Hinweis.
 
-## Nicht machbare Teile: Ursache
+## Kopfmodule: Ursache (vor dem Fix)
 
-Die 22 Kopfmodule tragen die 45°-Schräge des Wandkopfs. Ihr Querschnitt bleibt 600 mm lang, die Dicke
+Die 20 Kopfmodule tragen die 45°-Schräge des Wandkopfs. Ihr Querschnitt bleibt 600 mm lang, die Dicke
 nimmt ab Schicht 10 (left/front r9) bzw. 13 (back r5) je Schicht um 10 mm ab (200 → 190,7 → … → 0,7 mm). Eine
 Laibung gibt es nicht (S2 enthält keine Öffnungen, `topologie.md`).
 
@@ -105,7 +128,7 @@ Ablauf im Kern (E, aus `toolpath.pattern.notes` und Nachrechnung mit `plan_patte
 Roboterseitig sind diese Teile trotzdem machbar (d_min 10,83 mm, 0 Kollisionen); der Fehler liegt
 allein im Schichtpfad.
 
-## Fund: Kopfmodule brauchen die Abschrägungslösung (im Muster behebbar)
+## Fund: Kopfmodule brauchen die Abschrägungslösung (umgesetzt, siehe oben)
 
 Gegenprobe (E): dieselben Querschnitte der beiden Kopf-Vertreter mit dem Muster `topologie`
 (Fall `abschraegung`, Fermat-Doppelring ab Schicht 0, Raupen fallen nur weg, wandern nicht):
@@ -115,7 +138,10 @@ Gegenprobe (E): dieselben Querschnitte der beiden Kopf-Vertreter mit dem Muster 
 | left/front r9 | M2 4, M3 16, M4 17, M6 6 Fehler; 187 Warnungen | **0 Fehler**; Warnungen M6 36, M4 26, M1 3 | 0,62 |
 | back r5 | wie links | **0 Fehler**; Warnungen M6 44, M4 24, M1 3 | 0,68 |
 
-Vorschlag (nicht gebaut, weil keine triviale Änderung): Die prismatische Fugenwand erkennt einen
+Umgesetzt am 21.10.2026 als Variante „Raupen fallen nur weg“ (`fugenwand.md`, Abschnitt „Abschrägung“).
+Abweichung vom Vorschlag: Die Fugen der Gegenseite können nicht durchlaufen (eine Kerbe schließt nach oben
+nie, die obersten Schichten brauchen einen durchgehenden Lauf; Überhang 644 mm² je Fuge), deshalb hat die
+Gegenseite im Kopfmodul keine Fuge. Ursprünglicher Vorschlag: Die prismatische Fugenwand erkennt einen
 Teil mit veränderlichem Querschnitt (Schräge) aus `sections` und plant dann den ganzen Teil mit der
 Abschrägungslösung von `topologie`, statt je Schicht neu einzuteilen. Besser für die Optik: eine
 Fugenwand-Variante nach dem Prinzip „Raupen fallen nur weg“, also die Einteilung des Vollquerschnitts
@@ -125,7 +151,7 @@ Schichten unter w = 30 mm Dicke (auch topologie druckt dort nichts; S2 ohne Must
 Ring auf weniger als einer Raupenbreite). Das betrifft G3 (Abdeckung) und gehört als Regel in den
 SPEC-Nachtrag (Schichten dünner als w an der Schräge).
 
-## Laufzeit gegen S2
+## Laufzeit gegen S2 (Lauf vor dem Fix; neuer Lauf siehe Kurzfassung)
 
 | | S2 ohne Muster | S6 Rautenkette |
 |---|---|---|

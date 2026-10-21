@@ -2,7 +2,8 @@
 
 Stand 20.10.2026, Aufgabe F, Branch `v2/muster-fugenwand`. Code:
 `core/src/roboprint/patterns/families/fugenwand.py` (Muster `fugenwand`, Rolle `full`) und
-`families/_fugenwand_geom.py` (Riemenfolge). Tests: `core/tests/test_patterns_fugenwand.py`.
+`families/_fugenwand_geom.py` (Riemenfolge), `families/_fugenwand_kopf.py` (Kopfmodule mit
+Abschrägung). Tests: `core/tests/test_patterns_fugenwand.py`, `test_patterns_fugenwand_kopf.py`.
 Presets und Bilder erzeugt `python scripts/muster_fugenwand.py [--table]`.
 
 ## Was das Foto zeigt
@@ -117,6 +118,120 @@ nennt die Anpassung. Geht gar nichts, oder ist der Querschnitt kein Rechteck (L,
 das Muster das Grundmuster `shell_chain` und `meta["pattern_fallback"]` nennt den Grund. Inseln
 neben einer Öffnung sind Rechtecke und bekommen je eine eigene Fugenwand.
 
+## Abschrägung (Kopfmodule, S6)
+
+Stand 21.10.2026, Fix-Aufgabe „Fugenwand an Abschrägungen“. Code:
+`families/_fugenwand_kopf.py` (wird von `fugenwand.build` gerufen), Tests:
+`core/tests/test_patterns_fugenwand_kopf.py`. **E** = gerechnet, **A** = Annahme.
+
+**Problem.** In S6 tragen die 20 obersten Module (left r9: 10, right front r9: 3, right back r5: 7)
+die 45°-Schräge des Wandkopfs: Ab Schicht 10 bzw. 13 wird die Wand je Schicht um 10 mm dünner (200 → 190,7 → … → 0,7 mm, eine Seite bleibt stehen).
+Die prismatische Fugenwand teilte jede Schicht neu ein, ihre Raupen wanderten: M3-Überhang bis
+4279 mm², M4 nur 35–41 % senkrecht, M2-Kreuzung 0,74 mm, M6-Radius 6,7 mm, ab 110 mm Rückfall auf
+Schalen mit abgesetztem Strang (`S2-RAUTENKETTE.md`).
+
+**Lösung: Einteilung aus dem ganzen Teil, Raupen fallen nur weg.** Das Muster ist jetzt schichtabhängig
+registriert (`layer_invariant = False`) und sieht `ctx.sections` an. Trägt das Teil eine Abschrägung
+(eine Insel je Schicht, gleiche Länge, die Dicke nimmt von einer Seite ab; Erkennung wie `topologie`,
+leere Schichten oben werden übergangen), plant `_fugenwand_kopf` den ganzen Teil aus dem
+Vollquerschnitt. Sonst bleibt alles wie bisher: Prismatische Teile bekommen genau den Inselpfad von
+`build_plan` (Gleichheitstest `test_rectangle_sections_unchanged`, dazu sha256 über 39 Fälle vor
+und nach der Änderung: gleich).
+
+Seiten: **S** = Schrägseite (weicht zurück), **G** = Gegenseite (bleibt stehen).
+
+| Schichten | Bahn | Bild |
+|---|---|---|
+| Vollquerschnitt (Dicke ≥ T − 1 mm) | S: Felder mit Fugen und Rauten **in den Fugenlagen des Vollquerschnitts** (dieselben wie in den Modulen darunter, S6: Rückseite x = −200, 0, 200 mm); die untere Rautenspitze berührt Spur 1 (Kontakt `shell`). G: zwei Spuren ohne Fuge, Stirnschenkel, Wende (r = w/2) am rechten Stirnende. Ein offener Strang: Start in der Mitte des Eckbogens oben rechts, Ende im Wandinneren auf Spur 1 links. | ![](bilder/fugenwand_kopf_voll.svg) |
+| Schräge, Dicke ≥ 104 mm | Doppel-U der Gegenseite (Spur 0 und Spur 1, Wende sinkt mit), wie `topologie` | ![](bilder/fugenwand_kopf_schraege.svg) |
+| 59 … 104 mm | einfaches U (Spur 0) | ![](bilder/fugenwand_kopf_u.svg) |
+| 29 … 59 mm | ein Lauf auf Spur 0 an der Gegenseite | |
+| < 29 mm (< w − 1) | nichts: eine Raupe passt nicht in den Querschnitt ⊕ 1 mm (M5) | |
+
+Jede Bahn einer Schrägschicht ist ein Teil der Bahn der Schicht darunter (die Wende sinkt auf den
+Schenkeln der tieferen Schicht). Deshalb gibt es keinen Überhang, auch nicht am Übergang
+Vollschicht → Schräge: Dort fällt die Schrägseite mit Fugen und Rauten ganz weg, die U-Formen der
+Gegenseite bleiben.
+
+**M4 (senkrechter Wechsel).** Die Enden der U-Formen sinken mit; jede Schicht wird an der mit der
+nächsten gemeinsamen Seite bis auf deren Strangende gekürzt (wie `topologie._align_bevel_ends`). Neu
+gegenüber `topologie`:
+
+- Am Übergang letzte Vollschicht → erste Schrägschicht ist das gemeinsame Ende immer das Ende von
+  Spur 1 (es bleibt stehen). Liegt die letzte Vollschicht ungerade, wird die Bahn aller Schichten
+  umgedreht (`meta.flipped`). Sonst würde die letzte Vollschicht gekürzt und wäre bei gleichem
+  Querschnitt unvollständig (Orakel M3; `topologie` hat diesen Fehler im S6-Kopf: Schicht 9 nur 49 %
+  statt 64 % Raupenfläche).
+- Der rechte Schenkel des einfachen U endet höchstens auf Höhe der Wende darunter. Bei 60°-Schrägen
+  (5,8 mm je Schicht) läge sein Ende sonst auf dem Wendenbogen, und der Wechsel wäre diagonal
+  (`topologie` meldet dort einen M4-Fehler, E: 600 × 200 und 600 × 300 bei 60°).
+- Zwei Schichten mit gleichem Querschnitt (Stufe in der Schräge) werden gleich gekürzt.
+
+**Warum die Gegenseite keine Fuge hat (Beleg, E).** Eine Fuge ist eine Kerbe von der Außenfläche bis
+zum Kontakt der Haken. Eine Kerbe kann nach oben nie schließen: Jede Raupe über ihr hinge (M3, δ = 2 mm).
+Die obersten Schichten (Dicke < 59 mm) haben aber nur Platz für einen Lauf an der Gegenseite, und der
+muss als ein Strang (M1) über jede Fugenlage laufen. Gemessen am vollen S6-Modul (600 × 200, F = 200):
+ein durchgehender Lauf über der Rautenkette hängt an jeder der beiden Fugen der Vorderseite
+**644 mm²** über (Toleranz 1 mm², `test_joint_notch_on_fixed_side_cannot_close`). Eine Fuge der
+Gegenseite müsste also bis zum Wandkopf durchlaufen; dann druckten die obersten Schichten nur ein Feld
+je Schicht (ein Strang je Insel), und der Kopf hätte über 2/3 der Länge keine Raupe. Deshalb hat die
+Gegenseite im ganzen Kopfmodul keine Fuge, und die Fugenlinie dieser Seite endet am Modulstoß unter dem
+Kopfmodul. Die Fugen der Schrägseite laufen bis zur letzten Vollschicht weiter.
+
+**Warum die Rauten der Schrägseite nicht in die Schräge reichen.** Eine Raute hängt nur über die Felder
+der Schrägseite am Strang. Die Schräge versetzt die Außenfläche je Schicht um 10 mm (45°) bzw. 5,8 mm
+(60°), mehr als δ = 2 mm. Die Felder fallen also in der ersten Schrägschicht weg, und mit ihnen jede
+Raute (sie wäre ein eigener Strang, M1). Eine tiefer gesetzte Rautenspitze hinge über dem Hohlraum der
+Raute.
+
+**Oberste Schichten.** Dicke 29…59 mm: ein Lauf auf Spur 0 an der Gegenseite (er liegt auf dem Lauf
+der Schicht darunter). Ein Strang auf der Mittellinie der Schicht hinge dagegen: bei 40 mm Dicke
+1602 mm² über dem Lauf darunter (E). Unter w − 1 = 29 mm ist nichts druckbar (M5). Der Hinweis steht
+im `meta` der obersten gedruckten Schicht (`thin_note`, auch in `layer_notes`), die Messung meldet die
+leeren Inseln als M1-Warnung „Kappe über tieferer Raupe“. Das Orakel `verify_muster` zählt sie als
+M1-Fehler (Insel ohne Strang), und die G3-Abdeckung dieser Schichten ist 0 %. Das ist physikalisch
+nicht behebbar: Die S2-Köpfe enden mit 20,7 / 10,7 / 0,7 mm Dicke.
+
+**Rückfälle.** Passen die Rauten nicht zwischen Schrägseite und Spur 1, läuft die Schrägseite ohne
+Fuge (`meta.adjusted`): Rauten gibt es im Kopfmodul ab T ≈ 175 mm (F = 200, E). Unter ≈ 140 mm passen
+Wende und Eckbogen am Stirnende nicht übereinander; dann übernimmt `topologie` (`pattern_fallback`).
+Der Hakenradius im Kopfmodul ist bei 200 mm 27 mm statt 30 mm (die Raute ist um Spur 1 kürzer, nur
+M6-Warnungen).
+
+**Ergebnisse (E, `measure` und eigene shapely-Nachrechnung von M3, w = 30 mm, F = 200 mm):**
+
+| Teil | Schichten / Stränge | Vollschichten | Fehler M1–M7 | Überhang (eigene Rechnung) | senkrecht | Raupenfläche je Schrägschicht | Pfad |
+|---|---|---|---|---|---|---|---|
+| S6 left/front r9 (600 × 200 × 296) | 30 / 27 | 0–9 | 0 (Warnungen M6 180, M4 24, M1 3) | 0 mm² | 26/26 | 34–87 % | 42,7 m |
+| S6 back r5 (600 × 200 × 326) | 33 / 30 | 0–12 | 0 (M6 239, M4 24, M1 3) | 0 mm² | 29/29 | 34–87 % | 50,6 m |
+| 600 × 200, 45° | 25 / 22 | 0–4 | 0 | 0 mm² | 21/21 | 34–87 % | 29,7 m |
+| 600 × 200, 60° | 39 / 34 | 0–4 | 0 | 0 mm² | 33/33 | 33–80 % | 41,5 m |
+| 600 × 300, 45° | 35 / 32 | 0–4 | 0 | 0 mm² | 31/31 | 26–87 % | 47,8 m |
+| 600 × 300, 60° | 56 / 52 | 0–4 | 0 | 0 mm² | 51/51 | 26–89 % | 71,2 m |
+
+Vorher (prismatische Fugenwand) auf denselben S6-Köpfen: M2 4, M3 16, M4 17, M6 6 Fehler, eigener
+M3-Überhang 4279 mm². Zum Vergleich `topologie` auf dem S6-Kopf: 0 Fehler, Pfad 42,2 m, Raupenfläche
+32–87 %; Grundmuster „Schalen“: 43 Fehler. Breite Prüfung (E, `pytest` und ein Sweep über
+X = 300…1200, T = 120…365, 30°/45°/60°, beide Seiten, 1/4/5 Vollschichten, Rautenkette, Gurt,
+gespiegelt, F = 225, r = 20): kein Fehler, kein Überhang, keine unvollständige Schicht.
+
+**Grenzen.** Nur Schrägen von einer Seite, nur abnehmend, eine Insel. Ein Sprung auf unter ≈ 104 mm
+Dicke in einer Schicht (Stufe statt Schräge, w = 30 mm) lässt die erste dünnere Schicht ohne Spur 1;
+dann wird die letzte Vollschicht für den senkrechten Wechsel bis auf Spur 0 gekürzt, nur sie
+(`meta.cut_mm`, `step_note`; Orakel: unvollständige Schicht). Gegenprüfung 21.10.2026 (E): Vorher
+kürzte `align_ends` über die Regel „gleicher Querschnitt“ alle Vollschichten mit, Spur 1 fehlte im
+ganzen Teil (600 × 200, Sprung 100 mm: 60 039 statt 78 575 mm² Raupe je Vollschicht; 600 × 300, Sprung
+200 mm: 80 059 statt 99 029 mm²), ohne Hinweis und ohne Fehler in `measure` (das Orakel vergleicht
+gleiche Querschnitte nur untereinander, und die waren alle gleich gekürzt;
+`test_thickness_jump_cuts_only_the_last_full_layer`). Beidseitige Schrägen (beide Außenflächen
+weichen zurück) erkennt weder `fugenwand` noch `topologie`; sie bleiben prismatisch je Schicht
+(unverändert gegenüber vorher, E: 600 × 200, 45°, je Seite 5 mm je Schicht: M3-Überhang
+1550…2000 mm² je Schicht, dazu M2/M4/M6; `topologie` 2900…3600 mm²). Über einer Kerbe oder einem
+Hohlraum kann keine Raupe nach innen wandern; ein Kopfmodul mit beidseitiger Schräge bräuchte
+vermutlich einen Querschnitt ohne Kerben und Hohlraum am Rand (A), den keines der Muster plant. In S2/S6
+kommt der Fall nicht vor. Gurt und gespiegelte Fugen gelten nur in Modulen mit vollem Querschnitt; im Kopfmodul hängen an der Schrägseite
+immer Rauten (in den Fugenlagen der gewählten Variante).
+
 ## Parameter
 
 | Name | Beschriftung | Standard | Wirkung |
@@ -184,7 +299,8 @@ stellt die Feldlänge auf ≤ 200 mm.
   Kontaktzone 10–14 mm bei r = 20–30 mm. Die Fuge bleibt so ein Gelenk (Recherche: kleine
   Kontaktlänge). Mehr Haftung gibt `joint_contact_mm`.
 - **Nur Rechteckinseln.** L-, T- und Lochquerschnitte bekommen das Grundmuster (Rückfall). Querstege
-  an künftigen Laibungen (M3 über Schichten) baut die Familie Topologie.
+  an künftigen Laibungen (M3 über Schichten) baut die Familie Topologie. Abschrägungen (Kopfmodule)
+  plant die Fugenwand selbst, siehe „Abschrägung“.
 - **G3-Abdeckung.** Die Fugenwand ersetzt die Schalen. `shell_coverage` (Maß wie G3) liegt deshalb
   weit unter den 95 %, die G3 vom Slicer verlangt: Rautenkette 600 × 200 65 %, Gurt 89 %,
   bei 1000 × 300 alle Varianten 60–65 %. Das ist kein Fehler des Musters. Es gehört zum
@@ -247,8 +363,9 @@ Schicht. Das 100-ms-Ziel je Schicht hält also nur knapp. Den größten Teil kos
 
 - **Orakel:** `verify_muster` wurde für die Fugenwand nicht gerechnet. Die Kern-Tests importieren
   es nicht, und für ein Artefakt fehlt der Einbau in den Slicer (M3).
-- **M3-Stege:** Querstege an künftigen Laibungen und Querschnittswechsel innerhalb eines Teils
-  behandelt die Fugenwand nicht. Nicht-Rechtecke fallen auf das Grundmuster zurück.
+- **M3-Stege:** Querstege an künftigen Laibungen behandelt die Fugenwand nicht (Öffnungen: Familie
+  `topologie`). Abschrägungen sind gelöst (Abschnitt „Abschrägung“). Nicht-Rechtecke fallen auf das
+  Grundmuster zurück.
 - **Roboterprüfung:** Testkörper, S1-Quader und S2-Modul folgen in M3 bzw. M5. Am Gerät ist zu
   prüfen, ob die engen Haken (180°-Wende auf r = 20–30 mm) sauber laufen und ob der punktförmige
   Fugenkontakt beim Trocknen wie gewollt reißt.
