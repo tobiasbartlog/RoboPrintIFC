@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import shutil
 import uuid
 from pathlib import Path
@@ -202,3 +203,17 @@ def test_s6_whole_ifc_scenario_is_found_but_not_fast(vm):
     assert sc["decompose"] is True and sc["source"]["path"] == "examples/Building-Architecture.ifc"
     assert sc["limits"]["wall_time_s"] == 1800  # G7-Grenze von S2
     assert json.loads(sc["params"]["pattern_params"]) == {"field_length_mm": 225.0}
+
+
+def test_s6_report_counts_match_strands_and_beleg():
+    """S2-RAUTENKETTE.md und S6-Beleg zählen grüne und rote Teile wie der Prüferbericht: grün + rot = 172
+    und Stränge = grün·1 + rot·5 (Kennzahlentabelle 252). Vorher stand dort 150/22."""
+    doc = (ROOT / "docs" / "muster" / "S2-RAUTENKETTE.md").read_text(encoding="utf-8")
+    m = re.search(r"(\d+) von 172 Teilen grün, (\d+) Kopfmodule rot", doc)
+    green, red = int(m.group(1)), int(m.group(2))
+    strands = int(re.search(r"Stränge gesamt \| 172 \| (\d+) \(Kopfmodule je 5\)", doc).group(1))
+    assert green + red == 172 and green + 5 * red == strands
+    assert f"Die {green} Module mit vollem Querschnitt" in doc and f"Die {red} Kopfmodule tragen" in doc
+    sc = json.loads((SCEN / "S6_muster_s2_raute.json").read_text(encoding="utf-8"))
+    beleg = sc["expect"]["muster"]["beleg"]
+    assert f"die {green} Module mit vollem Querschnitt" in beleg and f"Die {red} Kopfmodule" in beleg

@@ -11,9 +11,9 @@ Agenten liefen parallel). Geprüft mit `verify.check_run` (G3), `verify.fake_drc
 
 - **Roboterseitig ist alles machbar (E):** 172 von 172 Teilen `machbar`, d_min 10,83 mm (wie S2),
   Orakel d_min_lb 10,10 mm, 0 Kollisionen, 0 Zweigwechsel im Strang. G5 (fake_drcf): 0 Fehler.
-- **Muster: 150 von 172 Teilen grün, 22 Kopfmodule rot (E).** Die 150 Module mit vollem Querschnitt
+- **Muster: 152 von 172 Teilen grün, 20 Kopfmodule rot (E).** Die 152 Module mit vollem Querschnitt
   erfüllen M1–M7 ohne Fehler (1 Strang je Schicht, 100 % senkrechte Schichtwechsel, 3 Felder à 200 mm).
-  Die 22 obersten Module jeder Wand (45°-Schräge am Wandkopf) verletzen M1, M2, M3, M4 und M6, und
+  Die 20 obersten Module jeder Wand (45°-Schräge am Wandkopf) verletzen M1, M2, M3, M4 und M6, und
   in ihren drei obersten Schichten fehlt Material (G3-Abdeckung 0 %, hart rot).
 - **Ursache: Abschrägung am Wandkopf, nicht Laibung** (S2 hat keine Öffnungen). Die Fugenwand ist
   prismatisch und wird in jeder dünneren Schicht neu eingeteilt. Im Muster behebbar: dieselben
@@ -89,7 +89,7 @@ Resampling des Slicers (`step_mm = 20`). Kein Fehler, nur Hinweis.
 
 ## Nicht machbare Teile: Ursache
 
-Die 22 Kopfmodule tragen die 45°-Schräge des Wandkopfs. Ihr Querschnitt bleibt 600 mm lang, die Dicke
+Die 20 Kopfmodule tragen die 45°-Schräge des Wandkopfs. Ihr Querschnitt bleibt 600 mm lang, die Dicke
 nimmt ab Schicht 10 (left/front r9) bzw. 13 (back r5) je Schicht um 10 mm ab (200 → 190,7 → … → 0,7 mm). Eine
 Laibung gibt es nicht (S2 enthält keine Öffnungen, `topologie.md`).
 

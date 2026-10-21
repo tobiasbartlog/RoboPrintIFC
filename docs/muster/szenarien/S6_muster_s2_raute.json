@@ -22,7 +22,7 @@
       "fast": false,
       "preset": "docs/muster/presets/fugenwand_raute.json",
       "erwartete_regeln": ["M1", "M2", "M3", "M4", "M6"],
-      "beleg": "Lauf 21.10.2026 (docs/muster/S2-RAUTENKETTE.md): alle 172 Teile roboterseitig machbar, G5 gruen; die 150 Module mit vollem Querschnitt erfuellen M1-M7 (G3 nur Abdeckungs-Einwand 71,9 %). Die 22 Kopfmodule (45-Grad-Schraege am Wandkopf, house_left/house_right_front r9, house_right_back r5) verletzen M1/M2/M3/M4/M6: die prismatische Fugenwand wird je Schicht neu eingeteilt (Hakenradius 30 -> 15 mm), ab 110,7 mm Dicke Rueckfall auf Schalen, die drei obersten Schichten (< w) bleiben leer (G3-Abdeckung 0 %). Fund: Kopfmodule brauchen topologie/abschraegung (gleiche Querschnitte: 0 Regelfehler)."
+      "beleg": "Lauf 21.10.2026 (docs/muster/S2-RAUTENKETTE.md): alle 172 Teile roboterseitig machbar, G5 gruen; die 152 Module mit vollem Querschnitt erfuellen M1-M7 (G3 nur Abdeckungs-Einwand 71,9 %). Die 20 Kopfmodule (45-Grad-Schraege am Wandkopf, house_left/house_right_front r9, house_right_back r5) verletzen M1/M2/M3/M4/M6: die prismatische Fugenwand wird je Schicht neu eingeteilt (Hakenradius 30 -> 15 mm), ab 110,7 mm Dicke Rueckfall auf Schalen, die drei obersten Schichten (< w) bleiben leer (G3-Abdeckung 0 %). Fund: Kopfmodule brauchen topologie/abschraegung (gleiche Querschnitte: 0 Regelfehler)."
     }
   },
   "limits": { "wall_time_s": 1800 }
