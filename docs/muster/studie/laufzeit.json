@@ -1,0 +1,31 @@
+{
+ "fugenwand_laeufe": 560,
+ "wellen_laeufe": 504,
+ "fugenwand_rechenzeit_s": 35.8,
+ "wellen_rechenzeit_s": 30.3,
+ "gesamt_s": 76.7,
+ "grob": false,
+ "diagramme": [
+  "fugenwand_material.svg",
+  "fugenwand_zeit.svg",
+  "fugenwand_aussenstrecke.svg",
+  "fugenwand_kontakte.svg",
+  "fugenwand_warnungen.svg",
+  "fugenwand_machbarkeit.svg",
+  "fugenwand_fugenabstand.svg",
+  "fugenwand_pareto.svg",
+  "fugenwand_stegwinkel.svg",
+  "fugenwand_hakenradius.svg",
+  "wellen_material.svg",
+  "wellen_zeit.svg",
+  "wellen_kontakte.svg",
+  "wellen_kontaktlaenge.svg",
+  "wellen_zellspanne.svg",
+  "wellen_radius.svg",
+  "wellen_warnungen.svg",
+  "wellen_wellenlaenge_ist.svg",
+  "wellen_pareto.svg"
+ ],
+ "ungueltig_fugenwand": 1,
+ "ungueltig_wellen": 0
+}
