@@ -164,5 +164,27 @@ Haken sauber, Knoten haften; Fotos nach 1, 3 und 7 Tagen), 3. `sinus`, dann Gurt
 ## Ablauf der Nacht
 
 <!-- ABLAUF -->
-(wird zum Schluss ergänzt)
+Zeiten Europe/Berlin. Einzelheiten je Schritt in `MUSTER-PROGRESS.md` (Protokoll).
+
+| Zeit | Schritt |
+|---|---|
+| 18:10 | M0: Umgebung, `verify.py --fast` als Ausgangslage, Artefaktformat, Aufgabenliste |
+| 18:25 | Nutzer-Nachtrag 18:20 übernommen: Outfill = Sollbruchstellen (Foto), parametrischer 2D-Musterersteller; erster M1-Workflow gestoppt und mit neuen Prioritäten neu gestartet |
+| 19:30–19:55 | M1: Kern `patterns/` (K), Orakel `verify_muster/` (O), Fugenwand (F) gemergt, je mit Gegenlesen |
+| 20:08–21:45 | M2/M4: Wellen-Infill, Musterersteller (API, CLI, Web), Topologie, Vorschau-Laufzeit, Katalog-Generator, Doppelwelle/Waben/Fermat; M2 abgeschlossen |
+| 23:25 | M4 Viewer-Musterwahl und Wellen-Fix gemergt |
+| 00:30–01:50 | M3 Einbau in Slicer, Planer, Timing, DRL, 14 Musterszenarien und Runner; M5 Testdrucke (12 Körper), O1 gewellte Außenschale, Katalog mit Roboterkennzahlen |
+| 02:25 | Backlog: Parameterstudie (1064 Läufe) |
+| 02:40–06:10 | M6: drei Runden Gegenprüfung und Härtung (28 Funde bestätigt, 27 behoben), S6 (alle S2-Wände mit Rautenkette), Fugenwand an Abschrägungen |
+| 06:28 | Voller `verify.py`: G1–G8 grün, Exit 0 |
+| 06:29–06:52 | Neuerzeugung Musterlauf gestartet; **der Datenträger lief voll** (89 Worktrees fertiger Agenten, 7,5 GB). Zwei Szenarien rot: `S4_muster_fugenwand_versetzt` (ENOSPC beim Schreiben von `trajectory.json`), `S4_muster_doppelwelle_300` (Lauf unvollständig) |
+| 06:52–08:30 | **Stillstand.** Der Prozess wurde nach ENOSPC neu gestartet; die Session räumte die Worktrees ab (22 GB frei), nahm die M6-Arbeit aber nicht wieder auf. Der Wächter um 08:00 übernahm nicht, weil der Herzschlag (06:47) erst 73 min alt war |
+| 08:30 | Fortsetzung durch den Nutzer: Herzschlag gesetzt; beide roten Szenarien einzeln nachgerechnet: **grün**, gleiche Kennzahlen wie vorher (d_min 10,83 mm, 1 Strang/Schicht, 100 % senkrecht). Ursache war der volle Datenträger, keine Regression |
+| 08:32 | `v2/muster-katalogfix` gemergt (Katalog fasst Robotererwartung zusammen, kennzeichnet entfallenes Infill) |
+| 08:50 | Neuerzeugung Musterlauf (14 Szenarien) und Testdrucke |
+| 09:15 | M7: Morgenbericht, PROGRESS, Draft-PR |
+
+**Lehre:** Worktrees fertiger Agenten und große Laufordner sofort nach dem Merge löschen und den freien
+Platz vor langen Läufen prüfen; nach einem Neustart zuerst Herzschlag und Aufgabenliste lesen und die
+laufende Phase wieder aufnehmen.
 <!-- /ABLAUF -->
