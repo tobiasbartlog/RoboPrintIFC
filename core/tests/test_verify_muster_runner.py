@@ -206,14 +206,14 @@ def test_s6_whole_ifc_scenario_is_found_but_not_fast(vm):
 
 
 def test_s6_report_counts_match_strands_and_beleg():
-    """S2-RAUTENKETTE.md und S6-Beleg zählen grüne und rote Teile wie der Prüferbericht: grün + rot = 172
-    und Stränge = grün·1 + rot·5 (Kennzahlentabelle 252). Vorher stand dort 150/22."""
+    """S2-RAUTENKETTE.md und S6-Beleg zählen die Teile wie der Prüferbericht: 152 Module mit vollem
+    Querschnitt und 20 Kopfmodule, zusammen 172 (vorher stand dort 150/22). Nach dem Fix „Fugenwand an
+    Abschrägungen“ ist in den Kopfmodulen nur M1 rot (oberste Schichten dünner als w)."""
     doc = (ROOT / "docs" / "muster" / "S2-RAUTENKETTE.md").read_text(encoding="utf-8")
-    m = re.search(r"(\d+) von 172 Teilen grün, (\d+) Kopfmodule rot", doc)
-    green, red = int(m.group(1)), int(m.group(2))
-    strands = int(re.search(r"Stränge gesamt \| 172 \| (\d+) \(Kopfmodule je 5\)", doc).group(1))
-    assert green + red == 172 and green + 5 * red == strands
-    assert f"Die {green} Module mit vollem Querschnitt" in doc and f"Die {red} Kopfmodule tragen" in doc
+    green = int(re.search(r"Die (\d+) Module mit\s+vollem Querschnitt", doc).group(1))
+    red = int(re.search(r"Die (\d+) Kopfmodule", doc).group(1))
+    assert (green, red) == (152, 20) and green + red == 172
     sc = json.loads((SCEN / "S6_muster_s2_raute.json").read_text(encoding="utf-8"))
-    beleg = sc["expect"]["muster"]["beleg"]
-    assert f"die {green} Module mit vollem Querschnitt" in beleg and f"Die {red} Kopfmodule" in beleg
+    muster = sc["expect"]["muster"]
+    assert f"Die {red} Kopfmodule" in muster["beleg"] and "172 Teile" in muster["beleg"]
+    assert muster["machbar"] is False and muster["erwartete_regeln"] == ["M1"]
