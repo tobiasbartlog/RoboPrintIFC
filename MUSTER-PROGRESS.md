@@ -210,3 +210,13 @@ Die erste Zeile setzt nur das Skript.
   M6 r 6,7 mm; oberste 3 Schichten (< 30 mm Dicke) leer. `topologie` (Abschrägung) löst dieselben Querschnitte
   ohne Regelfehler. S6 im Runner vorerst als „belegt nicht machbar“ eingetragen. Fix-Agent gestartet.
 - Laufzeit S6 218–267 s (S2 ohne Muster 170 s), Druckzeit −1,6 %, Material 1,02× S2.
+
+### 2026-10-21 05:10 M6 Runde 2 gemergt (Session start)
+- Runde 2: 12 Funde, 8 bestätigt und behoben, u. a.: Schalenwechsel (S-Kurve) schnitt bis 260 mm aus Schale 0
+  (Außenfläche/Ecke); falscher M3-Fehler bei prismatischem Querschnitt; Orakel nahm einen Verbinder mit Pumpe
+  zwischen Inseln und Ringe mit unbekanntem Index an; Vorschau-API prüfte Kernparameter nicht; Fugenwand-Regler
+  `contact_overlap_mm` fest auf w = 30. 4 Funde verworfen (dokumentierte Grenzen).
+- Runde 3 (letzte) bestätigt 9 weitere Funde (u. a. Runner wertete ein nicht machbares Szenario mit rotem G5 als
+  grün; Eckenrundung schneidet an L/T-Querschnitten Schenkel ab; Topologie-Randöffnung bei ungerader Zahl
+  Brüstungsschichten; Innenloch-Querschnitte); Fixes laufen.
+- Nach Merge: ruff grün, `pytest core verify_muster`: 1078 grün, 7 übersprungen.
