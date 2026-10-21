@@ -5,7 +5,8 @@ Das ist die Selbstprüfung des Kerns. Die unabhängige Prüfung macht `verify_mu
 Messverfahren (alle Längen mm, w = Strangbreite, ε = params.eps):
 - Abtastung: Jeder Pfad wird inkl. Verbindern auf ≤ 2 mm verdichtet (Bogenlänge s je Punkt).
 - **M1 Durchgehend**: höchstens ein LayerPath je (Schicht, Insel) und nicht mehr Pfade als Inseln;
-  jeder Verbinder ≤ `link_max_mm` (sonst „Lücke im Strang“).
+  jeder Verbinder ≤ `link_max_mm` (sonst „Lücke im Strang“); jede Insel hat einen Strang
+  (`missing_islands`: sonst Fehler, Warnung nur für eine dünne Kappe über tieferen Raupen).
 - **M2 Kreuzungsfrei**: Punktpaare mit Bogenlängenabstand > 2·w (bei geschlossenem Zug zyklisch)
   und Mittellinienabstand d < (1 − ε)·w sind ein Fehler (Kreuzung bzw. Fahrt über eine liegende
   Raupe), dazu ein exakter Selbstschnitttest. d ∈ [(1 − ε)·w, w + contact_tol] ist ein **gewollter
@@ -698,6 +699,62 @@ def _bead_group(
     return g, area, len(groups) - 1 if gid is None else gid
 
 
+#: Anteil einer Insel ohne Strang, der auf Raupen tieferer Schichten (⊕ δ) liegen muss, damit das
+#: Fehlen nur eine Warnung ist (Kappe einer Schräge, dünner als eine Raupe)
+ORPHAN_SUPPORTED = 0.5
+
+
+def missing_islands(
+    by_layer: Mapping[int, Sequence[LayerPath]],
+    sections: Mapping[int, Any],
+    params: PatternParams,
+    sel: set[int] | None = None,
+) -> list[Violation]:
+    """M1: Inseln einer Schicht ohne Strang (z. B. ein Pfeiler schmaler als w, den das Muster
+    nicht bauen kann). Fehler, denn dort fehlt Material und Schichten darüber hätten keinen
+    Unterbau. Nur eine Warnung, wenn die Insel zu mindestens `ORPHAN_SUPPORTED` auf Raupen
+    tieferer Schichten ⊕ δ liegt: dann ist sie der Rest einer dünnen Kappe (Schräge, Dicke < w)
+    über schon gedrucktem Material."""
+    out: list[Violation] = []
+    below: dict[int, Any] = {}
+
+    def beads_below(L: int) -> Any:
+        if L not in below:
+            geoms = [bead_area(lp, params.w) for La, lps in by_layer.items() if La < L for lp in lps]
+            below[L] = shapely.union_all(geoms) if geoms else None
+        return below[L]
+
+    for L in sorted(sections):
+        if sel is not None and L not in sel:
+            continue
+        have = {lp.island for lp in by_layer.get(L, ())}
+        for i, region in enumerate(polygons(sections.get(L))):
+            if i in have or region.area <= AREA_TOL_MM2:
+                continue
+            sup = beads_below(L)
+            frac = (
+                0.0
+                if sup is None
+                else float(region.intersection(sup.buffer(params.delta_mm)).area) / region.area
+            )
+            cap = frac >= ORPHAN_SUPPORTED
+            out.append(
+                Violation(
+                    "M1",
+                    "warn" if cap else "error",
+                    L,
+                    i,
+                    tuple(region.representative_point().coords[0]),
+                    float(region.area),
+                    0.0,
+                    "Insel ohne Strang (Kappe über tieferer Raupe, dünner als eine Raupe)"
+                    if cap
+                    else "Insel ohne Strang: Muster liefert keinen Pfad, Material fehlt (mm²)",
+                )
+            )
+    return out
+
+
 def measure(
     paths: Sequence[LayerPath],
     sections: Mapping[int, Any],
@@ -750,6 +807,7 @@ def measure(
             layer_gids.append(gid)
         beads[L] = layer_beads[0] if len(layer_beads) == 1 else shapely.union_all(layer_beads)
         gids[L] = sorted(layer_gids)
+    viol.extend(missing_islands(by_layer, sections, p, sel))
     changes: list[dict[str, Any]] = []
     order = sorted(beads)
     for La, Lb in zip(order[:-1], order[1:], strict=True):

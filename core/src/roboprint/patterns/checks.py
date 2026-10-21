@@ -125,8 +125,13 @@ def flag_empty(data: dict[str, Any]) -> dict[str, Any]:
         return data
     p = data.get("params") or {}
     w, shells = p.get("bead_width_mm"), p.get("shells")
+    # Der Kern meldet die leeren Inseln selbst (M1 „Insel ohne Strang“, metrics.missing_islands);
+    # hier steht stattdessen eine Meldung mit dem Grund
+    keep = [
+        v for v in data.get("violations", []) if not (v["rule"] == "M1" and "ohne Strang" in v["message"])
+    ]
     data["violations"] = [
-        *data.get("violations", []),
+        *keep,
         {
             "rule": "M1",
             "severity": "error",

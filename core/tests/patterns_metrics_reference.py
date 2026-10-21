@@ -594,6 +594,9 @@ def measure(
             metrics.append(m)
             viol.extend(v)
         beads[L] = shapely.union_all([bead_area(lp, w) for lp in lps])
+    from roboprint.patterns.metrics import missing_islands  # nachgezogen: Inseln ohne Strang
+
+    viol.extend(missing_islands(by_layer, sections, p, sel))
     changes: list[dict[str, Any]] = []
     order = sorted(beads)
     for La, Lb in zip(order[:-1], order[1:], strict=True):
