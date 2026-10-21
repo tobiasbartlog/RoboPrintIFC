@@ -187,3 +187,19 @@ def test_ohne_muster_ringkommentar_wie_bisher(alternate) -> None:
     assert not any("senkrecht" in t or "Laenge 0" in t for t in texts)
     with_pattern = [s.text for s in drl.build_steps(pp)[0] if isinstance(s, Comment)]
     assert any("senkrecht" in t for t in with_pattern)
+
+
+def test_schichtfolge_same_allein_kein_musterblock_im_kopf(alternate) -> None:
+    """Gegenpruefung M6 (Runde 3): `layer_order = same` allein ist kein Muster (`uses_pattern`,
+    `Toolpath.pattern` fehlt). Der DRL-Kopf nennt dann kein Druckmuster, wie summary.assumptions."""
+    from dataclasses import replace
+
+    pp = drl.load_planned_part(alternate, drl.DrlParams())
+    for params in ({"layer_order": "same"}, {"layer_order": "same", "infill_pattern": "none"}, {}):
+        plain = replace(pp, toolpath=pp.toolpath.model_copy(update={"pattern": None}), run_params=params)
+        head = "\n".join(drl._header(plain, "v2", []))
+        assert "Druckmuster" not in head and "A Muster " not in head, params
+    named = replace(pp, toolpath=pp.toolpath.model_copy(update={"pattern": None}),
+                    run_params={"layer_order": "alternate"})
+    assert "Druckmuster" in "\n".join(drl._header(named, "v2", []))
+    assert "Druckmuster" in "\n".join(drl._header(pp, "v2", []))

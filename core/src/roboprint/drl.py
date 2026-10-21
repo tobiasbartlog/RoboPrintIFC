@@ -235,6 +235,16 @@ def _ascii(text: object) -> str:
     return s.encode("ascii", "replace").decode("ascii")
 
 
+def _names_pattern(pattern: dict) -> bool:
+    """True, wenn die Laufparameter ein Druckmuster wählen (wie `slicer_patterns.uses_pattern`):
+    `layer_order = same` allein bzw. Infill/Outfill `none` ist kein Muster."""
+    if pattern.get("layer_order") == "alternate" or pattern.get("pattern_preset"):
+        return True
+    if pattern.get("infill_pattern", "none") != "none" or pattern.get("outfill_pattern", "none") != "none":
+        return True
+    return bool(pattern.get("pattern_params"))
+
+
 def _header(pp: PlannedPart, dialect: str, steps: list[Step]) -> list[str]:
     prm, prov = pp.params, pp.provenance
     jv = ", ".join(_f(v, 1) for v in prm.joint_vel_deg_s())
@@ -293,7 +303,7 @@ def _header(pp: PlannedPart, dialect: str, steps: list[Step]) -> list[str]:
     ]
     pattern = {k: pp.run_params[k] for k in PATTERN_KEYS if k in pp.run_params}
     info = getattr(pp.toolpath, "pattern", None)  # aufgelöst (Preset, Szenario, Kern); ohne Muster None
-    if pattern or info is not None:  # Druckmuster (opt-in, docs/muster/ARTEFAKT-FORMAT.md)
+    if info is not None or _names_pattern(pattern):  # Druckmuster (opt-in, ARTEFAKT-FORMAT.md)
         order = info.layer_order if info else pattern.get("layer_order") or "same"
         infill = info.infill if info else pattern.get("infill_pattern", "none")
         outfill = info.outfill if info else pattern.get("outfill_pattern", "none")
