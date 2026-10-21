@@ -77,6 +77,14 @@ def parse_section(s: str) -> tuple[float, float]:
 # --------------------------------------------------------------------------- Kennzahlen
 
 
+def skipped_note(notes: list[str]) -> str | None:
+    """Hinweis der Vorschau, dass das Infill (oder Muster) entfällt; None, wenn nichts entfällt."""
+    for n in notes:
+        if re.match(r"(Infill|Outfill|Muster) entfällt", n):
+            return n
+    return None
+
+
 def measure_one(preset: dict[str, Any], section: str) -> dict[str, Any]:
     """Kennzahlen eines Presets auf einem Querschnitt; bei Fehlern `error` statt Zahlen."""
     ln, th = parse_section(section)
@@ -104,6 +112,7 @@ def measure_one(preset: dict[str, Any], section: str) -> dict[str, Any]:
         "warnings": sum(1 for v in viol if v["severity"] != "error"),
         "rules": sorted({v["rule"] for v in viol}),
         "layer_change": (data.get("layer_change") or {}).get("status"),
+        "infill_skipped": skipped_note(data.get("notes") or []),
     }
 
 
@@ -143,10 +152,25 @@ def _flatten(d: Any, prefix: str = "") -> dict[str, Any]:
     return out
 
 
+def _is_expectation(key: str) -> bool:
+    low = key.lower()
+    return "expect" in low or "erwart" in low
+
+
+def _expect_machbar(e: dict[str, Any]) -> bool | None:
+    """Erwartung des Szenarios (`expect_machbar`, `expect.muster.machbar`, ...); None, wenn unbekannt."""
+    for k, v in e.items():
+        if _is_expectation(k) and k.split(".")[-1].lower() in ("expect_machbar", "machbar") and isinstance(v, bool):
+            return v
+    return None
+
+
 def _pick(flat: dict[str, Any], key: str) -> tuple[str, Any]:
     """(gefundener Feldname, Wert); ("", None), wenn kein Alias passt."""
     for alias in ALIASES[key]:
         for k, v in flat.items():
+            if _is_expectation(k):
+                continue
             if k.split(".")[-1].lower() == alias and v is not None:
                 if alias.endswith("_ms") and isinstance(v, int | float):
                     return alias, v / 1000.0
@@ -227,6 +251,9 @@ def robot_rows(
         if owner(e["_text"], names) != preset:
             continue
         row = {"label": e["_label"]}
+        exp = _expect_machbar(e)
+        row["expect"] = OPEN if exp is None else ("machbar" if exp else "belegt nicht machbar")
+        row["expect_ok"] = "" if exp is None else ("1" if exp else "0")
         for k in ALIASES:
             field, v = _pick(e, k)
             row[k] = OPEN if v is None else fmt_robot(k, v, field)
@@ -234,11 +261,42 @@ def robot_rows(
     return rows
 
 
-def robot_summary(rows: list[dict[str, str]]) -> str:
-    vals = [r["feasible"] for r in rows if r["feasible"] != OPEN]
-    if not vals:
+def robot_result(r: dict[str, str]) -> str:
+    """Ergebnis gegen Erwartung: „machbar“, „belegt nicht machbar“, „nicht machbar (unerwartet)“, ..."""
+    if r["feasible"] == OPEN:
         return OPEN
-    return "ja" if all(v == "ja" for v in vals) else "nein"
+    ok = r["feasible"] == "ja"
+    if r.get("expect_ok") == "0":
+        return "machbar entgegen der Erwartung" if ok else "belegt nicht machbar"
+    return "machbar" if ok else "nicht machbar (unerwartet)"
+
+
+def robot_summary(rows: list[dict[str, str]]) -> str:
+    """Knappe Form: "ja 1/1 (S4); 2 belegt nicht machbar".
+
+    Gezählt wird nur, was machbar sein soll (ohne bekannte Erwartung: machbar). Szenarien mit
+    Erwartung „belegt nicht machbar“ sind kein Fehlschlag, solange sie nicht machbar sind.
+    """
+    rows = [r for r in rows if r["feasible"] != OPEN]
+    if not rows:
+        return OPEN
+    want = [r for r in rows if r.get("expect_ok") != "0"]
+    proof = [r for r in rows if r.get("expect_ok") == "0"]
+    good = [r for r in want if r["feasible"] == "ja"]
+    belegt = [r for r in proof if r["feasible"] != "ja"]
+    unexpected = len(proof) - len(belegt)
+    parts = []
+    if want:
+        ids = ", ".join(r["label"].split("_")[0] for r in good)
+        head = "ja" if len(good) == len(want) and not unexpected else "nein"
+        parts.append(f"{head} {len(good)}/{len(want)}" + (f" ({ids})" if ids else ""))
+    else:
+        parts.append("nein" if unexpected else "–")
+    if belegt:
+        parts.append(f"{len(belegt)} belegt nicht machbar")
+    if unexpected:
+        parts.append(f"{unexpected} unerwartet machbar")
+    return "; ".join(parts)
 
 
 # --------------------------------------------------------------------------- Markdown
@@ -259,7 +317,8 @@ def status_of(r: dict[str, Any]) -> str:
         return "nicht machbar"
     if r["errors"]:
         return f"{r['errors']} Fehler"
-    return "ok" if not r["warnings"] else f"ok, {r['warnings']} Warn."
+    base = "Infill entfällt" if r.get("infill_skipped") else "ok"
+    return base if not r["warnings"] else f"{base}, {r['warnings']} Warn."
 
 
 def kennzahlen_table(res: dict[str, dict[str, Any]], base: dict[str, dict[str, Any]], secs: list[str]) -> str:
@@ -464,7 +523,9 @@ def build(
         "",
         (
             "Material je m relativ zu „schalen“ (zwei Schalen ohne Infill = 1,00). Zeit und Pfad je Schicht. "
-            "Die Spalte „Roboter machbar“ kommt aus `runs/verify_muster/report.json` („offen“ = Muster nicht im Musterlauf, nicht etwa unbestanden)."
+            "Die Spalte „Roboter machbar“ kommt aus `runs/verify_muster/report.json` („offen“ = Muster nicht im Musterlauf, nicht etwa unbestanden). "
+            "„ja 1/3 (S4); 2 belegt nicht machbar“: 1 von 3 Szenarien mit Erwartung „machbar“ ist machbar; Szenarien mit belegt erwarteter Nicht-Machbarkeit zählen nicht als Fehlschlag. "
+            "Status „Infill entfällt“: Der Querschnitt ist zu schmal für das Infill-Muster, es wird nur die Schale gedruckt."
         ),
         "",
         *comp,
@@ -485,15 +546,19 @@ def build(
             else:
                 det += [f"![{name} {s}](bilder/katalog/{name}_{s}.svg)", ""]
         det += ["Kennzahlen (Schicht 0):", "", kennzahlen_table(results[name], base, secs), ""]
+        for s in secs:
+            note = results[name][s].get("infill_skipped")
+            if note:
+                det += [f"**Infill entfällt ({s})**: {note}. Die Zahlen entsprechen daher denen von „schalen“.", ""]
         rob = robot_rows(entries, name, list(presets))
         det += ["Roboter (aus `verify_muster`):", ""]
         if rob:
             det += [
-                "| Szenario | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |",
-                "|---|---|---|---|---|---|---|",
+                "| Szenario | Erwartung | Ergebnis | machbar | d_min mm | Stränge/Schicht | senkrechte Wechsel | Druckzeit s | Planerlaufzeit s |",
+                "|---|---|---|---|---|---|---|---|---|",
             ]
             det += [
-                f"| {x['label']} | {x['feasible']} | {x['d_min']} | {x['strands']} | {x['vertical']} "
+                f"| {x['label']} | {x['expect']} | {robot_result(x)} | {x['feasible']} | {x['d_min']} | {x['strands']} | {x['vertical']} "
                 f"| {x['print_time']} | {x['planner']} |"
                 for x in rob
             ]
