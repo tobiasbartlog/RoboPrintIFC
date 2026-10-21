@@ -60,6 +60,12 @@ Riemenfolge so nicht baubar oder nicht kreuzungsfrei (Wand zu dünn für die Hak
 schrittweise weniger, längere Felder versucht (`meta["fields_requested"]`); geht gar nichts,
 liefert das Muster das Grundmuster `shell_chain` und `meta["pattern_fallback"]` nennt den Grund.
 
+Kopfmodule (Abschrägung, S6): Das Muster ist schichtabhängig (`layer_invariant = False`). Trägt das
+Teil eine Abschrägung (`ctx.sections`), plant `_fugenwand_kopf` den ganzen Teil aus dem
+Vollquerschnitt: Fugen und Rauten an der Schrägseite in den Fugenlagen des Vollquerschnitts, die
+Gegenseite ohne Fuge als Doppelring, darüber fallen Raupen nur weg (U-Formen wie `topologie`, ohne
+Überhang). Prismatische Teile sind davon unberührt (gleicher Inselpfad wie `build_plan`).
+
 Naht (M4): Der Zug ist geschlossen, Anfang = Ende. Er beginnt in der Mitte des Gurtstücks bzw.
 Stegs mit dem größten Abstand zu Außen- und Stoßflächen (bei Gleichstand nächst der Modulmitte).
 Der Materialpunkt des senkrechten Schichtwechsels liegt damit im Wandinneren auf einem Gurt bzw.
@@ -69,12 +75,15 @@ Steg, nie auf der Sichtfläche und nie am Modulstoß.
 from __future__ import annotations
 
 import math
+from collections import OrderedDict
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
 from scipy.spatial import cKDTree
 from shapely.geometry import LineString
 
+from roboprint.patterns.families import _fugenwand_kopf as kopf
 from roboprint.patterns.families._fugenwand_geom import (
     Chain,
     GeometryError,
@@ -578,6 +587,22 @@ def _finish(ctx, g, g0, fit, n, res, angle_info, reason) -> IslandPlan:  # noqa:
     return IslandPlan(segs, _contacts(g, info, segs), meta)
 
 
+#: Inselpfade des prismatischen Falls je (Insel, Teil-Bounding-Box, Parameter): Das Muster ist
+#: schichtabhängig registriert (Kopfmodule), gleiche Inseln werden trotzdem nur einmal gerechnet
+_ISLANDS: OrderedDict[tuple, IslandPlan] = OrderedDict()
+
+
+def _prismatic(ctx: IslandContext, vals: dict[str, Any]) -> IslandPlan:
+    key = (ctx.region.wkb, tuple(ctx.part_bounds), ctx.params)
+    plan = _ISLANDS.get(key)
+    if plan is None:
+        plan = build_plan(ctx, vals)
+        _ISLANDS[key] = plan
+        while len(_ISLANDS) > 256:
+            _ISLANDS.popitem(last=False)
+    return plan
+
+
 @pattern(
     "fugenwand",
     role="full",
@@ -585,9 +610,15 @@ def _finish(ctx, g, g0, fit, n, res, angle_info, reason) -> IslandPlan:  # noqa:
     params=PARAMS,
     description=(
         "Gerade Außenfelder mit stumpfen Fugen, V-Stege zu Knoten, wahlweise Doppelgurt oder "
-        "Rautenkette; ein geschlossener Strang je Schicht, senkrechter Schichtwechsel im Wandinneren."
+        "Rautenkette; ein geschlossener Strang je Schicht, senkrechter Schichtwechsel im Wandinneren. "
+        "Kopfmodule mit Abschrägung: Fugen an der Schrägseite, darüber U-Formen ohne Überhang."
     ),
+    layer_invariant=False,
 )
 def build(ctx: IslandContext) -> IslandPlan:
+    """Prismatischer Querschnitt: `build_plan` (unverändert, je Insel einmal gerechnet). Trägt das
+    Teil eine Abschrägung (Kopfmodul), plant `_fugenwand_kopf` den ganzen Teil aus dem
+    Vollquerschnitt; ist das nicht baubar, übernimmt die Abschrägungslösung von `topologie`."""
     vals = {s.name: ctx.param(s.name) for s in PARAMS}
-    return build_plan(ctx, vals)
+    res = kopf.build_island(ctx, vals, lambda region: build_plan(replace(ctx, region=region), vals))
+    return _prismatic(ctx, vals) if res is None else res
