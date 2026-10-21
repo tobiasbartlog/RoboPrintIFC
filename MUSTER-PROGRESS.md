@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-21T09:46:51+02:00 · Session: start · Phase: M7 · Status: laeuft
+Herzschlag: 2026-10-21T09:52:55+02:00 · Session: start · Phase: M7 · Status: FERTIG
 
 # MUSTER-PROGRESS: Druckmuster (Infill und Outfill)
 
@@ -35,10 +35,10 @@ Die erste Zeile setzt nur das Skript.
 | Fugenwand bei veränderlichem Querschnitt (Abschrägung am Wandkopf): Köpfe M2–M7 fehlerfrei | M6 | erledigt, gemergt | v2/muster-fugenschraege | 2e1539e |
 | Kernfehler `shells.shell_chain`/`clear_end` bei Inseln < ~4·w | M6 | erledigt (Wellen-Fix + Härtung R1) | v2/muster-haertung | bf01933 |
 | Voller Lauf `scripts/verify.py` (G1–G8) nach M6 | M6 | erledigt: G1–G8 grün, Exit 0 | v2/muster | |
-| Neuerzeugung Musterlauf, Testdrucke, Katalog nach M6 | M6 | Testdrucke 12/12 neu (c9b6502); Musterlauf und Katalog laufen (08:50) | v2/muster | c9b6502 |
+| Neuerzeugung Musterlauf, Testdrucke, Katalog nach M6 | M6 | Testdrucke 12/12 neu (c9b6502); Musterlauf 15/15 wie erwartet; Katalog-Neulauf nach der Nachprüfung | v2/muster | c9b6502 |
 | Katalog-Fix (Robotererwartung, entfallenes Infill) | M6 | erledigt, gemergt | v2/muster-katalogfix | 68c5e8d |
 | Runner: Abdeckungs-Untergrenze je Szenario (O1 eine Schale 53,3 % < 55 %) | M6 | erledigt | v2/muster | 8e6bc7d |
-| Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | läuft (09:15) | v2/muster | |
+| Abschluss: Morgenbericht, PROGRESS, Draft-PR #2 | M7 | erledigt | v2/muster | |
 
 ## Gate-Stand
 
@@ -267,3 +267,7 @@ Die erste Zeile setzt nur das Skript.
   Alle anderen G3-Kriterien grün. Behoben mit `expect.muster.abdeckung_untergrenze` = 0,5 im Szenario (8e6bc7d),
   Test dazu. Kein Fehler im Musterkern.
 - `v2/muster-katalogfix` gemergt; Testdrucke neu: 12/12 machbar und geprüft.
+
+### 2026-10-21 10:00 M7 abgeschlossen (Session start)
+- Musterlauf nach M6 vollständig: 15/15 wie erwartet (aussenwelle nach Runner-Fix 8e6bc7d). Morgenbericht,
+  PROGRESS-Eintrag, Draft-PR #2 `v2/muster → v2/strang`. Herzschlag FERTIG.
