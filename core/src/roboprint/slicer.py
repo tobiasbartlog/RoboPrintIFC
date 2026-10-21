@@ -260,8 +260,9 @@ def _slice_pattern(part_mesh_P: Any, p: SliceParams, pp: Any, out: SlicedPart) -
     for layer in range(out.n_layers):
         polys = _section_polygons(part_mesh_P, (layer + 0.5) * p.layer_height_mm)
         sections[layer] = unary_union(polys) if polys else Polygon()
-    out.rings = slicer_patterns.pattern_rings(sections, pp, p)
-    out.pattern = slicer_patterns.pattern_info(pp)
+    notes: list[str] = []
+    out.rings = slicer_patterns.pattern_rings(sections, pp, p, notes)
+    out.pattern = slicer_patterns.pattern_info(pp, notes)
     for a, b in zip(out.rings[:-1], out.rings[1:], strict=True):
         a.link_next = link_allowed(a, b, sections, p.link_max_mm)
     return out

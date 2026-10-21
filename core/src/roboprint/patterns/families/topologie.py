@@ -478,6 +478,7 @@ def part_preview(
     """Vorschau-Dict wie `preview.preview`, aber für Schicht `layer` eines Teils mit wechselndem
     Querschnitt (Folgeschicht = `layer + 1` des Teils). Für `preview_svg(data=...)`."""
     from roboprint.patterns.metrics import measure
+    from roboprint.patterns.notes import layer_notes
     from roboprint.patterns.plan import plan_pattern
     from roboprint.patterns.preview import _outline_dict, path_to_dict
 
@@ -507,6 +508,7 @@ def part_preview(
         "contacts": [c.to_dict(params.w) for c in contacts],
         "violations": [v.to_dict() for v in rep.violations if v.layer in (layer, layer + 1)],
         "ok": rep.ok,
+        "notes": layer_notes(cur, {layer: sections[layer]}),
         "metrics": {
             "path_length_mm": round(total, 2),
             "print_time_s": round(total / params.v_print_mm_s, 2),

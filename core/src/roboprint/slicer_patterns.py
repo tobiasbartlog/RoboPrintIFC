@@ -128,9 +128,10 @@ def pattern_params(p: SliceParams) -> PatternParams | None:
     return pp
 
 
-def pattern_info(pp: PatternParams) -> dict[str, Any]:
+def pattern_info(pp: PatternParams, notes: list[str] | None = None) -> dict[str, Any]:
     """Objekt `Toolpath.pattern`: Schichtfolge, Muster und alle Parameter, die vom Standard der
-    Kernparameter abweichen, plus die musterspezifischen (ohne None)."""
+    Kernparameter abweichen, plus die musterspezifischen (ohne None). `notes`: Hinweise des Plans
+    (`patterns.layer_notes`, z. B. „Infill entfällt: …“), nur wenn vorhanden."""
     from roboprint.patterns import PatternParams as _PP
 
     std = _PP().to_dict()
@@ -141,7 +142,15 @@ def pattern_info(pp: PatternParams) -> dict[str, Any]:
         if k in std and std[k] == v:
             continue
         params[k] = [float(x) for x in v] if isinstance(v, (list, tuple)) else v
-    return {"layer_order": pp.layer_order, "infill": pp.infill, "outfill": pp.outfill, "params": params}
+    info: dict[str, Any] = {
+        "layer_order": pp.layer_order,
+        "infill": pp.infill,
+        "outfill": pp.outfill,
+        "params": params,
+    }
+    if notes:
+        info["notes"] = list(notes)
+    return info
 
 
 def _dedupe(pts: np.ndarray) -> np.ndarray:
@@ -171,14 +180,22 @@ def path_groups(path: LayerPath) -> list[tuple[str, int, np.ndarray, bool]]:
     return out
 
 
-def pattern_rings(sections: Mapping[int, Any], pp: PatternParams, p: SliceParams) -> list[SlicedRing]:
-    """Ringe aller Schichtpfade in Druckreihenfolge (Frame P, z = (L + 1)·h), ohne `link_next`."""
+def pattern_rings(
+    sections: Mapping[int, Any], pp: PatternParams, p: SliceParams, notes: list[str] | None = None
+) -> list[SlicedRing]:
+    """Ringe aller Schichtpfade in Druckreihenfolge (Frame P, z = (L + 1)·h), ohne `link_next`.
+    `notes` (Liste, wird ergänzt): Hinweise des Plans aus `LayerPath.meta` und Inseln ohne Strang,
+    die sonst mit den Pfaden verloren gingen (für `pattern_info`)."""
     from roboprint.patterns import plan_pattern
+    from roboprint.patterns.notes import layer_notes
     from roboprint.slicer import SlicedRing, _resample
 
     up = np.array([0.0, 0.0, p.approach_mm])
     rings: list[SlicedRing] = []
-    for path in plan_pattern(sections, pp):
+    paths = plan_pattern(sections, pp)
+    if notes is not None:
+        notes.extend(layer_notes(paths, sections))
+    for path in paths:
         z = (path.layer + 1) * p.layer_height_mm
         for kind, shell, xy, closed in path_groups(path):
             xy = _dedupe(_resample(xy, p.step_mm))

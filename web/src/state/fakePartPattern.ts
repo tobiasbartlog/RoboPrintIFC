@@ -72,6 +72,7 @@ export function fakePartPatternReport(partId: string): PartPatternReport {
     layer_order: 'alternate',
     infill: 'zickzack',
     outfill: 'none',
+    notes: ['Infill entfällt: Band 40 mm zu schmal für die Welle (Schicht 4)'],
     n_layers: 5,
     bead_width_mm: W,
     layer_height_mm: 10,

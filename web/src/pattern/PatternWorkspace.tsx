@@ -272,6 +272,18 @@ export function PatternWorkspace() {
                 <Text size="sm">So ließe es sich nicht ohne Absetzen oder Kreuzung drucken. Die Stellen sind rot markiert.</Text>
               </Alert>
             ) : null}
+            {preview.notes.length ? (
+              // Was das gewählte Muster nicht wie gewählt druckt (Infill entfällt, Rückfall auf Schalen …)
+              <Alert color="yellow" title="Hinweise zum Muster" data-testid="pattern-notes">
+                <Stack gap={2}>
+                  {preview.notes.map((n, i) => (
+                    <Text size="sm" key={i} data-testid={`pattern-note-${i}`}>
+                      {n}
+                    </Text>
+                  ))}
+                </Stack>
+              </Alert>
+            ) : null}
             <Paper withBorder p="xs" style={{ opacity: busy || error ? 0.7 : 1 }}>
               <PatternSvg preview={preview} selectedViolation={selected} />
             </Paper>

@@ -40,6 +40,8 @@ export const FAKE_CATALOG: PatternCatalog = {
 export interface FakePatternOptions {
   /** Fehlertext für jede Vorschau (422 des Servers). */
   previewError?: string;
+  /** Hinweise jeder Vorschau (z. B. „Infill entfällt: …“). */
+  notes?: string[];
 }
 
 export function createFakePatternApi(opts: FakePatternOptions = {}): PatternApi & { requests: PatternPreviewRequest[]; presets: PatternPresetEntry[] } {
@@ -107,6 +109,7 @@ export function createFakePatternApi(opts: FakePatternOptions = {}): PatternApi 
         contacts: [{ kind: 'joint', at: [0, 0], length_mm: 12, segments: [0, 1], distance_mm: w, overlap_mm: 0 }],
         violations: w > 50 ? [{ rule: 'M6', severity: 'warn', layer: req.layer, island: 0, at: [0, 0], value: 20, limit: w, message: 'Radius kleiner als die Strangbreite' }] : [],
         ok: true,
+        notes: opts.notes ?? [],
         metrics: {
           path_length_mm: length,
           print_time_s: length / 100,

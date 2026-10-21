@@ -161,6 +161,7 @@ from roboprint.patterns.geometry import (
 )
 from roboprint.patterns.layout import FitResult, choose_seam, face_clearance, fit_to_length, protected_faces
 from roboprint.patterns.metrics import PathMetrics, PatternReport, Violation, measure
+from roboprint.patterns.notes import layer_notes, meta_notes
 from roboprint.patterns.plan import plan_pattern
 from roboprint.patterns.preview import (
     load_preset,
@@ -240,6 +241,8 @@ __all__ = [
     "polygons",
     "preset_params",
     "preview",
+    "layer_notes",
+    "meta_notes",
     "preview_svg",
     "protected_faces",
     "register",

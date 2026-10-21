@@ -1122,6 +1122,13 @@
     "next_layer": {
       "$ref": "#/$defs/PatternNextLayer"
     },
+    "notes": {
+      "description": "Hinweise: was das Muster nicht wie gewählt druckt (Infill entfällt …)",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "ok": {
       "type": "boolean"
     },
@@ -1197,6 +1204,7 @@
     "contacts",
     "violations",
     "ok",
+    "notes",
     "metrics",
     "fit",
     "timing_ms"

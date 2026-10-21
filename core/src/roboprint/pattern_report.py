@@ -132,6 +132,7 @@ def metrics(toolpath: dict[str, Any], v_print_mm_s: float = 100.0) -> dict[str, 
             "max_offset_mm": round(max(offsets), 3) if offsets else None,
         },
         "layers": layers,
+        "notes": list(pat.get("notes", [])) if pat else [],
     }
 
 

@@ -14,6 +14,10 @@ export interface PatternPreview {
   metrics: PatternMetrics;
   name: string | null;
   next_layer: PatternNextLayer;
+  /**
+   * Hinweise: was das Muster nicht wie gewählt druckt (Infill entfällt …)
+   */
+  notes: string[];
   ok: boolean;
   outline: PatternOutlineOut;
   params: {

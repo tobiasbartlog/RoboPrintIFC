@@ -101,6 +101,8 @@ describe('Musterwahl im Ablauf', () => {
     expect(screen.getByTestId('pattern-stats-strands-P01')).toHaveTextContent('ein Strang (kein Absetzen)');
     expect(screen.getByTestId('pattern-stats-changes-P01')).toHaveTextContent('4 senkrecht');
     expect(screen.getByTestId('pattern-stats-kind-P01-infill')).toHaveTextContent('20 %');
+    // Hinweise des Plans (meta) gehen nicht verloren: entfallenes Infill steht beim Teil
+    expect(screen.getByTestId('pattern-stats-notes-P01')).toHaveTextContent('Infill entfällt');
 
     const svg = await screen.findByTestId('layer-preview-svg');
     expect(svg).toHaveAttribute('data-layer', '0');

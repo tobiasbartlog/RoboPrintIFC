@@ -27,6 +27,7 @@ from shapely.geometry import MultiPolygon, Polygon, box
 from roboprint.patterns import registry
 from roboprint.patterns.geometry import arc_length, polygons
 from roboprint.patterns.metrics import measure
+from roboprint.patterns.notes import layer_notes
 from roboprint.patterns.plan import plan_pattern, resolve_patterns
 from roboprint.patterns.types import LayerPath, PatternParams, params_from_dict
 
@@ -287,6 +288,9 @@ def preview(spec: Any = None, outline: Any = None, layer: int = 0) -> dict[str, 
         "contacts": [c.to_dict(params.w) for c in contacts],
         "violations": [v.to_dict() for v in rep.violations if v.layer in (layer, layer + 1)],
         "ok": not any(v.severity == "error" for v in rep.violations),
+        # Was das gewählte Muster in dieser Schicht nicht wie gewählt druckt (Infill entfällt,
+        # Rückfall auf Schalen, …): Gründe aus meta, damit Viewer und Bericht sie zeigen
+        "notes": layer_notes(cur, {layer: geom}),
         "metrics": summary,
         "timing_ms": {
             "plan": round((t1 - t0) * 1e3, 1),
