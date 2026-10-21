@@ -889,3 +889,24 @@ Siehe SPEC §10 (mit „A“ markiert) und §13.
 - Stillstand 06:52–08:30 nach vollem Datenträger (Worktrees fertiger Agenten); Lehre: Worktrees und Laufordner
   nach dem Merge sofort löschen.
 - Gate-Einwände (G3-Abdeckung gegen Muster) und drei Weichen stehen im Morgenbericht.
+
+### 2026-10-21 10:45 Viewer: Module gleicher Geometrie zusammengefasst
+- Wunsch Tobias: In der Simulation stehen zu viele Module; gleiche Geometrien zusammenfassen, die Module der Gruppe
+  erst auf „Details“ zeigen.
+- Grundlage ist `summary.parts[].same_as` (Kern, `export.group_parts`: gleiche Geometrie und Platzierung, also
+  dieselbe Bahn und Prüfung). Kein Vertragswechsel.
+- Neu: `web/src/state/partGroups.ts` (`groupParts`, `groupOf`; Kopie mit `same_as` ins Leere bleibt eigene Gruppe,
+  fehlendes `same_as` aus alten Läufen = eigener Repräsentant) und `components/GroupMembers.tsx` („n Module gleicher
+  Geometrie“, „Details anzeigen“ listet die Module, Klick wählt eines).
+- Simulation: ein Knopf je Geometrie (Repräsentant), Hinweis „30 Module, 2 verschiedene Geometrien“; ist eine Kopie
+  gewählt, bleibt ihre Gruppe markiert und „Ausgewähltes Teil“ nennt den Repräsentanten.
+- Zerlegen & prüfen: Teileliste ebenso eine Zeile je Geometrie (sonst 172 gleiche Zeilen bei S2). Wandraster und
+  Export bleiben je Modul (Lage in der Wand, DRL je Modul).
+- Testids der Repräsentanten unverändert (`sim-part-*`, `part-*`), Fixture `run_demo` ohne Kopien sieht aus wie
+  vorher.
+- Prüfung lokal: web lint, typecheck, vitest 24 Dateien/173 Tests grün (neu `partGroups.test.ts`,
+  `SimulationStep.test.tsx`); e2e `shell.spec.ts` und `player.spec.ts` grün; Sichtprüfung mit
+  `runs/local/giebel_spot_h400` (30 Module → 2 Zeilen, Kopie wählbar, Wiedergabe lädt).
+- Befund nebenbei, nicht behoben: `/api/pattern-report/layer` liefert 500 für alte Läufe unter `runs/local/`, weil
+  deren `toolpath.json` noch kein `link_next` hat (`pattern_report._layer_path`, KeyError). Neue Läufe betrifft das
+  nicht.

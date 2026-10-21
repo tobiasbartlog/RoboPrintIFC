@@ -1,8 +1,11 @@
 import { Badge, Button, Group, Paper, Progress, Stack, Text, Title } from '@mantine/core';
+import { useMemo } from 'react';
 import { clock, linkLabel, obstacleLabel } from '../player/labels';
+import { groupOf, groupParts } from '../state/partGroups';
 import { isJobRunning } from '../state/store';
 import { useAppStore, useSteps } from '../state/storeContext';
 import { ErrorNote, Reason, StaleBanner } from './common';
+import { GroupMembers } from './GroupMembers';
 import { ModuleProgress, ModuleRaster, RunStats } from './ModuleRaster';
 import { LayerPreview } from './LayerPreview';
 import { ParamsPanel } from './ParamsPanel';
@@ -24,6 +27,9 @@ export function DecomposeStep() {
   const partId = useAppStore((s) => s.partId);
   const selectPart = useAppStore((s) => s.selectPart);
   const { status, blocked } = useSteps();
+  const parts = run?.summary.parts;
+  const groups = useMemo(() => groupParts(parts ?? []), [parts]);
+  const shownRep = groupOf(groups, partId)?.rep.part_id ?? null;
 
   const stale = status.decompose === 'veraltet';
   const reason = running
@@ -97,14 +103,19 @@ export function DecomposeStep() {
       {run ? (
         <Stack gap="xs" data-testid="part-list" data-stale={stale}>
           <Group justify="space-between">
-            <Text fw={600}>Teile ({run.summary.parts.length})</Text>
+            <Text fw={600}>
+              Teile ({run.summary.parts.length}
+              {groups.length < run.summary.parts.length ? `, ${groups.length} Geometrien` : ''})
+            </Text>
             <Text size="xs" c="dimmed" data-testid="samples-count">
               {num(Object.values(run.trajectory).reduce((a, t) => a + t.n, 0))} Bahnpunkte geprüft
             </Text>
           </Group>
           <RunStats run={run} />
           <ModuleRaster run={run} stale={stale} partId={partId} onSelect={selectPart} />
-          {run.summary.parts.map((p) => {
+          {groups.map((g) => {
+            const p = g.rep;
+            const shown = shownRep === p.part_id;
             const art = run.parts[p.part_id];
             const ok = p.status === 'machbar';
             const color = stale ? 'gray' : ok ? 'green' : 'red';
@@ -118,17 +129,20 @@ export function DecomposeStep() {
                     </Text>
                     <Button
                       size="compact-xs"
-                      variant={partId === p.part_id ? 'light' : 'subtle'}
+                      variant={shown ? 'light' : 'subtle'}
                       onClick={() => selectPart(p.part_id)}
                       data-testid={`part-view-${p.part_id}`}
                     >
-                      {partId === p.part_id ? 'in 3D gezeigt' : 'in 3D zeigen'}
+                      {shown ? 'in 3D gezeigt' : 'in 3D zeigen'}
                     </Button>
                   </Group>
                   <Badge color={color} variant={stale ? 'outline' : 'filled'} data-testid={`part-status-${p.part_id}`}>
                     {p.status}
                   </Badge>
                 </Group>
+                {g.members.length > 1 ? (
+                  <GroupMembers group={g} partId={partId} onSelect={selectPart} testid={`part-group-${p.part_id}`} />
+                ) : null}
                 <Text size="xs" c="dimmed" data-testid={`part-dmin-${p.part_id}`}>
                   kleinster Abstand: {p.d_min_mm === null ? 'unbekannt' : `${p.d_min_mm.toLocaleString('de-DE', { maximumFractionDigits: 1 })} mm`}
                   {art ? ` · ${art.n_layers} Schichten` : ''}
@@ -139,7 +153,7 @@ export function DecomposeStep() {
                     {num(tr.n_unreachable)} unerreichbar
                   </Text>
                 ) : null}
-                {partId === p.part_id ? (
+                {shown ? (
                   <Stack gap="xs" mt={4} data-testid={`part-pattern-${p.part_id}`}>
                     <PartPatternStats partId={p.part_id} />
                     <LayerPreview partId={p.part_id} />

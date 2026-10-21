@@ -1,7 +1,10 @@
-import { Badge, Button, Group, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { Badge, Button, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { useMemo } from 'react';
 import { PlayerPanel } from '../player/PlayerPanel';
+import { groupOf, groupParts } from '../state/partGroups';
 import { useAppStore, useSteps } from '../state/storeContext';
 import { ErrorNote, StaleBanner } from './common';
+import { GroupMembers } from './GroupMembers';
 
 export function SimulationStep() {
   const run = useAppStore((s) => s.run);
@@ -13,6 +16,9 @@ export function SimulationStep() {
   const direct = useAppStore((s) => s.run?.basis.direct === true);
   const { status } = useSteps();
   const stale = status.simulation === 'veraltet';
+  const parts = run?.summary.parts;
+  const groups = useMemo(() => groupParts(parts ?? []), [parts]);
+  const rep = groupOf(groups, partId)?.rep.part_id ?? null;
 
   return (
     <Stack gap="md" data-testid="step-simulation-panel">
@@ -28,22 +34,35 @@ export function SimulationStep() {
         Modul wählen und abspielen. Der Arm steht am Doosantisch, das Modul wächst Schicht für Schicht. Rot heißt
         Kollision, Gelb Abstand unter dem Sollwert.
       </Text>
-      <Group gap="xs" data-testid="sim-part-select">
-        {run?.summary.parts.map((p) => (
-          <UnstyledButton key={p.part_id} onClick={() => selectPart(p.part_id)} data-testid={`sim-part-${p.part_id}`} data-selected={partId === p.part_id}>
-            <Badge
-              size="lg"
-              tt="none"
-              variant={partId === p.part_id ? 'filled' : 'outline'}
-              color={stale ? 'gray' : p.status === 'machbar' ? 'green' : 'red'}
-            >
-              {p.part_id}
-            </Badge>
-          </UnstyledButton>
-        ))}
-      </Group>
+      {parts && groups.length < parts.length ? (
+        <Text size="sm" c="dimmed" data-testid="sim-group-note">
+          {parts.length} Module, {groups.length} verschiedene Geometrien. Module gleicher Geometrie haben dieselbe Bahn
+          und dasselbe Prüfergebnis und sind hier zusammengefasst.
+        </Text>
+      ) : null}
+      <Stack gap="xs" data-testid="sim-part-select">
+        {groups.map((g) => {
+          const id = g.rep.part_id;
+          const selected = rep === id;
+          return (
+            <GroupMembers key={id} group={g} partId={partId} onSelect={selectPart} testid={`sim-group-${id}`}>
+              <UnstyledButton onClick={() => selectPart(id)} data-testid={`sim-part-${id}`} data-selected={selected}>
+                <Badge
+                  size="lg"
+                  tt="none"
+                  variant={selected ? 'filled' : 'outline'}
+                  color={stale ? 'gray' : g.rep.status === 'machbar' ? 'green' : 'red'}
+                >
+                  {id}
+                </Badge>
+              </UnstyledButton>
+            </GroupMembers>
+          );
+        })}
+      </Stack>
       <Text size="sm" data-testid="sim-selected">
         Ausgewähltes Teil: {partId ?? 'keines'}
+        {partId !== null && rep !== null && rep !== partId ? ` (gleiche Geometrie wie ${rep})` : ''}
       </Text>
       <PlayerPanel />
       <Button onClick={() => setStep('export')} data-testid="to-export">
