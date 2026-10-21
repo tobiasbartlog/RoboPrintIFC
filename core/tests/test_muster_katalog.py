@@ -116,3 +116,79 @@ def test_katalogzahlen_unabhaengig_nachgerechnet():
         assert abs(length / 100.0 - r["print_time_s"]) < 0.01
         material = length * 30.0 * 10.0 / 1e6 / 0.6  # l je m Wand und Schicht
         assert abs(material - r["material_l_per_m_layer"]) < 1e-3
+
+
+def _scenario(name, feasible, expect):
+    return {"name": name, "feasible": feasible, "expect_machbar": expect, "verdict": "x"}
+
+
+def test_robotersumme_belegt_nicht_machbar_ist_kein_fehlschlag(tmp_path):
+    mk = _load()
+    rep = tmp_path / "report.json"
+    entries = [
+        _scenario("S4_muster_fugenwand_raute", True, True),
+        _scenario("S5_muster_oeffnung_fugenwand_raute", False, False),
+        _scenario("S6_muster_kopfmodule_fugenwand_raute", False, False),
+    ]
+    rep.write_text(json.dumps({"scenarios": entries}), encoding="utf-8")
+    rows = mk.robot_rows(mk.load_robot_report(rep), "fugenwand_raute")
+    assert [r["expect"] for r in rows] == ["machbar", "belegt nicht machbar", "belegt nicht machbar"]
+    assert [mk.robot_result(r) for r in rows] == ["machbar", "belegt nicht machbar", "belegt nicht machbar"]
+    assert mk.robot_summary(rows) == "ja 1/1 (S4); 2 belegt nicht machbar"
+
+    # unerwartet nicht machbar bzw. unerwartet machbar bleiben Fehlschläge
+    bad = [dict(r) for r in rows]
+    bad[0]["feasible"] = "nein"
+    assert mk.robot_summary(bad).startswith("nein 0/1")
+    bad = [dict(r) for r in rows]
+    bad[1]["feasible"] = "ja"
+    s = mk.robot_summary(bad)
+    assert s.startswith("nein 1/1 (S4)") and "1 unerwartet machbar" in s
+    assert mk.robot_summary([]) == mk.OPEN
+
+
+def test_erwartung_aus_expect_muster_und_ohne_erwartung(tmp_path):
+    mk = _load()
+    rep = tmp_path / "report.json"
+    entries = [
+        {"name": "S4_muster_sinus", "feasible": True, "expect": {"muster": {"machbar": True}}},
+        {"name": "S5_muster_sinus", "feasible": False, "expect": {"muster": {"machbar": False}}},
+        {"name": "S6_muster_sinus", "feasible": True},
+    ]
+    rep.write_text(json.dumps({"scenarios": entries}), encoding="utf-8")
+    rows = mk.robot_rows(mk.load_robot_report(rep), "sinus")
+    assert [r["expect"] for r in rows] == ["machbar", "belegt nicht machbar", mk.OPEN]
+    assert [r["feasible"] for r in rows] == ["ja", "nein", "ja"]  # Erwartung wird nicht als Ergebnis gelesen
+    assert mk.robot_summary(rows) == "ja 2/2 (S4, S6); 1 belegt nicht machbar"
+
+
+def test_katalog_zeigt_erwartung_im_detail(tmp_path):
+    mk = _load()
+    rep = tmp_path / "report.json"
+    entries = [
+        _scenario("S4_muster_sinus", True, True),
+        _scenario("S5_muster_sinus", False, False),
+    ]
+    rep.write_text(json.dumps({"scenarios": entries}), encoding="utf-8")
+    args = _args(tmp_path)
+    args[args.index("--report") + 1] = str(rep)
+    assert mk.main(args) == 0
+    text = (tmp_path / "katalog.md").read_text(encoding="utf-8")
+    assert "ja 1/1 (S4); 1 belegt nicht machbar" in text
+    assert "| S5_muster_sinus | belegt nicht machbar | belegt nicht machbar | nein |" in text
+
+
+def test_infill_entfaellt_wird_gekennzeichnet(tmp_path):
+    mk = _load()
+    narrow = mk.measure_one(mk.load_preset(mk.CORE_PRESETS / "doppelwelle.json"), "1000x200")
+    assert narrow["infill_skipped"] and "Infill entfällt" in narrow["infill_skipped"]
+    assert mk.status_of(narrow).startswith("Infill entfällt")
+    wide = mk.measure_one(mk.load_preset(mk.CORE_PRESETS / "sinus.json"), "600x200")
+    assert wide["infill_skipped"] is None and mk.status_of(wide) == "ok"
+
+    args = _args(tmp_path)
+    args[args.index("--presets") + 1] = "doppelwelle"
+    args[args.index("--sections") + 1] = "1000x200"
+    assert mk.main(args) == 0
+    text = (tmp_path / "katalog.md").read_text(encoding="utf-8")
+    assert "| Infill entfällt |" in text and "**Infill entfällt (1000x200)**" in text
