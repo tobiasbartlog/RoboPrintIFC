@@ -363,9 +363,26 @@ def _plan_split(sections, rects, p: PatternParams, base: Rect, top: list[Rect], 
             sill_meta["note"] = (
                 f"Mittellauf {ym_req:.1f} mm auf {ym:.1f} mm begrenzt (zulässig {ym_lo:.1f}…{ym_hi:.1f} mm)"
             )
+    # Randöffnung (Inselzahl bleibt 1, M4 verlangt den senkrechten Wechsel): Die Brüstung endet in
+    # der Feldspirale, der Pfeiler am Übergang zur Brüstung; nur sein Anfang liegt auf dem Anfang der
+    # Brüstung. Beginnt der Pfeiler in einer ungeraden Schicht (alternate: umgekehrt gedruckt), läuft
+    # deshalb das ganze Teil umgekehrt: Die letzte Brüstungsschicht (gerade) endet dann am
+    # Pfeileranfang, und die erste Pfeilerschicht beginnt dort (sonst 163 mm diagonal bei 1200 × 200).
+    flip = case == "randoeffnung" and p.layer_order == "alternate" and k % 2 == 1
+    if flip:
+        lower = reverse_pieces(lower)
+        sill_meta["reversed"] = "Pfeiler ab ungerader Schicht: Bahn umgekehrt (senkrechter Wechsel)"
     sill = _plan(lower, fL, p, sill_meta)
     pillars = [
-        (rr, _plan(pillar_left(a, T, w, rc, eps, below=False), fr, p, {**base_meta, "zone": "pfeiler"}))
+        (
+            rr,
+            _plan(
+                (reverse_pieces if flip else list)(pillar_left(a, T, w, rc, eps, below=False)),
+                fr,
+                p,
+                {**base_meta, "zone": "pfeiler"},
+            ),
+        )
         for rr, fr, a in uppers
     ]
     for L in sorted(rects):

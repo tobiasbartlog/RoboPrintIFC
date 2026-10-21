@@ -59,6 +59,10 @@ Bei einer Randöffnung läuft das Feld als Spirale aus zwei Spuren bis zum Modul
 
 Dadurch liegt jede Pfeilerraupe **exakt** auf einer Raupe der Schicht darunter (Überhang 0 mm²),
 und der Schichtwechsel an der Brüstungsoberkante ist sogar senkrecht (Ende Brüstung = Start Pfeiler).
+Bei der Randöffnung bleibt die Inselzahl 1, der Wechsel muss also senkrecht sein (M4). Beginnt der
+Pfeiler in einer ungeraden Schicht (mit `alternate` umgekehrt gedruckt), läuft das ganze Teil
+umgekehrt (`meta.topology.reversed` an der Brüstung): Die letzte Brüstungsschicht endet dann am
+Pfeileranfang. Vorher war der Wechsel bei ungerader Brüstungsschichtzahl 163 mm diagonal.
 
 **Warum eine Fuge nötig ist (Beleg).** Lässt man die Brüstungsschalen durchlaufen, muss ein
 Steg die Laibungsschenkel des Pfeilers tragen. Überhang über der Laibungszone (x 200…300 mm,
