@@ -30,6 +30,10 @@ Schalenwechsel (Begründung). Ein Strang muss von Ring k auf Ring k + 1 wechseln
    Liegt die Naht in einem Eckbogen oder sind die Ringe kurz (Pfeiler), sucht der Kern das kleinste
    ℓ ≥ ℓ₀, bei dem beide Bögen des Biarcs mindestens R haben und die S-Kurve den Ringanfang nur
    berührt; das Ende von Ring k + 1 wird so gewählt, dass es die S-Kurve nur berührt (`clear_end`).
+   Über ℓ fehlt Schale 0. Braucht der erste Wechsel an der Naht nach `choose_seam` mehr als
+   ℓ₀ + w (Stufe, Kerbe, w = 60 bei 250 mm Wand: bis 262 mm), versucht der Kern weitere Nahtlagen
+   (`_seam_for_short_change`, `meta.seam_moved`); metrics meldet eine verbleibende Lücke der
+   Außenbahn > max(2·w, ℓ₀) als M1-Fehler, und `shell_chain` fällt dann auf weniger Schalen zurück.
 
 Schichtwechsel: Gerade Schichten beginnen an der Naht auf Schale 0 und enden innen; ungerade sind
 die exakte Umkehrung (plan.py). Ende L = Anfang L + 1, der Wechsel ist ein reiner Z-Hub.
@@ -60,7 +64,7 @@ from roboprint.patterns.geometry import (
     offset_ring,
     resample_curve,
 )
-from roboprint.patterns.layout import choose_seam
+from roboprint.patterns.layout import choose_seam, seam_candidates
 from roboprint.patterns.registry import Pattern, register
 from roboprint.patterns.types import IslandContext, IslandPlan, Lane, PatternParams, Segment
 
@@ -229,12 +233,17 @@ def clear_end(loop: Loop, t_from: float, trans: np.ndarray, w: float) -> float:
     return float(ts[max(int(bad[0]) - 1, 0)])
 
 
+def _outside_area(ctx: IslandContext, trans: np.ndarray) -> float:
+    """Fläche der Raupe der Kurve `trans` außerhalb der Insel ⊕ 1 mm (M5)."""
+    return float(LineString(trans).buffer(ctx.params.w / 2.0).difference(ctx.region.buffer(1.0)).area)
+
+
 def _transition_gap(ctx: IslandContext, ring: Loop, start: float, trans: np.ndarray) -> float | None:
     """Kleinster Abstand der S-Kurve am Ende eines Einzelrings zum Ringanfang, oder None, wenn die
     Raupe aus der Insel ⊕ 1 mm ragt (M5) oder näher als (1 − ε)·w − CLEAR_TOL_MM kommt (M2; die
     Feinkurve liegt bis 0,1 mm innerhalb der späteren Abtastung, deren Sehnen nach innen schneiden)."""
     w = ctx.params.w
-    if LineString(trans).buffer(w / 2.0).difference(ctx.region.buffer(1.0)).area > 1.0:
+    if _outside_area(ctx, trans) > 1.0:
         return None
     gap = _min_dist(densify(trans, 1.0), densify(ring.sub(start, start + 4.0 * w), 1.0))
     return gap if gap >= (1.0 - ctx.params.eps) * w - CLEAR_TOL_MM else None
@@ -242,7 +251,7 @@ def _transition_gap(ctx: IslandContext, ring: Loop, start: float, trans: np.ndar
 
 def close_single(
     ctx: IslandContext, ring: Loop, start: float, virtuals: list[Loop]
-) -> tuple[float, np.ndarray, float, bool]:
+) -> tuple[float, np.ndarray, float, bool] | None:
     """Ende eines Einzelrings mit S-Kurve auf die gedachte Bahn, die die Wand am Ringanfang schließt.
 
     Die S-Kurve zielt auf den Punkt der gedachten Bahn neben ring(start + δ). δ = 0 trifft bei der
@@ -250,7 +259,9 @@ def close_single(
     Außenschale), δ = 1,5·w die anschließende Gerade: ein Viertelbogen R = 1,5·w = 45 mm, der den
     Ringstart in 30,4 mm berührt (S1). Gewählt wird das erste (Bahn, δ), dessen S-Kurve in der Insel
     liegt, nicht überlappt und den Ringanfang berührt (≤ w + contact_tol); sonst die erste gültige.
-    Rückgabe (Ende auf `ring` als Bogenlänge, S-Kurve, ℓ, geschlossen)."""
+    Rückgabe (Ende auf `ring` als Bogenlänge, S-Kurve, ℓ, geschlossen), oder None, wenn keine S-Kurve
+    in der Insel liegt und den Ringanfang freilässt (kurze, schmale Module: Die S-Kurve liefe bis an
+    die Außenfläche, M5). Der Aufrufer schließt den Ring dann ohne Abgang (`open_end_failed`)."""
     p = ctx.params
     first = None
     for v in virtuals:
@@ -265,8 +276,55 @@ def close_single(
             first = first or cand
     if first is not None:
         return first
+    # Letzter Versuch ohne Versatz; er muss wenigstens in der Insel liegen (M5), sonst kein Abgang
     ell, trans, _ = lane_change(ring, virtuals[-1], start, p)
+    if _outside_area(ctx, trans) > 1.0:
+        return None
     return start - ell, trans, ell, False
+
+
+#: Größte Länge ℓ des ersten Schalenwechsels über ℓ₀ (gerade Ringe) hinaus, in w: Über ℓ wird
+#: Schale 0 nicht gedruckt. Rechteck mit Eck-Naht, R = w: ℓ = 77 mm = ℓ₀ + 0,85·w
+ELL_SLACK_W = 1.0
+#: Höchstens so viele weitere Nahtlagen (Abstand ≥ w) werden für einen kurzen Wechsel versucht
+SEAM_TRIES = 24
+
+
+def straight_ell(params: PatternParams) -> float:
+    """ℓ₀ = 2·sqrt(R² − (R − w/2)²): Länge der S-Kurve zwischen geraden Ringen im Abstand w."""
+    R, w = params.transition_radius, params.w
+    return 2.0 * math.sqrt(max(R * R - (R - w / 2.0) ** 2, 0.0)) if w < 2 * R else w
+
+
+def _seam_for_short_change(
+    ctx: IslandContext, loops: list[Loop], start: float, meta: dict[str, Any]
+) -> tuple[float, dict[str, Any], tuple[float, np.ndarray, float]]:
+    """Naht so wählen, dass der erste Schalenwechsel Schale 0 höchstens auf ℓ₀ + ELL_SLACK_W·w
+    auslässt. An der Naht nach `choose_seam` (Eckbogen, Stufe) braucht die S-Kurve oft ein langes ℓ
+    (Stufe 450 × 300/360: 130 mm, Rechteck 600 × 250 bei w = 60: 256 mm), auf dem die Außenwand
+    fehlt. Dann werden weitere Nahtlagen in der Rangfolge von `layout.seam_candidates` versucht; die
+    erste mit kurzem ℓ gewinnt, sonst die mit dem kürzesten ℓ (`meta.seam_moved`). Bleibt ℓ lang,
+    meldet metrics die ausgelassene Außenbahn (M1). Rückgabe (Naht, Nahtinfo, erster Wechsel wie
+    `lane_change` an dieser Naht, damit `_chain` ihn nicht neu rechnet)."""
+    p = ctx.params
+    cap = straight_ell(p) + ELL_SLACK_W * p.w
+    first = lane_change(loops[0], loops[1], start, p)
+    if first[0] <= cap:
+        return start, meta, first
+    best = (first, start, meta)
+    cands = seam_candidates(loops[0], ctx.region, ctx.part_bounds, p, spacing_mm=p.w)
+    next(cands)  # die erste ist `start`
+    for _, (s, info) in zip(range(SEAM_TRIES), cands, strict=False):
+        res = lane_change(loops[0], loops[1], s, p)
+        if res[0] < best[0][0] - 1e-9:
+            best = (res, s, info)
+        if res[0] <= cap:
+            break
+    res, s, info = best
+    if s is start:
+        return start, meta, res
+    moved = {"from": meta["seam"], "ell_before_mm": round(first[0], 2), "ell_mm": round(res[0], 2)}
+    return s, {**info, "seam_moved": moved}, res
 
 
 def shell_chain(
@@ -317,7 +375,8 @@ def _chain_errors(ctx: IslandContext, plan: IslandPlan) -> int:
 
     if not plan.segments:
         return 0
-    _, viol = measure_path(LayerPath(ctx.layer, 0, plan.segments), ctx.region, ctx.params, ctx.part_bounds)
+    lp = LayerPath(ctx.layer, 0, plan.segments, meta=dict(plan.meta))
+    _, viol = measure_path(lp, ctx.region, ctx.params, ctx.part_bounds)
     return sum(v.severity == "error" and v.rule in _FALLBACK_RULES for v in viol)
 
 
@@ -361,6 +420,9 @@ def _chain(
         return IslandPlan([], meta={"empty": True})
     loops = [Loop(m) for m in mains]
     start, meta = choose_seam(loops[0], ctx.region, ctx.part_bounds, p)
+    first_change = None
+    if len(loops) > 1:
+        start, meta, first_change = _seam_for_short_change(ctx, loops, start, meta)
     meta = {**meta, "shells": len(loops), "transitions_mm": []}
     if dropped is not None:
         meta["shells_dropped"] = dropped
@@ -375,6 +437,17 @@ def _chain(
             # gekürzt, sie gibt nur die Richtung der S-Kurve ins Infill vor (Infill passt oft noch)
             virtuals.append(Loop(max(ext, key=lambda r: abs(_area(r)))))
     virtual = virtuals[0] if virtuals else None
+    single = None
+    if len(loops) == 1 and virtual is not None:
+        single = close_single(ctx, loops[0], start, virtuals)
+        if single is None:
+            # keine S-Kurve ins Infill-Band liegt in der Insel: Ring schließen, kein Abgang
+            # (build_island lässt das Infill dann mit Hinweis entfallen)
+            virtual = None
+            meta["open_end_failed"] = (
+                "Einzelring: keine S-Kurve ins Infill-Band liegt in der Insel (Insel zu kurz bzw. zu "
+                "schmal für w); Ring geschlossen, Infill entfällt"
+            )
     if len(loops) == 1 and virtual is None:
         pts = loops[0].sub(start, start)
         pts = _fine(pts, p, closed=True)
@@ -387,12 +460,17 @@ def _chain(
         nxt = loops[k + 1] if k < len(loops) - 1 else virtual
         if nxt is not None:
             if nxt is virtual and len(loops) == 1:  # Einzelring: S-Kurve schließt die Wand
-                t_cut, trans, ell, closed = close_single(ctx, lp, start, virtuals)
+                assert single is not None
+                t_cut, trans, ell, closed = single
                 tb = start
                 if not closed:
                     meta["open_wall"] = True  # Spalt zwischen S-Kurve und Ringanfang
             else:
-                ell, trans, tb = lane_change(lp, nxt, start, p, min_ell=start + lp.length - t_end, avoid=head)
+                if k == 0 and first_change is not None:  # schon für die Nahtwahl gerechnet
+                    ell, trans, tb = first_change
+                else:
+                    gap = start + lp.length - t_end
+                    ell, trans, tb = lane_change(lp, nxt, start, p, min_ell=gap, avoid=head)
                 t_cut = start - ell
             body = lp.sub(start, t_cut)
             meta["transitions_mm"].append(round(ell, 2))

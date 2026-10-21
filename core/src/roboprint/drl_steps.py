@@ -27,7 +27,8 @@ wie geschlossene, je Wegpunkt ein `movel` bis zum letzten Wegpunkt. Ein Verbinde
 der Schicht faellt mit dem Ringende zusammen und wird dessen Ziel (kein Segment der Laenge 0, kein
 radius 0); ein senkrechter Schichtwechsel ist ein `movel` um h nach oben, radius = min(r_blend,
 h/2, ...). Der Ringkommentar nennt beides ("ueber Verbinder, senkrecht, Z +10.0 mm" bzw.
-"Laenge 0"); Verbinder mit waagrechter Laenge behalten den bisherigen Text.
+"Laenge 0", nur wenn `Toolpath.pattern` gesetzt ist); Verbinder mit waagrechter Laenge und alle
+Verbinder ohne Muster behalten den bisherigen Text.
 """
 
 from __future__ import annotations
@@ -300,7 +301,9 @@ def plan_steps(
             steps += strand.close(P_B, r_blend_mm)
             strand = None
         if ring != labeled:
-            note = link_note(P_W[cur], P_W[idx[-1]]) if kind == "link" else ""
+            # Zusatz nur bei Druckmustern (opt-in); ohne Muster bleibt der Text wie bisher
+            with_note = kind == "link" and toolpath.pattern is not None
+            note = link_note(P_W[cur], P_W[idx[-1]]) if with_note else ""
             label = Comment(ring_label(toolpath, ring, via_link=kind == "link", note=note))
             if strand is not None and kind == "link":
                 strand.items.append(label)  # im Strang zwischen dem Ende von r und dem Verbinder

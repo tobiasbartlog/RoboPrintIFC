@@ -209,3 +209,87 @@ def test_rect_notch_single_shell_has_no_near_duplicate_kink(length, extra):
         assert steps.min() > 0.02, (seg.kind, steps.min())
     rep = pt.measure(paths, sec, p)
     assert rep.ok, [v.to_dict() for v in rep.errors][:3]
+
+
+_STUFE = Polygon([(0, 0), (450, 0), (450, 300), (300, 300), (300, 360), (0, 360)])
+_KERBE = box(0, 0, 300, 365).difference(Polygon([(110, 366), (150, 325), (190, 366)]))
+_SKIP_CASES = [
+    ("stufe_w30", _STUFE, {}),
+    ("rechteck_w60", box(0, 0, 600, 250), {"bead_width_mm": 60.0}),
+    ("kerbe_w50", _KERBE, {"bead_width_mm": 50.0}),
+    ("kerbe_w50_waben", _KERBE, {"bead_width_mm": 50.0, "infill": "waben"}),
+]
+
+
+def _max_boundary_gap(paths, sec, w) -> float:
+    from shapely.geometry import LineString
+    from shapely.ops import unary_union
+
+    bead = unary_union([LineString(q.polyline()).buffer(w / 2) for q in paths if q.layer == 0])
+    bd = sec.boundary
+    return max(bead.distance(bd.interpolate(i + 0.5)) for i in range(int(bd.length)))
+
+
+@pytest.mark.parametrize(("name", "sec", "kw"), _SKIP_CASES, ids=[c[0] for c in _SKIP_CASES])
+def test_lane_change_does_not_skip_outer_wall(name, sec, kw):
+    """Gegenprüfung M6 (Runde 2): Die S-Kurve des ersten Schalenwechsels ließ an der Naht nach
+    `choose_seam` bis zu 262 mm der Schale 0 aus (Stufe: Ecke 45 mm neben der Raupe, w = 60: ganze
+    Stoßfläche, Kerbe: ganzer Zahn), und measure meldete ok. Jetzt wählt der Kern eine Naht mit
+    kurzem Wechsel (ℓ ≤ ℓ₀ + w); der größte Abstand Rand → Raupe bleibt beim Nahtzwickel
+    (Rechteck, w = 30: 20,8 mm ≈ 0,7·w)."""
+    p = pt.params_from_dict(kw)
+    s = {0: sec, 1: sec}
+    paths = pt.plan_pattern(s, p)
+    rep = pt.measure(paths, s, p)
+    assert rep.ok, sorted(rep.rules_violated())
+    from roboprint.patterns.shells import straight_ell
+
+    assert paths[0].meta["transitions_mm"][0] <= straight_ell(p) + p.w
+    assert _max_boundary_gap(paths, sec, p.w) <= 0.8 * p.w
+
+
+def test_measure_reports_skipped_outer_lane(monkeypatch):
+    """Die Selbstprüfung erkennt eine ausgelassene Außenbahn (M1-Fehler), auch wenn der Kern die Naht
+    nicht verschiebt; der Nahtzwickel des Standardfalls (Rechteck, w = 30) bleibt darunter."""
+    from roboprint.patterns import shells
+    from roboprint.patterns.metrics import outer_lane_skip, outer_skip_limit
+
+    def keep_seam(ctx, loops, start, meta):
+        return start, meta, shells.lane_change(loops[0], loops[1], start, ctx.params)
+
+    monkeypatch.setattr(shells, "_seam_for_short_change", keep_seam)
+    s = {0: _STUFE, 1: _STUFE}
+    p = pt.PatternParams()
+    paths = pt.plan_pattern(s, p)
+    # ohne Nahtwahl fällt shell_chain wegen des M1-Fehlers auf eine Schale zurück ...
+    assert paths[0].meta["shells_dropped"]["reason"] == "regelfehler"
+    assert pt.measure(paths, s, p).ok
+    # ... und ohne diesen Rückfall meldet measure die Lücke
+    monkeypatch.setattr(shells, "_chain_errors", lambda ctx, plan: 0)
+    paths = pt.plan_pattern(s, p)
+    rep = pt.measure(paths, s, p)
+    assert not rep.ok
+    assert any(v.rule == "M1" and "Außenbahn ausgelassen" in v.message for v in rep.errors)
+    monkeypatch.undo()
+    g = box(0, 0, 600, 250)
+    paths = pt.plan_pattern({0: g}, p)
+    skip, _ = outer_lane_skip(paths[0], g, p)
+    assert 0.0 < skip <= outer_skip_limit(p)
+
+
+@pytest.mark.parametrize("infill", ["sinus", "zickzack", "trapez"])
+@pytest.mark.parametrize(("size", "w"), [((300, 120), 35.0), ((300, 110), 35.0), ((340, 140), 40.0)])
+def test_single_shell_s_curve_outside_falls_back(infill, size, w):
+    """Gegenprüfung M6 (Runde 2): Eine Schale plus Infill in kurzen, schmalen Modulen. Liegt keine
+    S-Kurve des Einzelrings (`close_single`) in der Insel, schließt der Kern den Ring und lässt das
+    Infill mit Hinweis entfallen, statt die S-Kurve bis an die Außenfläche zu legen (M5-Fehler)."""
+    L, T = size
+    g = box(-L / 2, -T / 2, L / 2, T / 2)
+    sec = {0: g, 1: g}
+    p = pt.params_from_dict({"bead_width_mm": w, "shells": 1, "infill": infill})
+    paths = pt.plan_pattern(sec, p)
+    rep = pt.measure(paths, sec, p)
+    assert rep.ok, sorted(rep.rules_violated())
+    outer = paths[0].segments[0]
+    assert outer.kind == "outer"
+    assert np.abs(outer.points[:, 1]).max() <= T / 2 - w / 2 + 0.6

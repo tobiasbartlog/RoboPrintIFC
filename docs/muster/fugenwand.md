@@ -131,7 +131,7 @@ neben einer Öffnung sind Rechtecke und bekommen je eine eigene Fugenwand.
 | `node_length_mm` | Knotenlänge | 0 | gerade Berührstrecke an den Knoten |
 | `apex_length_mm` | Kontaktlänge Rautenspitze | 0 | flache Rautenspitze am Feld der Gegenseite |
 | `hook_radius_mm` | Radius an Fuge und Knoten (0 = Eckradius) | 0 (= w) | M6: hart ≥ w/2, Ziel ≥ w |
-| `contact_overlap_mm` | Sollüberlappung an Kontakten | 1,0 | δ = w − Überlappung, erlaubt 0 … ε·w. 1 mm deckt den Sehnenfehler (≤ 0,5 mm je Seite). |
+| `contact_overlap_mm` | Sollüberlappung an Kontakten | 1,0 | δ = w − Überlappung, erlaubt 0 … ε·w (größere Werte, z. B. 4,5 mm bei w < 30, klemmt das Muster auf ε·w und nennt das in `adjusted`). 1 mm deckt den Sehnenfehler (≤ 0,5 mm je Seite). |
 
 Wanddicke und Modullänge kommen aus dem Querschnitt (Preset-`outline` bzw. Modul), w aus
 `bead_width_mm`. Die Eckradien der Endkappen setzt `corner_radius_mm` (Kern, Standard w).

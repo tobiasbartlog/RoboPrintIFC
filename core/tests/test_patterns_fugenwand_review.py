@@ -128,3 +128,18 @@ def test_foto_preset_shows_slanted_webs():
 def test_mirrored_without_belt_note_points_to_variant_a():
     _, _, paths = _plan(600.0, 300.0, layers=1, belt=False, back_offset="gespiegelt")
     assert "Variante a" in paths[0].meta["note"]
+
+
+@pytest.mark.parametrize(("w", "overlap"), [(25.0, 4.5), (20.0, 3.5), (25.0, 3.75)])
+def test_contact_overlap_clamped_to_eps_w(w, overlap):
+    """Gegenprüfung M6 (Runde 2): Der Regler reicht bis 4,5 mm (= ε·30). Bei w < 30 wird die
+    Überlappung auf ε·w begrenzt (Hinweis in `adjusted`), jeder Reglerwert bleibt M2-frei."""
+    data = pt.preview(
+        {"pattern": "fugenwand", "params": {"bead_width_mm": w, "contact_overlap_mm": overlap}},
+        {"length_mm": 600, "thickness_mm": 250},
+    )
+    assert data["ok"], [v for v in data["violations"] if v["severity"] == "error"]
+    meta = data["paths"][0]["meta"]
+    assert meta["contact_distance_mm"] >= (1 - 0.15) * w - 1e-6
+    if overlap > 0.15 * w + 1e-9:
+        assert "ε·w" in meta["adjusted"]

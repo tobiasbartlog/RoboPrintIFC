@@ -33,6 +33,7 @@ CONTACT_TOL_MM = ct.CONTACT_TOL_MM
 PUMP_KINDS = ("print", "link")
 KNOWN_KINDS = ("print", "link", "approach", "retract", "lift", "transfer", "lower")
 MAX_EXAMPLES = 20
+DOUBLE_RING = "Ring mehr als einmal gedruckt"
 
 
 @dataclass
@@ -187,6 +188,17 @@ def check_m1(C: Ctx) -> Rule:
                    sample=i, island=k)
         else:
             in_strand += 1
+    # Verbinder (Pumpe an) von Ring r-1 nach r zwischen zwei Inseln derselben Schicht: Strang ueber die
+    # Oeffnung, auch wenn der Abschnitt zwischen erstem und letztem print einer Gruppe sauber ist
+    link_rings = sorted({int(r) for r in tr.ring[kind == "link"]})
+    for r in link_rings:
+        a, b = C.ring_group.get(r - 1), C.ring_group.get(r)
+        if a is None or b is None or a[0] != b[0] or a == b:
+            continue
+        i = int(np.flatnonzero((kind == "link") & (tr.ring == r))[0])
+        R.fail(a[0], r, tr.tcp[i, :2],
+               f"Strang verbindet zwei Inseln: Verbinder von Ring {r - 1} (Insel {a[1]}) nach Ring {r} "
+               f"(Insel {b[1]}) in Schicht {a[0]}", sample=i)
     R.metrics["groups_continuous"] = in_strand
     R.metrics["groups"] = len(groups)
     R.note = "Pumpe aus der Bewegungsart abgeleitet (an genau in print/link); DRL-Pumpenbefehle prueft G5"
@@ -383,6 +395,34 @@ def check_m5(C: Ctx) -> Rule:
                 k = bad[np.argmax(d[bad])]
                 R.fail(L, P.ring_at(k), P.pts[k], f"Raupe {d[k]:.2f} mm ausserhalb des Querschnitts ⊕ 1 mm "
                        f"({len(bad)} Punkte)", excess_mm=float(d[k]))
+    tr = C.part.traj
+    if tr is not None:
+        # Verbinder in der Trajektorie (Pumpe an): ueber Material wie die Raupe, gegen die Schicht des
+        # Rings davor und danach (senkrechter Wechsel)
+        kind = np.array(tr.kind)
+        layer_of = {r.index: r.layer for r in C.part.rings}
+        allowed: dict = {}
+        for r, idx in _indices_by_ring(tr.ring, kind == "link").items():
+            Ls = {layer_of[q] for q in (r - 1, r) if q in layer_of and layer_of[q] in C.sections}
+            if not Ls:
+                continue
+            for L in Ls:
+                if L not in allowed:
+                    grown = C.sections[L].buffer(M5_MARGIN_MM, quad_segs=16)
+                    allowed[L] = grown.buffer(-C.w / 2.0, quad_segs=16)
+            regs = [allowed[L] for L in Ls if not allowed[L].is_empty]
+            if not regs:
+                continue
+            pts = shapely.points(tr.tcp[idx, :2])
+            d = np.min([shapely.distance(a, pts) for a in regs], axis=0)
+            R.n_checked += 1
+            worst = max(worst, float(d.max()))
+            bad = np.flatnonzero(d > M5_TOL_MM)
+            if len(bad):
+                k = bad[np.argmax(d[bad])]
+                R.fail(layer_of.get(r), r, tr.tcp[idx[k], :2],
+                       f"Verbinder {d[k]:.2f} mm ausserhalb des Querschnitts ⊕ 1 mm ({len(bad)} Samples, "
+                       f"Pumpe an ueber einer Oeffnung)", excess_mm=float(d[k]), sample=int(idx[k]))
     for r in C.part.rings:
         if len(r.pts) == 0:
             continue
@@ -458,7 +498,8 @@ def _print_gaps(ring_xy: np.ndarray, closed: bool, tcp_xy: np.ndarray) -> tuple[
     aufeinanderfolgenden Samples ist die uebersprungene Laenge Δs - |Δp|; ein Sprung quer ueber den
     Ring (Strang laeuft weiter, Raupe fehlt) oder ein Ruecksprung faellt so auf, auch wenn jedes Sample
     selbst auf dem Ring liegt. Offene Ringe muessen zudem am Anfang beginnen und am Ende enden;
-    geschlossene Ringe (Bogenlaenge modulo L) muessen einmal ganz herum laufen.
+    geschlossene Ringe (Bogenlaenge modulo L) muessen genau einmal ganz herum laufen: Summe der
+    Schritte = L, weniger ist eine Luecke, mehr eine zweite Runde ueber die frische Raupe.
     Rueckgabe: (Luecke mm, Sample-Position in tcp_xy, Art)."""
     dense = g.densify(ring_xy, 0.2)
     s_d = g.arclen(dense)
@@ -481,6 +522,13 @@ def _print_gaps(ring_xy: np.ndarray, closed: bool, tcp_xy: np.ndarray) -> tuple[
         cands.append((float(-ds[mb]), mb + 1, "rueckwaerts"))
     if closed:
         cands.append((float(L - ds.sum()) if len(ds) else L, len(tcp_xy) - 1, "Ring nicht ganz gedruckt"))
+        if len(ds):
+            # mehr als eine Runde (Anfang = Ende, daher kein Ruecksprung): Duese faehrt ueber die eigene,
+            # gerade gelegte Raupe; Position = erstes Sample hinter der ersten vollen Runde
+            cum = np.cumsum(ds)
+            over = float(cum[-1] - L)
+            m = int(np.argmax(cum > L + GAP_TOL_MM)) + 1 if over > GAP_TOL_MM else len(tcp_xy) - 1
+            cands.append((over, m, DOUBLE_RING))
     else:
         cands.append((float(sp[0]), 0, "Ringanfang fehlt"))
         cands.append((float(L - sp[-1]), len(tcp_xy) - 1, "Ringende fehlt"))
@@ -520,6 +568,11 @@ def check_m6b(C: Ctx) -> Rule:
                 if r.index == 0:
                     R.fail(r.layer, r.index, tr.tcp[idx[0], :2], "Verbinder vor dem ersten Ring")
                     continue
+                if not rings[r.index - 1].link_next:
+                    R.fail(r.layer, r.index, tr.tcp[idx[0], :2],
+                           f"link von Ring {r.index - 1} nach Ring {r.index}, aber toolpath.rings"
+                           f"[{r.index - 1}].link_next ist nicht true (Travel vorgesehen)",
+                           sample=int(idx[0]))
                 ref = np.vstack([rings[r.index - 1].pts[-1], r.pts[0]])
             if len(ref) == 0:
                 continue
@@ -549,9 +602,10 @@ def check_m6b(C: Ctx) -> Rule:
         gap, m, what = _print_gaps(r.pts[:, :2], closed, tr.tcp[idx, :2])
         worst_gap = max(worst_gap, gap)
         if gap > GAP_TOL_MM:
-            R.fail(r.layer, r.index, tr.tcp[idx[m], :2],
-                   f"Raupe unvollstaendig: {what}, {gap:.1f} mm des Rings ohne print-Sample "
-                   f"(bei Sample {idx[m]})", sample=int(idx[m]), gap_mm=gap)
+            text = (f"Raupe doppelt: {what}, {gap:.1f} mm ueber die eigene Raupe" if what == DOUBLE_RING
+                    else f"Raupe unvollstaendig: {what}, {gap:.1f} mm des Rings ohne print-Sample")
+            R.fail(r.layer, r.index, tr.tcp[idx[m], :2], f"{text} (bei Sample {idx[m]})",
+                   sample=int(idx[m]), gap_mm=gap)
     R.metrics["max_deviation_mm"] = round(worst, 3)
     R.metrics["max_print_gap_mm"] = round(worst_gap, 3)
     return R

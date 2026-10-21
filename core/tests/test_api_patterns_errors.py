@@ -68,6 +68,73 @@ def test_out_of_range_params_give_422_in_german(client, params, needle):
     assert needle in d
 
 
+@pytest.mark.parametrize(
+    ("params", "needle"),
+    [
+        ({"v_print_mm_s": 0}, "unter dem Minimum"),
+        ({"v_print_mm_s": -5}, "unter dem Minimum"),
+        ({"step_mm": 0.01}, "unter dem Minimum"),
+        ({"step_mm": 0.1}, "unter dem Minimum"),
+        ({"chord_tol_mm": 0.001}, "unter dem Minimum"),
+        ({"chord_tol_mm": 5}, "über dem Maximum"),
+        ({"eps": 0.99}, "Regelkonstante"),
+        ({"eps": -0.1}, "Regelkonstante"),
+        ({"delta_mm": -1}, "unter dem Minimum"),
+        ({"delta_mm": 50}, "über dem Maximum"),
+        ({"link_max_mm": -1}, "unter dem Minimum"),
+        ({"contact_tol_mm": -1}, "unter dem Minimum"),
+        ({"contact_tol_mm": 10}, "über dem Maximum"),
+    ],
+)
+def test_rule_and_sampling_params_are_checked(client, params, needle):
+    """Gegenprüfung M6 (Runde 2): Auch die übrigen Kernwerte (Abtastung, Toleranzen, Geschwindigkeit)
+    werden geprüft: v = 0 gab 500 (Division), step_mm = 0,01 einen Speicherüberlauf nach Minuten,
+    eps = 0,99 schaltete M2 ab."""
+    d = detail(
+        client.post("/api/patterns/preview", json={"pattern": "schalen", "params": params, "outline": BOX})
+    )
+    assert needle in d
+    with pytest.raises(ValueError, match=needle):
+        check_spec({"pattern": "schalen", "params": params})
+
+
+def test_rule_and_sampling_defaults_are_accepted(client):
+    defaults = {
+        k: getattr(pt.PatternParams(), k)
+        for k in (
+            "v_print_mm_s",
+            "step_mm",
+            "chord_tol_mm",
+            "eps",
+            "delta_mm",
+            "link_max_mm",
+            "contact_tol_mm",
+        )
+    }
+    r = client.post("/api/patterns/preview", json={"pattern": "schalen", "params": defaults, "outline": BOX})
+    assert r.status_code == 200, r.text
+
+
+def test_cli_rejects_zero_speed_with_exit_2(tmp_path, capsys):
+    bad = tmp_path / "v0.json"
+    bad.write_text(json.dumps({"name": "v0", "pattern": "schalen", "params": {"v_print_mm_s": 0}}))
+    assert _cli([str(bad), str(tmp_path / "v0.svg")]) == 2
+    assert "v_print_mm_s" in capsys.readouterr().err
+
+
+def test_kernel_rejects_nonpositive_speed_and_negative_tolerances():
+    for kw in ({"v_print_mm_s": 0.0}, {"delta_mm": -1.0}, {"link_max_mm": -1.0}, {"contact_tol_mm": -0.1}):
+        with pytest.raises(ValueError):
+            pt.PatternParams(**kw).validate()
+
+
+def test_huge_polygon_outline_is_422(client):
+    big = {"polygon": [[0, 0], [200000, 0], [200000, 300], [0, 300]]}
+    assert "zu groß" in detail(client.post("/api/patterns/preview", json={"outline": big}))
+    many = {"polygon": [[float(i), 0.0] for i in range(6000)] + [[6000.0, 300.0], [0.0, 300.0]]}
+    assert "Punkte" in detail(client.post("/api/patterns/preview", json={"outline": many}))
+
+
 def test_edge_values_of_core_params_are_accepted(client):
     for spec in pt.CORE_PARAM_SPECS:
         if spec.kind in ("float", "int"):

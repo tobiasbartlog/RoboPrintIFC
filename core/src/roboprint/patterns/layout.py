@@ -124,6 +124,20 @@ def choose_seam(
 ) -> tuple[float, dict[str, Any]]:
     """Nahtlage auf dem Außenring nach der Regel im Modul-Docstring.
     Rückgabe (Bogenlänge auf `loop`, Info {seam, clearance_mm, fallback})."""
+    return next(seam_candidates(loop, region, part_bounds, params))
+
+
+def seam_candidates(
+    loop: Loop,
+    region: Any,
+    part_bounds: tuple[float, float, float, float],
+    params: PatternParams,
+    spacing_mm: float = 0.0,
+) -> Any:
+    """Nahtlagen in Rangfolge (Generator von (Bogenlänge, Info) wie `choose_seam`): zuerst die Wahl von
+    `choose_seam`, dann die übrigen Punkte nach Freiabstand absteigend (bei Gleichstand näher an der
+    Ecke `seam_corner`). `spacing_mm` > 0 überspringt Punkte, die näher als das an einem schon
+    gelieferten liegen. Für Rückfälle, wenn die erste Naht keinen guten Schalenwechsel zulässt."""
     cand = densify(loop.pts, 2.0)[:-1]
     clr = face_clearance(cand, region, part_bounds, params.w)
     x0, y0, x1, y1 = part_bounds
@@ -134,15 +148,23 @@ def choose_seam(
         tie = np.flatnonzero(clr >= best - 0.5)
     else:
         tie = np.arange(len(cand))
-    d = np.linalg.norm(cand[tie] - np.array([cx, cy]), axis=1)
-    i = int(tie[int(np.argmin(d))])
-    s = loop.project(cand[i])
-    info = {
-        "seam": [round(float(cand[i][0]), 3), round(float(cand[i][1]), 3)],
-        "clearance_mm": None if not math.isfinite(best) else round(float(clr[i]), 3),
-        "fallback": bool(math.isfinite(best) and clr[i] <= 0.0),
-    }
-    return s, info
+    corner = np.linalg.norm(cand - np.array([cx, cy]), axis=1)
+    i = int(tie[int(np.argmin(corner[tie]))])
+    def order() -> Any:  # erst beim zweiten Kandidaten sortieren (meist reicht der erste)
+        yield i
+        key = np.where(np.isfinite(clr), -clr, 0.0)
+        yield from (int(k) for k in np.lexsort((corner, key)) if k != i)
+
+    taken: list[np.ndarray] = []
+    for k in order():
+        if spacing_mm > 0 and any(np.linalg.norm(cand[k] - q) < spacing_mm for q in taken):
+            continue
+        taken.append(cand[k])
+        yield loop.project(cand[k]), {
+            "seam": [round(float(cand[k][0]), 3), round(float(cand[k][1]), 3)],
+            "clearance_mm": None if not math.isfinite(best) else round(float(clr[k]), 3),
+            "fallback": bool(math.isfinite(best) and clr[k] <= 0.0),
+        }
 
 
 def seam_on_faces(

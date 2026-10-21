@@ -103,6 +103,10 @@ class PatternParams:
             raise ValueError("step_mm und chord_tol_mm müssen > 0 sein")
         if not 0.0 <= self.eps < 1.0:
             raise ValueError("eps muss in [0, 1) liegen")
+        if not self.v_print_mm_s > 0:
+            raise ValueError("v_print_mm_s muss > 0 sein")
+        if self.delta_mm < 0 or self.link_max_mm < 0 or self.contact_tol_mm < 0:
+            raise ValueError("delta_mm, link_max_mm und contact_tol_mm müssen >= 0 sein")
         if self.corner_radius < 0 or self.transition_radius <= 0:
             raise ValueError("corner_radius_mm >= 0 und transition_radius_mm > 0")
         if tuple(abs(int(c)) for c in self.seam_corner) != (1, 1):

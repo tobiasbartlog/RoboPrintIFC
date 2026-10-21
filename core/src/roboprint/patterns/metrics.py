@@ -6,7 +6,10 @@ Messverfahren (alle Längen mm, w = Strangbreite, ε = params.eps):
 - Abtastung: Jeder Pfad wird inkl. Verbindern auf ≤ 2 mm verdichtet (Bogenlänge s je Punkt).
 - **M1 Durchgehend**: höchstens ein LayerPath je (Schicht, Insel) und nicht mehr Pfade als Inseln;
   jeder Verbinder ≤ `link_max_mm` (sonst „Lücke im Strang“); jede Insel hat einen Strang
-  (`missing_islands`: sonst Fehler, Warnung nur für eine dünne Kappe über tieferen Raupen).
+  (`missing_islands`: sonst Fehler, Warnung nur für eine dünne Kappe über tieferen Raupen). Die
+  Außenbahn (Schale 0) läuft ganz um: Eine Lücke > max(2·w, ℓ₀) auf dem Soll-Ring, auf der die
+  Mittellinie mehr als w/2 entfernt ist, ist ein Fehler „Außenbahn ausgelassen“ (`outer_lane_skip`;
+  der Nahtzwickel des Schalenwechsels misst beim Rechteck ≈ 1·w).
 - **M2 Kreuzungsfrei**: Punktpaare mit Bogenlängenabstand > 2·w (bei geschlossenem Zug zyklisch)
   und Mittellinienabstand d < (1 − ε)·w sind ein Fehler (Kreuzung bzw. Fahrt über eine liegende
   Raupe), dazu ein exakter Selbstschnitttest. d ∈ [(1 − ε)·w, w + contact_tol] ist ein **gewollter
@@ -46,6 +49,7 @@ gewertet (Restfläche 0). Alle Ergebnisse sind gleich der Rechnung vor der Optim
 
 from __future__ import annotations
 
+import functools
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -56,7 +60,7 @@ import shapely
 from scipy.spatial import cKDTree
 from shapely.geometry import LineString, Point
 
-from roboprint.patterns.geometry import chord_error_estimate, curvature_radius, densify, polygons
+from roboprint.patterns.geometry import chord_error_estimate, curvature_radius, densify, offset_ring, polygons
 from roboprint.patterns.layout import face_clearance
 from roboprint.patterns.plan import part_bounds
 from roboprint.patterns.types import CROSS_KINDS, OUTER_KINDS, Contact, LayerPath, PatternParams
@@ -243,10 +247,24 @@ def bead_area(path: LayerPath, w: float) -> Any:
     return _bead_area(path.polyline(), w)
 
 
+#: Punkte je Teilstück, wenn der Puffer der ganzen Mittellinie unplausibel ist
+_BUFFER_CHUNK = 32
+
+
 def _bead_area(pl: np.ndarray, w: float) -> Any:
     if len(pl) < 2:
         return Point(pl[0]).buffer(w / 2.0)
-    g = LineString(pl).buffer(w / 2.0, quad_segs=8)
+    line = LineString(pl)
+    g = line.buffer(w / 2.0, quad_segs=8)
+    # GEOS puffert manche Mittellinien mit fast berührenden Raupen numerisch falsch: Schon eine
+    # Rundungsänderung um 1e-13 mm (z. B. die umgekehrte Bahn) füllt dann einen Innenraum mit.
+    # Die echte Fläche ist höchstens Länge·w + π·(w/2)²; liegt der Puffer darüber, wird er aus
+    # überlappenden Teilstücken neu vereinigt (gleiche Minkowski-Summe, robust).
+    bound = line.length * w + math.pi * (w / 2.0) ** 2
+    if g.area > bound * (1.0 + 1e-9) + 1e-6:
+        k = _BUFFER_CHUNK
+        parts = [LineString(pl[i : i + k + 1]).buffer(w / 2.0, quad_segs=8) for i in range(0, len(pl) - 1, k)]
+        g = shapely.union_all(parts)
     # GEOS liefert bei fast tangentialen Raupenrändern gelegentlich ungültige Puffer
     # (TopologyException in difference); dann reparieren.
     return g if g.is_valid else shapely.make_valid(g)
@@ -320,6 +338,75 @@ def _area_metrics(
             )
     coverage = float(beads.intersection(shell_reg).area / shell_reg.area) if shell_reg.area > 0 else 1.0
     return _AreaMetrics(float(out.area), out_at, cells, coverage)
+
+
+def outer_skip_limit(params: PatternParams) -> float:
+    """Längste zulässige Lücke der Außenbahn (siehe `outer_lane_skip`): max(2·w, ℓ₀) mit
+    ℓ₀ = 2·sqrt(R² − (R − w/2)²) (S-Kurve zwischen geraden Ringen). Rechteck mit Eck-Naht, R = w:
+    gemessen ≈ 1·w (Nahtzwickel), Grenze 2·w = 60 mm."""
+    R, w = params.transition_radius, params.w
+    ell0 = 2.0 * math.sqrt(max(R * R - (R - w / 2.0) ** 2, 0.0)) if w < 2 * R else w
+    return max(2.0 * w, ell0)
+
+
+@functools.lru_cache(maxsize=64)
+def _ideal_outer(region_wkb: bytes, w: float, corner_radius: float) -> np.ndarray | None:
+    """Soll-Ring der Schale 0 (größte Außenkontur von Insel ⊖ w/2), auf 1 mm verdichtet; je Insel
+    nur einmal (Vorschau: jede Schicht hat denselben Querschnitt)."""
+    ext = [r for k, r in offset_ring(shapely.from_wkb(region_wkb), w / 2.0, corner_radius) if k == "exterior"]
+    if not ext:
+        return None
+    ring = max(ext, key=lambda r: shapely.Polygon(r).area)
+    q = densify(ring, 2.0)[:-1]
+    if len(q) < 2:
+        return None
+    q.flags.writeable = False
+    return q
+
+
+def outer_lane_skip(
+    path: LayerPath, section: Any, params: PatternParams, tree: cKDTree | None = None
+) -> tuple[float, tuple | None]:
+    """Längste zusammenhängende Strecke des Soll-Rings der Schale 0 (Insel ⊖ w/2, Eckradius wie der
+    Kern), auf der die Mittellinie mehr als w/2 entfernt ist: Dort fehlt mehr als die halbe
+    Außenraupe (z. B. weil die S-Kurve des Schalenwechsels schon nach innen läuft). Nur für Pfade
+    des Grundmusters mit Schalenwechsel (`meta.transitions_mm`), Segment `outer` der Schale 0, ohne
+    `outfill` und ohne Topologie (beide weichen gewollt vom Soll-Ring ab, z. B. Abschrägung: Ring
+    auf der Raupe der tieferen Schicht). `tree`: KD-Baum der abgetasteten Mittellinie (≤ 2 mm),
+    falls schon vorhanden. Rückgabe (Länge mm, Mitte der Strecke)."""
+    kinds = {(s.kind, s.shell) for s in path.segments}
+    meta = path.meta or {}
+    if (
+        ("outer", 0) not in kinds
+        or any(k == "outfill" for k, _ in kinds)
+        or not meta.get("transitions_mm")
+        or "topology" in meta
+    ):
+        return 0.0, None
+    isl = polygons(section)
+    region = isl[path.island] if 0 <= path.island < len(isl) else section
+    q = _ideal_outer(region.wkb, params.w, params.corner_radius)
+    if q is None:
+        return 0.0, None
+    if tree is None:
+        tree = cKDTree(sample_path(path)[0])
+    # Abtastung ≤ 2 mm: Abstand höchstens 1 mm zu groß; die Lücken liegen weit über der Grenze
+    d = tree.query(q)[0]
+    bad = d > params.w / 2.0 + 1.0
+    if not bad.any():
+        return 0.0, None
+    step = np.linalg.norm(np.diff(np.vstack([q, q[:1]]), axis=0), axis=1)
+    if bad.all():
+        return float(step.sum()), tuple(q[0])
+    k0 = int(np.flatnonzero(~bad)[0])  # zyklisch ab einem guten Punkt zählen
+    order = np.roll(np.arange(len(q)), -k0)
+    b = np.concatenate([[False], bad[order], [False]]).astype(np.int8)
+    starts = np.flatnonzero(np.diff(b) == 1)
+    ends = np.flatnonzero(np.diff(b) == -1)  # exklusiv
+    cs = np.concatenate([[0.0], np.cumsum(step[order])])
+    runs = cs[ends] - cs[starts]
+    m = int(np.argmax(runs))
+    return float(runs[m]), tuple(q[order[(starts[m] + ends[m] - 1) // 2]])
 
 
 def measure_path(
@@ -442,6 +529,23 @@ def _measure_path(
                     "M4", "warn", L, isl, tuple(e), float(c), 0.0, "Naht berührt Außen- oder Stoßfläche"
                 )
             )
+
+    # M1: Außenbahn (Schale 0) nicht über eine lange Strecke ausgelassen
+    skip, skip_at = outer_lane_skip(path, section, p, tree)
+    limit = outer_skip_limit(p)
+    if skip > limit:
+        viol.append(
+            Violation(
+                "M1",
+                "error",
+                L,
+                isl,
+                skip_at,
+                skip,
+                limit,
+                "Außenbahn ausgelassen: Schale 0 fehlt auf dieser Länge (Schalenwechsel bzw. Naht)",
+            )
+        )
 
     # M5: im Teil
     if area.out_area > AREA_TOL_MM2:
@@ -669,6 +773,10 @@ def _longest_unsupported(
 # --------------------------------------------------------------------------- ganzes Teil
 
 
+#: Mittellinien, die sich je Punkt um höchstens so viel unterscheiden, gelten als gleich (M3)
+_SAME_PL_MM = 1e-9
+
+
 def _bead_group(
     lp: LayerPath,
     section: Any,
@@ -678,10 +786,10 @@ def _bead_group(
 ) -> tuple[Any, _AreaMetrics, int]:
     """Raupenfläche, Flächengrößen und Geometriegruppe eines Pfads.
 
-    Gleiche Mittellinie im gleichen Querschnitt (gleiche Insel) rechnet nur einmal. Eine exakt
-    umgekehrte Mittellinie (`layer_order = alternate`) bekommt dieselbe Gruppe (dieselbe Fläche, für
-    M3), ihre Flächengrößen werden aber neu gerechnet: GEOS puffert die Umkehrung mit anderer
-    Punktfolge, und Reihenfolge und Rundung der Zellen sollen exakt bleiben."""
+    Gleiche Mittellinie im gleichen Querschnitt (gleiche Insel) rechnet nur einmal. Eine (bis auf
+    Rundung, `_SAME_PL_MM`) umgekehrte Mittellinie (`layer_order = alternate`) bekommt dieselbe
+    Gruppe (dieselbe Fläche, für M3), ihre Flächengrößen werden aber neu gerechnet: GEOS puffert
+    die Umkehrung mit anderer Punktfolge, und Reihenfolge und Rundung der Zellen sollen exakt bleiben."""
     pl = lp.polyline()
     gid = None
     for k, (pl0, sec0, isl0, g0, a0) in enumerate(groups):
@@ -689,9 +797,10 @@ def _bead_group(
             continue
         if not (sec0 is section or shapely.equals_exact(sec0, section, 0.0)):
             continue
-        if np.array_equal(pl0, pl):
+        # Gleichheit bis auf Rundung (1e-9 mm): die Umkehrung einer Bahn weicht um ~1e-13 mm ab
+        if np.allclose(pl0, pl, rtol=0.0, atol=_SAME_PL_MM):
             return g0, a0, k
-        if gid is None and np.array_equal(pl0[::-1], pl):
+        if gid is None and np.allclose(pl0[::-1], pl, rtol=0.0, atol=_SAME_PL_MM):
             gid = k
     g = _bead_area(pl, params.w)
     area = _area_metrics(g, section, lp.island, params, sec_cache)

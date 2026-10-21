@@ -120,6 +120,15 @@ def build_island(
         meta["outfill"] = o.meta
     plan = shell_chain(ctx, ring0, kind0, open_end=inf is not None)
     plan.meta.update(meta)
+    if inf is not None and plan.meta.get("open_end_failed"):
+        # Kein Abgang ins Infill-Band möglich (Einzelring, S-Kurve läge außerhalb der Insel): Das
+        # Infill entfällt mit Hinweis, die Schalen werden ohne offenes Ende neu gebaut (alle Schalen,
+        # falls der Rückfall auf den Einzelring nur wegen des offenen Endes nötig war)
+        reason = plan.meta["open_end_failed"]
+        plan = shell_chain(ctx, ring0, kind0)
+        plan.meta.update(meta)
+        plan.meta["infill"] = {"skipped": reason}
+        return plan
     if inf is not None and plan.segments:
         last = plan.segments[-1].points
         t = last[-1] - last[-2]

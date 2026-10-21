@@ -236,6 +236,49 @@ def test_print_backwards_is_detected(tmp_path):
     assert _failed(p) == {"M6b"}, _failed(p)
 
 
+def test_closed_ring_printed_twice_is_detected(tmp_path):
+    """Gegenpruefung M6 (Runde 2): Die Duese faehrt einen geschlossenen Ring auf derselben Hoehe zweimal
+    ab (zweite Runde ueber die frische Raupe). Anfang = Ende, also kein Ruecksprung; die Abdeckung
+    (Summe der Bogenschritte = 2 L) muss es trotzdem melden. Ohne die Manipulation gruen."""
+    rings = synth.stack(lambda L: [synth.stadium(60.0)], N_LAYERS)
+    mesh = synth.box_mesh(length=300.0 + 120.0 + synth.W, width=120.0 + synth.W, height=N_LAYERS * synth.H)
+
+    def double(traj):
+        pos = [k for k, s in enumerate(traj) if s[1] == "print" and s[2] == 0]
+        return traj[: pos[-1] + 1] + [traj[k] for k in pos[1:]] + traj[pos[-1] + 1 :]
+
+    code, p = _run(tmp_path / "ok", rings, mesh=mesh)
+    assert code == 0, _failed(p)
+    code, p = _run(tmp_path / "doppelt", rings, mesh=mesh, traj_mutator=double)
+    assert "M6b" in _failed(p), _failed(p)
+    assert any("mehr als einmal" in e["message"] for e in p["rules"]["M6b"]["examples"])
+
+
+def test_link_over_opening_where_toolpath_has_travel_is_detected(tmp_path):
+    """Gegenpruefung M6 (Runde 2): Zwischen zwei Inseln (Pfeiler) sieht der toolpath einen Travel vor
+    (link_next = false). Ersetzt die Trajektorie ihn durch einen Verbinder mit laufender Pumpe ueber die
+    Oeffnung, ist das rot (M1: Strang verbindet Inseln, M5: ueber der Oeffnung, M6b: kein Verbinder im
+    toolpath), auch wenn jedes link-Sample auf der Geraden liegt."""
+    def layer(L):
+        return [synth.two_shells(r_out=50.0, half_len=125.0, cx=-175.0, x0=55.0),
+                synth.two_shells(r_out=50.0, half_len=125.0, cx=175.0, x0=55.0)]
+
+    rings = synth.stack(layer, N_LAYERS)
+    assert not rings[1]["link_next"] and rings[1]["layer"] == rings[2]["layer"]
+
+    def travel_to_link(traj):
+        last = max(k for k, s in enumerate(traj) if s[1] == "print" and s[2] == 1)
+        first = min(k for k, s in enumerate(traj) if s[1] == "print" and s[2] == 2)
+        a, b = traj[last][0], traj[first][0]
+        L = traj[last][3]
+        link = [(a + t * (b - a), "link", 2, L) for t in np.linspace(0, 1, 40)]
+        return traj[: last + 1] + link + traj[first:]
+
+    code, p = _run(tmp_path, rings, mesh=synth.pillars_mesh(N_LAYERS * synth.H), traj_mutator=travel_to_link)
+    assert {"M1", "M5", "M6b"} <= _failed(p), _failed(p)
+    assert any("link_next" in e["message"] for e in p["rules"]["M6b"]["examples"])
+
+
 def test_oracle_never_imports_roboprint_or_verify():
     """Unabhaengigkeit (AUFTRAG, Rahmen): kein Modul von verify_muster importiert roboprint oder verify."""
     import ast

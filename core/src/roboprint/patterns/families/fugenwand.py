@@ -50,7 +50,8 @@ Alle Bögen sind Kreise mit Radius r (`hook_radius_mm`, 0 = Eckradius = w); der 
 Riemenfolge über Kreise (`_fugenwand_geom`), tangentenstetig, ohne Ecken. Ein Kontakt ist ein Paar
 spiegelbildlicher Bögen, deren Extrempunkte den Mittellinienabstand δ = w − Überlappung haben
 (`contact_overlap_mm`, Standard 1 mm, damit der Sehnenfehler ≤ 0,5 mm je Seite den Kontakt nicht
-öffnet; erlaubt sind 0 … ε·w = 4,5 mm). Mit `joint_contact_mm`, `node_length_mm`, `apex_length_mm`
+öffnet; erlaubt sind 0 … ε·w, bei w = 30 also 4,5 mm; größere Werte werden auf ε·w geklemmt,
+`meta["adjusted"]` sagt das). Mit `joint_contact_mm`, `node_length_mm`, `apex_length_mm`
 werden die Kontakte zu geraden Berührstrecken dieser Länge. `joint_gap_mm` > 0 setzt die
 Fugenhaken auf w + Spalt auseinander (offene Fuge, kein Kontakt).
 
@@ -166,7 +167,7 @@ PARAMS = [
         0.0,
         4.5,
         0.1,
-        help="Mittellinienabstand an Fuge und Knoten = w − Überlappung (0 … ε·w)",
+        help="Mittellinienabstand an Fuge und Knoten = w − Überlappung (0 … ε·w, mehr wird geklemmt)",
     ),
 ]
 
@@ -194,7 +195,11 @@ class _Geo:
             self.r = w
         if radius is not None:
             self.r = float(radius)
-        self.delta = w - float(vals["contact_overlap_mm"])
+        # Sollüberlappung höchstens ε·w (M2): Der Regler reicht bis ε·30 = 4,5 mm, bei w < 30
+        # wird geklemmt (Hinweis in meta["adjusted"])
+        self.overlap_req = float(vals["contact_overlap_mm"])
+        self.overlap = min(self.overlap_req, p.eps * w)
+        self.delta = w - self.overlap
         gap = float(vals["joint_gap_mm"])
         self.dj = self.delta if gap <= 0 else w + gap
         self.kj = float(vals["joint_contact_mm"])
@@ -571,6 +576,8 @@ def _finish(ctx, g, g0, fit, n, res, angle_info, reason) -> IslandPlan:  # noqa:
     notes = []
     if n != fit.count:
         notes.append(f"{fit.count} Felder nicht baubar; {n} Felder")
+    if g.overlap < g.overlap_req - 1e-9:
+        notes.append(f"Sollüberlappung {g.overlap_req:g} mm > ε·w; {g.overlap:g} mm")
     if g.r < g0.r - 1e-9:
         notes.append(f"Hakenradius {g0.r:g} mm passt nicht; {g.r:g} mm")
     if notes:
