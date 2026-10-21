@@ -4,7 +4,8 @@ Branch `v2/muster` (Draft-PR nach `v2/strang`). Auftrag: `docs/muster/AUFTRAG.md
 Verlauf, Aufgabenliste und Belege: `MUSTER-PROGRESS.md`.
 
 <!-- STAND -->
-**Stand:** Entwurf 06:15, wird bis 10:00 fortgeschrieben.
+**Stand:** 21.10. 09:35. Musterprüfung: 11 von 15 Szenarien nach M6 neu gerechnet, die übrigen vier laufen
+noch (Ergebnis wird in diesem Bericht und im PR nachgetragen).
 <!-- /STAND -->
 
 ## Kurzfassung
@@ -103,7 +104,9 @@ Haken sauber, Knoten haften; Fotos nach 1, 3 und 7 Tagen), 3. `sinus`, dann Gurt
 | Prüfung | Ergebnis | Kennzahlen |
 |---|---|---|
 | `scripts/verify.py` (G1–G8, voll, 21.10. 06:28) | **grün**, Exit 0 | G1 12 s, G2 50 s, G3 S1 41 + 32 s, G4 S2/S3 grün, G5 36 s, G6 e2e 108 s, G7 S1 40,8 s ≤ 180, S2 129,1 s ≤ 1800, G8 ruff, pytest core (676 s), web lint/typecheck/test |
-| `scripts/verify_muster.py` (Vorschlag G9) | (läuft) | |
+| `scripts/verify_muster.py` (Vorschlag G9), Neulauf nach M6 | 11/15 gerechnet: 10 grün, 1 rot → behoben | Grün: fugenwand_raute, schalen_alternate, sinus, S5_oeffnung, doppelwelle_300, fermat, fugenwand_gurt, gurt_300, versetzt, maeander. Rot war `aussenwelle`: Die Abdeckungs-Untergrenze des Runners (55 %) liegt über der gewollten Abdeckung von O1 mit einer Schale (53,3 %). Untergrenze je Szenario eingeführt (8e6bc7d), Nachprüfung läuft. Offen: trapez, waben_300, zickzack, S5_oeffnung_fugenwand, S6_s2_raute |
+| Testdrucke nach M6 | **12/12** machbar, fake_drcf v2/v3 und Orakel grün | `docs/muster/testdrucke/` |
+| Rote Szenarien des Laufs 06:29 (`doppelwelle_300`, `fugenwand_versetzt`) | einzeln nachgerechnet **grün** | Ursache: Datenträger voll, keine Regression |
 <!-- /GATES -->
 
 ## Weichen für den Nutzer
