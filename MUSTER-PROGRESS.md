@@ -190,3 +190,13 @@ Die erste Zeile setzt nur das Skript.
   Bei 250–365 mm Wand Feldlänge 300 mm. Die Feldlänge springt wegen ganzer Felder (Ziel = Modullänge/n).
 - Wellen: Zickzack λ ≈ 220–300 mm; mit 2 Schalen stützt das Infill die Außenhaut nicht (Außenstrecke = Modullänge).
 - Hinweis: Der Studien-Agent hat `matplotlib`/`pandas` in `/opt/fgc-venv` installiert (nur für das Skript).
+
+### 2026-10-21 02:55 M6 Runde 1 gemergt (Session start)
+- 4 Finder, 11 Funde, alle unabhängig reproduziert und mit Regressionstest behoben, u. a.: Orakel M4 übersah
+  Absetzen nach den link-Samples des Schichtwechsels; Orakel/Runner prüften die Vollständigkeit der obersten
+  Schicht nicht; diagonaler Schichtwechsel an der Abschrägung wurde als Ausnahme durchgelassen (M4 nimmt jetzt
+  nur Inselzahlwechsel aus, Abschrägung hat senkrechten Wechsel); `measure` meldete Inseln ohne Strang nicht;
+  Grundmuster an schmalen/zerfallenden Innenschalen (M2/M5/M6) fällt auf weniger Schalen zurück; Hinweise
+  (Infill entfällt, Rückfall) erreichen Toolpath, Bericht und Viewer; Job-API lehnt unbekannte
+  `pattern_params` mit 422 ab; CLI lehnt NaN ab.
+- Katalogtest nach dem Merge an den neuen Empfehlungstext angepasst. Runde 2 läuft.
