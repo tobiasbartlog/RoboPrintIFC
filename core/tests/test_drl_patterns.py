@@ -170,3 +170,20 @@ def test_ziel_am_selben_ort_mit_drehung_bleibt_erhalten() -> None:
     for i, k in ((1, "print"), (2, "link"), (3, "print")):
         st.target(i, k, 0 if i == 1 else 1, P, R_same)
     assert [(it[0], it[1]) for it in st.items] == [(2, "link"), (3, "print")]  # zusammengefasst wie bisher
+
+
+def test_ohne_muster_ringkommentar_wie_bisher(alternate) -> None:
+    """Gegenpruefung M6 (Runde 2): Ohne Muster (`Toolpath.pattern` fehlt) bleibt der Ringkommentar wie
+    vor dem Nachtlauf ("ueber Verbinder" ohne Zusatz), auch wenn ein Verbinder geometrisch ein reiner
+    Z-Hub ist (1 Schale, gleiche Naht). Der Zusatz gehoert nur zu Druckmustern (opt-in)."""
+    from dataclasses import replace
+
+    from roboprint.drl_steps import Comment
+
+    pp = drl.load_planned_part(alternate, drl.DrlParams())
+    plain = replace(pp, toolpath=pp.toolpath.model_copy(update={"pattern": None}))
+    texts = [s.text for s in drl.build_steps(plain)[0] if isinstance(s, Comment)]
+    assert any("(ueber Verbinder)" in t for t in texts)
+    assert not any("senkrecht" in t or "Laenge 0" in t for t in texts)
+    with_pattern = [s.text for s in drl.build_steps(pp)[0] if isinstance(s, Comment)]
+    assert any("senkrecht" in t for t in with_pattern)
