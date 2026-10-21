@@ -1,4 +1,4 @@
-Herzschlag: 2026-10-21T09:09:16+02:00 · Session: start · Phase: M7 · Status: laeuft
+Herzschlag: 2026-10-21T09:09:50+02:00 · Session: start · Phase: M7 · Status: laeuft
 
 # MUSTER-PROGRESS: Druckmuster (Infill und Outfill)
 
@@ -35,8 +35,10 @@ Die erste Zeile setzt nur das Skript.
 | Fugenwand bei veränderlichem Querschnitt (Abschrägung am Wandkopf): Köpfe M2–M7 fehlerfrei | M6 | erledigt, gemergt | v2/muster-fugenschraege | 2e1539e |
 | Kernfehler `shells.shell_chain`/`clear_end` bei Inseln < ~4·w | M6 | erledigt (Wellen-Fix + Härtung R1) | v2/muster-haertung | bf01933 |
 | Voller Lauf `scripts/verify.py` (G1–G8) nach M6 | M6 | erledigt: G1–G8 grün, Exit 0 | v2/muster | |
-| Neuerzeugung Musterlauf, Testdrucke, Katalog nach M6 | M6 | läuft (Musterlauf 06:30) | v2/muster | |
-| Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
+| Neuerzeugung Musterlauf, Testdrucke, Katalog nach M6 | M6 | Testdrucke 12/12 neu (c9b6502); Musterlauf und Katalog laufen (08:50) | v2/muster | c9b6502 |
+| Katalog-Fix (Robotererwartung, entfallenes Infill) | M6 | erledigt, gemergt | v2/muster-katalogfix | 68c5e8d |
+| Runner: Abdeckungs-Untergrenze je Szenario (O1 eine Schale 53,3 % < 55 %) | M6 | erledigt | v2/muster | 8e6bc7d |
+| Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | läuft (09:15) | v2/muster | |
 
 ## Gate-Stand
 
@@ -252,3 +254,16 @@ Die erste Zeile setzt nur das Skript.
 ### 2026-10-21 06:30 Voller Gate-Lauf grün (Session start)
 - `scripts/verify.py` (alle Gates, ohne parallele Agenten): G1–G8 grün, Exit 0. G7 S1 40,8 s, S2 129,1 s.
 - Morgenbericht-Entwurf liegt (`MORGENBERICHT-MUSTER.md`). Musterlauf voll neu gestartet, Katalog-Fix läuft.
+
+### 2026-10-21 08:30 Stillstand 06:52–08:30, Fortsetzung (Session start)
+- Ursache: Datenträger voll (ENOSPC, 89 Worktrees fertiger Agenten, 7,5 GB). Nach dem Neustart des Prozesses
+  wurden die Worktrees abgeräumt (22 GB frei), die M6-Arbeit aber nicht wieder aufgenommen. Wächter 08:00
+  übernahm nicht (Herzschlag 73 min alt). Fortsetzung auf Anstoß des Nutzers um 08:30.
+- Rote Szenarien des Laufs 06:29 einzeln nachgerechnet: `S4_muster_doppelwelle_300` und
+  `S4_muster_fugenwand_versetzt` grün (machbar, d_min 10,83 mm, 1 Strang/Schicht, 100 % senkrecht). Ursache
+  ENOSPC (`trajectory.json` nicht geschrieben), keine Regression.
+- Voller Musterlauf 08:50: `S4_muster_aussenwelle` rot, weil die Runner-Untergrenze 55 % (seit efbf552, 00:16)
+  unter der gewollten Abdeckung von O1 mit einer Schale je Seite (53,3 % des Zwei-Schalen-Bereichs) liegt.
+  Alle anderen G3-Kriterien grün. Behoben mit `expect.muster.abdeckung_untergrenze` = 0,5 im Szenario (8e6bc7d),
+  Test dazu. Kein Fehler im Musterkern.
+- `v2/muster-katalogfix` gemergt; Testdrucke neu: 12/12 machbar und geprüft.
