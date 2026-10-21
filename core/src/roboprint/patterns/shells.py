@@ -340,10 +340,21 @@ def shell_chain(
     Schalenzahl; ist keine fehlerfrei (z. B. scharfe Ecken mit `corner_radius_mm = 0`, die jede
     Schalenzahl hat), bleibt es bei allen Schalen, und die Prüfung meldet die Fehler. Entfallen
     Schalen, steht das in `meta.shells_dropped` (Grund `regelfehler`, wie Restring und leerer
-    Ring). Ein Strang mit nur einer Schale wird nicht gemessen (kein Rückfall möglich)."""
+    Ring). Ein Strang mit nur einer Schale hat keinen Rückfall auf weniger Schalen; endet er offen
+    ins Infill (`close_single`) und hat er dann mehr Regelfehler als der geschlossene Ring (z. B.
+    M1 „Außenbahn ausgelassen“: die S-Kurve lässt bei Wanddicke ≈ 4·w mehr als max(2·w, ℓ₀) der
+    Außenbahn aus), steht der Grund in `meta.open_end_failed`; `build_island` lässt das Infill
+    dann mit Hinweis entfallen und schließt den Ring."""
     plan = _chain(ctx, ring0, ring0_kind, open_end, ctx.params.shells)
     n = int(plan.meta.get("shells", 0))
     if n <= 1:
+        if open_end and n == 1 and "open_end_failed" not in plan.meta:
+            errors = _chain_errors(ctx, plan)
+            if errors and _chain_errors(ctx, _chain(ctx, ring0, ring0_kind, False, 1)) < errors:
+                plan.meta["open_end_failed"] = (
+                    f"Einzelring: die S-Kurve ins Infill-Band hat {errors} Regelfehler (M1/M2/M5/M6, "
+                    "z. B. Außenbahn ausgelassen bei Wanddicke ≈ 4·w); Ring geschlossen, Infill entfällt"
+                )
         return plan
     errors = _chain_errors(ctx, plan)
     if not errors:

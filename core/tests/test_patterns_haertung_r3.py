@@ -39,6 +39,19 @@ def test_corner_radius_does_not_pinch_neck_under_notch():
     assert len(bottom) == 0 or bottom[:, 1].max() < 15.5
 
 
+@pytest.mark.parametrize("pattern", ["sinus", "zickzack", "trapez", "maeander"])
+@pytest.mark.parametrize(("w", "t"), [(25.0, 100.0), (30.0, 120.0), (40.0, 160.0)])
+def test_single_ring_infill_never_skips_outer_lane(pattern, w, t):
+    """Einzelring + Infill bei Wanddicke ≈ 4·w: Die S-Kurve ins Infill ließ 54–91 mm der Außenbahn
+    aus (M1), ohne Hinweis. Jetzt entfällt das Infill mit Hinweis und der Ring bleibt geschlossen."""
+    params = {"bead_width_mm": w, "shells": 1, "layer_order": "alternate"}
+    d = pt.preview({"pattern": pattern, "params": params}, (600.0, t))
+    assert d["ok"], [(v["rule"], v["message"]) for v in d["violations"] if v["severity"] == "error"]
+    kinds = [s["kind"] for s in d["paths"][0]["segments"]]
+    if "infill" not in kinds:
+        assert any("Infill entfällt" in n for n in d["notes"])
+
+
 @pytest.mark.parametrize("name", ["sinus", "zickzack", "schalen", "fugenwand", "waben"])
 def test_contact_metrics_do_not_depend_on_print_direction(name):
     """M7: Schicht L + 1 (alternate) ist die Umkehrung von Schicht L. Anzahl und Länge der
