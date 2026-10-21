@@ -236,6 +236,24 @@ def test_print_backwards_is_detected(tmp_path):
     assert _failed(p) == {"M6b"}, _failed(p)
 
 
+def test_closed_ring_printed_twice_is_detected(tmp_path):
+    """Gegenpruefung M6 (Runde 2): Die Duese faehrt einen geschlossenen Ring auf derselben Hoehe zweimal
+    ab (zweite Runde ueber die frische Raupe). Anfang = Ende, also kein Ruecksprung; die Abdeckung
+    (Summe der Bogenschritte = 2 L) muss es trotzdem melden. Ohne die Manipulation gruen."""
+    rings = synth.stack(lambda L: [synth.stadium(60.0)], N_LAYERS)
+    mesh = synth.box_mesh(length=300.0 + 120.0 + synth.W, width=120.0 + synth.W, height=N_LAYERS * synth.H)
+
+    def double(traj):
+        pos = [k for k, s in enumerate(traj) if s[1] == "print" and s[2] == 0]
+        return traj[: pos[-1] + 1] + [traj[k] for k in pos[1:]] + traj[pos[-1] + 1 :]
+
+    code, p = _run(tmp_path / "ok", rings, mesh=mesh)
+    assert code == 0, _failed(p)
+    code, p = _run(tmp_path / "doppelt", rings, mesh=mesh, traj_mutator=double)
+    assert "M6b" in _failed(p), _failed(p)
+    assert any("mehr als einmal" in e["message"] for e in p["rules"]["M6b"]["examples"])
+
+
 def test_oracle_never_imports_roboprint_or_verify():
     """Unabhaengigkeit (AUFTRAG, Rahmen): kein Modul von verify_muster importiert roboprint oder verify."""
     import ast

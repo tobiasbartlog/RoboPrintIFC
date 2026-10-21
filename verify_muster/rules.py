@@ -33,6 +33,7 @@ CONTACT_TOL_MM = ct.CONTACT_TOL_MM
 PUMP_KINDS = ("print", "link")
 KNOWN_KINDS = ("print", "link", "approach", "retract", "lift", "transfer", "lower")
 MAX_EXAMPLES = 20
+DOUBLE_RING = "Ring mehr als einmal gedruckt"
 
 
 @dataclass
@@ -458,7 +459,8 @@ def _print_gaps(ring_xy: np.ndarray, closed: bool, tcp_xy: np.ndarray) -> tuple[
     aufeinanderfolgenden Samples ist die uebersprungene Laenge Δs - |Δp|; ein Sprung quer ueber den
     Ring (Strang laeuft weiter, Raupe fehlt) oder ein Ruecksprung faellt so auf, auch wenn jedes Sample
     selbst auf dem Ring liegt. Offene Ringe muessen zudem am Anfang beginnen und am Ende enden;
-    geschlossene Ringe (Bogenlaenge modulo L) muessen einmal ganz herum laufen.
+    geschlossene Ringe (Bogenlaenge modulo L) muessen genau einmal ganz herum laufen: Summe der
+    Schritte = L, weniger ist eine Luecke, mehr eine zweite Runde ueber die frische Raupe.
     Rueckgabe: (Luecke mm, Sample-Position in tcp_xy, Art)."""
     dense = g.densify(ring_xy, 0.2)
     s_d = g.arclen(dense)
@@ -481,6 +483,13 @@ def _print_gaps(ring_xy: np.ndarray, closed: bool, tcp_xy: np.ndarray) -> tuple[
         cands.append((float(-ds[mb]), mb + 1, "rueckwaerts"))
     if closed:
         cands.append((float(L - ds.sum()) if len(ds) else L, len(tcp_xy) - 1, "Ring nicht ganz gedruckt"))
+        if len(ds):
+            # mehr als eine Runde (Anfang = Ende, daher kein Ruecksprung): Duese faehrt ueber die eigene,
+            # gerade gelegte Raupe; Position = erstes Sample hinter der ersten vollen Runde
+            cum = np.cumsum(ds)
+            over = float(cum[-1] - L)
+            m = int(np.argmax(cum > L + GAP_TOL_MM)) + 1 if over > GAP_TOL_MM else len(tcp_xy) - 1
+            cands.append((over, m, DOUBLE_RING))
     else:
         cands.append((float(sp[0]), 0, "Ringanfang fehlt"))
         cands.append((float(L - sp[-1]), len(tcp_xy) - 1, "Ringende fehlt"))
@@ -549,9 +558,10 @@ def check_m6b(C: Ctx) -> Rule:
         gap, m, what = _print_gaps(r.pts[:, :2], closed, tr.tcp[idx, :2])
         worst_gap = max(worst_gap, gap)
         if gap > GAP_TOL_MM:
-            R.fail(r.layer, r.index, tr.tcp[idx[m], :2],
-                   f"Raupe unvollstaendig: {what}, {gap:.1f} mm des Rings ohne print-Sample "
-                   f"(bei Sample {idx[m]})", sample=int(idx[m]), gap_mm=gap)
+            text = (f"Raupe doppelt: {what}, {gap:.1f} mm ueber die eigene Raupe" if what == DOUBLE_RING
+                    else f"Raupe unvollstaendig: {what}, {gap:.1f} mm des Rings ohne print-Sample")
+            R.fail(r.layer, r.index, tr.tcp[idx[m], :2], f"{text} (bei Sample {idx[m]})",
+                   sample=int(idx[m]), gap_mm=gap)
     R.metrics["max_deviation_mm"] = round(worst, 3)
     R.metrics["max_print_gap_mm"] = round(worst_gap, 3)
     return R
