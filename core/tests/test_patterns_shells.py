@@ -193,3 +193,19 @@ def test_v_notch_base_pattern_stays_inside_and_printable(T, depth, extra):
     sec = {0: g, 1: g}
     rep = pt.measure(pt.plan_pattern(sec, p), sec, p)
     assert rep.ok, [v.to_dict() for v in rep.errors][:3]
+
+
+@pytest.mark.parametrize("length", [600.0, 1200.0])
+@pytest.mark.parametrize("extra", [{}, {"outfill": "topologie"}, {"infill": "sinus"}])
+def test_rect_notch_single_shell_has_no_near_duplicate_kink(length, extra):
+    """Rechteckkerbe, eine Schale: Der gerundete Offset-Ring hatte am Bogenstoß einen Rückwärts-
+    schritt von 0,006 mm; er blieb beim Abtasten als Ecke erhalten (falscher M6-Fehler r = 1,3 mm)."""
+    g = box(0, 0, length, 200).difference(box(length / 2 - 30, -1, length / 2 + 30, 20))
+    p = pt.params_from_dict({"shells": 1, **extra})
+    sec = {0: g, 1: g}
+    paths = pt.plan_pattern(sec, p)
+    for seg in paths[0].segments:
+        steps = np.linalg.norm(np.diff(seg.points, axis=0), axis=1)
+        assert steps.min() > 0.02, (seg.kind, steps.min())
+    rep = pt.measure(paths, sec, p)
+    assert rep.ok, [v.to_dict() for v in rep.errors][:3]
