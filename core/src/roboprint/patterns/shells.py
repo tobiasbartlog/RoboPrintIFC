@@ -229,12 +229,17 @@ def clear_end(loop: Loop, t_from: float, trans: np.ndarray, w: float) -> float:
     return float(ts[max(int(bad[0]) - 1, 0)])
 
 
+def _outside_area(ctx: IslandContext, trans: np.ndarray) -> float:
+    """Fläche der Raupe der Kurve `trans` außerhalb der Insel ⊕ 1 mm (M5)."""
+    return float(LineString(trans).buffer(ctx.params.w / 2.0).difference(ctx.region.buffer(1.0)).area)
+
+
 def _transition_gap(ctx: IslandContext, ring: Loop, start: float, trans: np.ndarray) -> float | None:
     """Kleinster Abstand der S-Kurve am Ende eines Einzelrings zum Ringanfang, oder None, wenn die
     Raupe aus der Insel ⊕ 1 mm ragt (M5) oder näher als (1 − ε)·w − CLEAR_TOL_MM kommt (M2; die
     Feinkurve liegt bis 0,1 mm innerhalb der späteren Abtastung, deren Sehnen nach innen schneiden)."""
     w = ctx.params.w
-    if LineString(trans).buffer(w / 2.0).difference(ctx.region.buffer(1.0)).area > 1.0:
+    if _outside_area(ctx, trans) > 1.0:
         return None
     gap = _min_dist(densify(trans, 1.0), densify(ring.sub(start, start + 4.0 * w), 1.0))
     return gap if gap >= (1.0 - ctx.params.eps) * w - CLEAR_TOL_MM else None
@@ -242,7 +247,7 @@ def _transition_gap(ctx: IslandContext, ring: Loop, start: float, trans: np.ndar
 
 def close_single(
     ctx: IslandContext, ring: Loop, start: float, virtuals: list[Loop]
-) -> tuple[float, np.ndarray, float, bool]:
+) -> tuple[float, np.ndarray, float, bool] | None:
     """Ende eines Einzelrings mit S-Kurve auf die gedachte Bahn, die die Wand am Ringanfang schließt.
 
     Die S-Kurve zielt auf den Punkt der gedachten Bahn neben ring(start + δ). δ = 0 trifft bei der
@@ -250,7 +255,9 @@ def close_single(
     Außenschale), δ = 1,5·w die anschließende Gerade: ein Viertelbogen R = 1,5·w = 45 mm, der den
     Ringstart in 30,4 mm berührt (S1). Gewählt wird das erste (Bahn, δ), dessen S-Kurve in der Insel
     liegt, nicht überlappt und den Ringanfang berührt (≤ w + contact_tol); sonst die erste gültige.
-    Rückgabe (Ende auf `ring` als Bogenlänge, S-Kurve, ℓ, geschlossen)."""
+    Rückgabe (Ende auf `ring` als Bogenlänge, S-Kurve, ℓ, geschlossen), oder None, wenn keine S-Kurve
+    in der Insel liegt und den Ringanfang freilässt (kurze, schmale Module: Die S-Kurve liefe bis an
+    die Außenfläche, M5). Der Aufrufer schließt den Ring dann ohne Abgang (`open_end_failed`)."""
     p = ctx.params
     first = None
     for v in virtuals:
@@ -265,7 +272,10 @@ def close_single(
             first = first or cand
     if first is not None:
         return first
+    # Letzter Versuch ohne Versatz; er muss wenigstens in der Insel liegen (M5), sonst kein Abgang
     ell, trans, _ = lane_change(ring, virtuals[-1], start, p)
+    if _outside_area(ctx, trans) > 1.0:
+        return None
     return start - ell, trans, ell, False
 
 
@@ -375,6 +385,17 @@ def _chain(
             # gekürzt, sie gibt nur die Richtung der S-Kurve ins Infill vor (Infill passt oft noch)
             virtuals.append(Loop(max(ext, key=lambda r: abs(_area(r)))))
     virtual = virtuals[0] if virtuals else None
+    single = None
+    if len(loops) == 1 and virtual is not None:
+        single = close_single(ctx, loops[0], start, virtuals)
+        if single is None:
+            # keine S-Kurve ins Infill-Band liegt in der Insel: Ring schließen, kein Abgang
+            # (build_island lässt das Infill dann mit Hinweis entfallen)
+            virtual = None
+            meta["open_end_failed"] = (
+                "Einzelring: keine S-Kurve ins Infill-Band liegt in der Insel (Insel zu kurz bzw. zu "
+                "schmal für w); Ring geschlossen, Infill entfällt"
+            )
     if len(loops) == 1 and virtual is None:
         pts = loops[0].sub(start, start)
         pts = _fine(pts, p, closed=True)
@@ -387,7 +408,8 @@ def _chain(
         nxt = loops[k + 1] if k < len(loops) - 1 else virtual
         if nxt is not None:
             if nxt is virtual and len(loops) == 1:  # Einzelring: S-Kurve schließt die Wand
-                t_cut, trans, ell, closed = close_single(ctx, lp, start, virtuals)
+                assert single is not None
+                t_cut, trans, ell, closed = single
                 tb = start
                 if not closed:
                     meta["open_wall"] = True  # Spalt zwischen S-Kurve und Ringanfang

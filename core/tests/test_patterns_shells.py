@@ -209,3 +209,21 @@ def test_rect_notch_single_shell_has_no_near_duplicate_kink(length, extra):
         assert steps.min() > 0.02, (seg.kind, steps.min())
     rep = pt.measure(paths, sec, p)
     assert rep.ok, [v.to_dict() for v in rep.errors][:3]
+
+
+@pytest.mark.parametrize("infill", ["sinus", "zickzack", "trapez"])
+@pytest.mark.parametrize(("size", "w"), [((300, 120), 35.0), ((300, 110), 35.0), ((340, 140), 40.0)])
+def test_single_shell_s_curve_outside_falls_back(infill, size, w):
+    """Gegenprüfung M6 (Runde 2): Eine Schale plus Infill in kurzen, schmalen Modulen. Liegt keine
+    S-Kurve des Einzelrings (`close_single`) in der Insel, schließt der Kern den Ring und lässt das
+    Infill mit Hinweis entfallen, statt die S-Kurve bis an die Außenfläche zu legen (M5-Fehler)."""
+    L, T = size
+    g = box(-L / 2, -T / 2, L / 2, T / 2)
+    sec = {0: g, 1: g}
+    p = pt.params_from_dict({"bead_width_mm": w, "shells": 1, "infill": infill})
+    paths = pt.plan_pattern(sec, p)
+    rep = pt.measure(paths, sec, p)
+    assert rep.ok, sorted(rep.rules_violated())
+    outer = paths[0].segments[0]
+    assert outer.kind == "outer"
+    assert np.abs(outer.points[:, 1]).max() <= T / 2 - w / 2 + 0.6

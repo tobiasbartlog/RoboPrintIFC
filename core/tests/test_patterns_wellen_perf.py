@@ -293,8 +293,11 @@ def test_short_virtual_lane_keeps_infill(monkeypatch):
     )
     new = pt.plan_pattern(sections, p)
     path = new[0]
-    assert path.meta["infill"].get("half_waves") == 1, path.meta["infill"]
-    assert "shells_dropped" not in path.meta
+    # Gegenprüfung M6 (Runde 2): Die eine Halbwelle passte nicht gültig. Die S-Kurve des
+    # Einzelrings (Rückfall auf 1 Schale, mit R = 200 mm sind 2 Schalen ungültig) lag mit 1562 mm²
+    # außerhalb des Querschnitts (M5). Jetzt: Ring geschlossen, Infill entfällt mit Hinweis.
+    assert "Infill entfällt" in path.meta["infill"].get("skipped", ""), path.meta["infill"]
+    assert pt.measure(new, sections, p).ok
     with monkeypatch.context() as m:
         _use_reference(m)
         old = pt.plan_pattern(sections, p)
