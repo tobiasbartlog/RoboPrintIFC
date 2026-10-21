@@ -31,7 +31,8 @@ Die erste Zeile setzt nur das Skript.
 | Katalog final mit Roboterkennzahlen (`docs/muster/MUSTERKATALOG.md`, 17 Muster × 4 Querschnitte) | M5 | erledigt, gemergt | v2/muster-katalog | a714579 |
 | Gegenprüfung und Härtung (Finder → Verifikation → Fixes) | M6 | läuft (wf_ec0731df-a69) | v2/muster-haertung | |
 | Backlog: Parameterstudie Fugenwand und Wellen (`docs/muster/PARAMETERSTUDIE.md`, 1064 Läufe) | Backlog | erledigt, gemergt | v2/muster-studie | 9e53fd4 |
-| Backlog: alle S2-Wände mit Rautenkette (S6), Planerlaufzeit | Backlog | läuft (wf_44ab3058-46d) | v2/muster-s2 | |
+| Backlog: alle S2-Wände mit Rautenkette (S6, `docs/muster/S2-RAUTENKETTE.md`) | Backlog | erledigt, gemergt; 22 Kopfmodule mit Schräge verletzen M1–M4/M6 | v2/muster-s2 | cb16c11 |
+| Fugenwand bei veränderlichem Querschnitt (Abschrägung am Wandkopf) | M6 | läuft | v2/muster-fugenschraege | |
 | Kernfehler `shells.shell_chain`/`clear_end` stürzt bei Inseln < ~4·w ab (auch Grundmuster) | M6 | offen | v2/muster-haertung | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
 
@@ -201,3 +202,11 @@ Die erste Zeile setzt nur das Skript.
   (Infill entfällt, Rückfall) erreichen Toolpath, Bericht und Viewer; Job-API lehnt unbekannte
   `pattern_params` mit 422 ab; CLI lehnt NaN ab.
 - Katalogtest nach dem Merge an den neuen Empfehlungstext angepasst. Runde 2 läuft.
+
+### 2026-10-21 03:50 S6 (S2 mit Rautenkette) gemergt (Session start)
+- 172/172 Teile machbar (d_min 10,83 mm, G5 grün). 150 volle Module erfüllen M1–M7 (1 Strang/Schicht,
+  100 % senkrechte Wechsel). Feldlänge Ziel 225 mm → 3 Felder à 200 mm bei 600-mm-Modulen, r = 30 mm, ohne Warnung.
+- 22 Kopfmodule mit 45°-Schräge: Fugenwand teilt jede Schicht neu ein → M3 bis 4279 mm², M4 35–41 %, M2-Kreuzung,
+  M6 r 6,7 mm; oberste 3 Schichten (< 30 mm Dicke) leer. `topologie` (Abschrägung) löst dieselben Querschnitte
+  ohne Regelfehler. S6 im Runner vorerst als „belegt nicht machbar“ eingetragen. Fix-Agent gestartet.
+- Laufzeit S6 218–267 s (S2 ohne Muster 170 s), Druckzeit −1,6 %, Material 1,02× S2.
