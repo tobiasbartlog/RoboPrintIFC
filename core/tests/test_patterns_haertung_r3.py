@@ -45,7 +45,31 @@ LOCH = {
 }
 
 
-HOLE_PATTERNS = ["schalen", "topologie", "fugenwand", "aussenwelle", "fermat", "maeander"]
+@pytest.mark.parametrize(
+    ("size", "params"),
+    [
+        ((600, 300), {"transition_radius_mm": 150, "infill": "sinus"}),
+        ((600, 300), {"transition_radius_mm": 200, "infill": "zickzack"}),
+        ((600, 365), {"transition_radius_mm": 185.8, "infill": "sinus", "shells": 1}),
+        ((450, 250), {"transition_radius_mm": 170.9, "infill": "maeander", "shells": 3,
+                      "bead_width_mm": 24.8}),  # fmt: skip
+        ((1200, 300), {"transition_radius_mm": 125, "infill": "zickzack", "bead_width_mm": 22.6}),
+    ],
+)
+def test_large_transition_radius_with_infill_stays_in_part(size, params):
+    """Gegenprüfung M6 (Runde 3, gemeldet: Schale 1 bis 13 mm außerhalb der Stirnfläche, M5). Auf
+    v2/muster-haertung nicht nachstellbar (Kern, Vorschau und run-scenario + verify_muster grün);
+    der Test hält das Verhalten fest: kein M5, Pfad ok."""
+    from shapely.geometry import box
+
+    sec0 = box(-size[0] / 2, -size[1] / 2, size[0] / 2, size[1] / 2)
+    sec = {i: sec0 for i in range(3)}
+    prm = pt.params_from_dict(params)
+    rep = pt.measure(pt.plan_pattern(sec, prm), sec, prm)
+    assert rep.ok, [(v.rule, v.value, v.at) for v in rep.errors][:3]
+
+
+HOLE_PATTERNS =["schalen", "topologie", "fugenwand", "aussenwelle", "fermat", "maeander"]
 
 
 @pytest.mark.parametrize("pattern", HOLE_PATTERNS)
