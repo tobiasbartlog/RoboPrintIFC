@@ -32,7 +32,7 @@ Die erste Zeile setzt nur das Skript.
 | Gegenprüfung und Härtung (Finder → Verifikation → Fixes) | M6 | läuft (wf_ec0731df-a69) | v2/muster-haertung | |
 | Backlog: Parameterstudie Fugenwand und Wellen (`docs/muster/PARAMETERSTUDIE.md`, 1064 Läufe) | Backlog | erledigt, gemergt | v2/muster-studie | 9e53fd4 |
 | Backlog: alle S2-Wände mit Rautenkette (S6, `docs/muster/S2-RAUTENKETTE.md`) | Backlog | erledigt, gemergt; 22 Kopfmodule mit Schräge verletzen M1–M4/M6 | v2/muster-s2 | cb16c11 |
-| Fugenwand bei veränderlichem Querschnitt (Abschrägung am Wandkopf) | M6 | läuft | v2/muster-fugenschraege | |
+| Fugenwand bei veränderlichem Querschnitt (Abschrägung am Wandkopf): Köpfe M2–M7 fehlerfrei | M6 | erledigt, gemergt | v2/muster-fugenschraege | 2e1539e |
 | Kernfehler `shells.shell_chain`/`clear_end` stürzt bei Inseln < ~4·w ab (auch Grundmuster) | M6 | offen | v2/muster-haertung | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
 
@@ -70,7 +70,12 @@ Die erste Zeile setzt nur das Skript.
    berichtet wird. Ohne Muster bleibt G3 unverändert.
 2. **Standard-Schichtfolge:** Empfehlung `alternate` (senkrechter Schichtwechsel, 1 Strang je Schicht, gleiche
    Planerzeit wie S1), erst nach Entscheidung 1, weil sonst G3-Abdeckung 94,4 % < 95 %.
-3. **S2 ohne Öffnungen:** `examples/Building-Architecture.ifc` hat keine Öffnungen; S5 ist synthetisch
+3. **Schichten dünner als w am Wandkopf (S6):** In den 20 Kopfmodulen sind die obersten drei Schichten 20,7 /
+   10,7 / 0,7 mm dick, also schmaler als die Raupe (w = 30 mm). Mit Muster bleiben sie leer (M1 rot, G3-Abdeckung
+   dort 0 %); ohne Muster druckt der Slicer dort einen Ring, der über den Querschnitt hinausragt. Empfehlung:
+   SPEC-Regel „Schichten mit Dicke < w werden nicht gedruckt (Nacharbeit von Hand)“ oder die Zerlegung schneidet
+   den Kopf so, dass die Schräge erst ab Dicke ≥ w beginnt. Bis dahin ist S6 „belegt nicht machbar (M1)“.
+4. **S2 ohne Öffnungen:** `examples/Building-Architecture.ifc` hat keine Öffnungen; S5 ist synthetisch
    (`scripts/muster_s5_ifc.py`). Empfehlung: ein Beispiel-IFC mit Fenster/Tür ins Repo, damit G4 Öffnungen prüft.
 
 ## Protokoll
@@ -220,3 +225,13 @@ Die erste Zeile setzt nur das Skript.
   grün; Eckenrundung schneidet an L/T-Querschnitten Schenkel ab; Topologie-Randöffnung bei ungerader Zahl
   Brüstungsschichten; Innenloch-Querschnitte); Fixes laufen.
 - Nach Merge: ruff grün, `pytest core verify_muster`: 1078 grün, 7 übersprungen.
+
+### 2026-10-21 05:30 Fugenwand an Abschrägungen gemergt (Session start)
+- Fugenwand erkennt Abschrägungen über das ganze Teil: Fugen der zurückweichenden Seite bleiben über den
+  Modulen darunter, die feste Seite ist ein Doppelring ohne Fugen (eine Fuge wäre eine Kerbe, die sich oben
+  nie schließt: 644 mm² Überhang je Fuge), in der Schräge fallen Raupen nur weg (U-Formen). Rechtecke bitgleich.
+- S6 neu: 172/172 machbar, M2–M7 in allen Teilen grün, 100 % senkrechte Wechsel; nur M1 in den 20 Köpfen
+  (oberste drei Schichten < w, physikalisch nicht druckbar) → Erwartung „belegt nicht machbar (M1)“.
+- Gegenprüfung: Dickensprung kürzte alle Vollschichten statt nur der letzten; Teil-Cache ignorierte
+  Schichtnummern; beides behoben. Offen: beidseitige Abschrägung erkennt weder Fugenwand noch Topologie;
+  Topologie-Rückfall kürzt die letzte Vollschicht (nicht auf dem Fugenwand-Pfad).
