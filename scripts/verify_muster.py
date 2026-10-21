@@ -114,7 +114,7 @@ def _load(path: Path) -> Any:
 
 
 def find_scenarios(selected: list[str] | None, fast: bool) -> list[Path]:
-    paths = sorted(SCEN_DIR.glob("S[45]_muster_*.json"))
+    paths = sorted(SCEN_DIR.glob("S[4-9]_muster_*.json"))
     if selected:
         out = []
         for s in selected:
@@ -127,7 +127,7 @@ def find_scenarios(selected: list[str] | None, fast: bool) -> list[Path]:
         paths = out
     if fast:
         paths = [p for p in paths if (_load(p) or {}).get("expect", {}).get("muster", {}).get("fast")]
-    # schnelle zuerst, dann S4 vor S5, sonst alphabetisch
+    # schnelle zuerst, dann S4 vor S5 vor S6 (ganze IFC-Szenarien mit Zerlegung), sonst alphabetisch
     return sorted(
         paths, key=lambda p: (not (_load(p) or {}).get("expect", {}).get("muster", {}).get("fast"), p.name)
     )

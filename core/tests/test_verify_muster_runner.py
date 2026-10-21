@@ -188,3 +188,17 @@ def test_s5_ifc_is_deterministic_wall_with_one_opening(tmp_path):
     o = wall.openings[0]
     assert (o.x0, o.x1, o.z0, o.z1) == pytest.approx((180.0, 420.0, 150.0, 400.0))
     assert wall.volume_mm3 == pytest.approx(600 * 200 * 400 - 240 * 250 * 200)
+
+
+def test_s6_whole_ifc_scenario_is_found_but_not_fast(vm):
+    """S6 (ganze S2-IFC mit Zerlegung und Rautenkette) gehört zum vollen Lauf, nicht zu --fast."""
+    full = [p.name for p in vm.find_scenarios(None, False)]
+    fast = [p.name for p in vm.find_scenarios(None, True)]
+    assert "S6_muster_s2_raute.json" in full
+    assert "S6_muster_s2_raute.json" not in fast
+    last_s5 = max(i for i, n in enumerate(full) if n.startswith("S5_"))
+    assert full.index("S6_muster_s2_raute.json") > last_s5
+    sc = json.loads((SCEN / "S6_muster_s2_raute.json").read_text(encoding="utf-8"))
+    assert sc["decompose"] is True and sc["source"]["path"] == "examples/Building-Architecture.ifc"
+    assert sc["limits"]["wall_time_s"] == 1800  # G7-Grenze von S2
+    assert json.loads(sc["params"]["pattern_params"]) == {"field_length_mm": 225.0}
