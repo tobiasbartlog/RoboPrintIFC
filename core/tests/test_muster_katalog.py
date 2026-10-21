@@ -39,8 +39,9 @@ def test_katalog_ein_preset(tmp_path):
     ET.fromstring((tmp_path / "img" / "sinus_600x200.svg").read_text(encoding="utf-8"))  # gültiges XML
 
     # Neu erzeugen: Text außerhalb der Marker bleibt erhalten
-    assert "*Entwurf" in text
-    out.write_text(text.replace("*Entwurf", "EIGENER TEXT *Entwurf", 1), encoding="utf-8")
+    mark = "*Entwurf, vom Nutzer"
+    assert mark in text
+    out.write_text(text.replace(mark, "EIGENER TEXT " + mark), encoding="utf-8")
     assert mk.main(_args(tmp_path)) == 0
     assert "EIGENER TEXT" in out.read_text(encoding="utf-8")
 
