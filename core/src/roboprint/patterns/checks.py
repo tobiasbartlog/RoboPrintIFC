@@ -4,7 +4,9 @@ Der Kern prüft in `PatternParams.validate` nur harte Grenzen (w > 0, shells ≥
 Musterparameter über ihre ParamSpecs. Die Bereiche der Kernregler (`CORE_PARAM_SPECS`, z. B.
 w ∈ [10, 60] mm, shells ∈ [1, 4]) prüft er nicht, und unbekannte Schlüssel landen still in
 `extra`. Ein Tippfehler wie `bead_with_mm` gäbe dann ohne Meldung den Standardwert. Diese
-Prüfungen holt `check_spec` mit deutschen Meldungen nach.
+Prüfungen holt `check_spec` mit deutschen Meldungen nach, ebenso die übrigen Kernwerte ohne Regler
+(`RULE_PARAM_SPECS`: Abtastung, Toleranzen nur strenger als die Regel, v > 0) und die Regelkonstante ε.
+`check_outline` begrenzt auch Größe und Punktzahl eines Polygon-Querschnitts.
 
 `flag_empty` markiert eine Vorschau ohne Pfad als Regelfehler: Ist der Querschnitt zu schmal
 für Strangbreite und Schalenzahl, liefert der Kern keine Pfade und keine Verstöße, also `ok`.
@@ -23,6 +25,24 @@ from roboprint.patterns.types import CORE_FIELDS, CORE_PARAM_SPECS, ParamSpec
 
 #: Schlüssel, die `preset_params` selbst auswertet
 STRUCTURE_KEYS = frozenset({"extra"})
+
+#: Übrige Kernwerte ohne Regler: Abtastung, Toleranzen der Regeln, Geschwindigkeit. Die Grenzen
+#: halten die Vorschau schnell (step_mm < 2 mm: Krümmungsrauschen und quadratischer Aufwand der
+#: M2-Paarsuche) und erlauben Toleranzen nur strenger als die Regel (SPEC §10, AUFTRAG M2/M3/M6).
+RULE_PARAM_SPECS: tuple[ParamSpec, ...] = (
+    ParamSpec("step_mm", "Wegpunktabstand", 20.0, "mm", 2.0, 100.0),
+    ParamSpec("chord_tol_mm", "Sehnenfehler", 0.5, "mm", 0.05, 0.5),
+    ParamSpec("delta_mm", "Überhangtoleranz δ", 2.0, "mm", 0.0, 2.0),
+    ParamSpec("v_print_mm_s", "Druckgeschwindigkeit", 100.0, "mm/s", 1.0, 1000.0),
+    ParamSpec("link_max_mm", "Längster Verbinder", 60.0, "mm", 0.0, 60.0),
+    ParamSpec("contact_tol_mm", "Kontakttoleranz", 0.5, "mm", 0.0, 0.5),
+)
+#: Regelkonstanten (AUFTRAG M2/M7: ε = 0,15); jeder andere Wert ist ein Fehler
+RULE_CONSTANTS: Mapping[str, float] = {"eps": 0.15}
+
+#: Größe eines Polygon-Querschnitts (wie `PatternOutlineBox.length_mm` ≤ 20000)
+OUTLINE_MAX_EXTENT_MM = 20000.0
+OUTLINE_MAX_POINTS = 5000
 
 
 def _fmt(v: float, unit: str) -> str:
@@ -66,9 +86,17 @@ def check_spec(spec: Mapping[str, Any]) -> None:
 
     ValueError mit deutscher Meldung bei falschem Wert, KeyError bei unbekanntem Muster."""
     raw = dict(spec.get("params") or {})
-    for ps in CORE_PARAM_SPECS:
+    for ps in (*CORE_PARAM_SPECS, *RULE_PARAM_SPECS):
         if raw.get(ps.name) is not None:
             check_value(ps, raw[ps.name])
+    for name, value in RULE_CONSTANTS.items():
+        v = raw.get(name)
+        if v is not None and (
+            isinstance(v, bool) or not isinstance(v, int | float) or abs(float(v) - value) > 1e-12
+        ):
+            raise ValueError(
+                f"{name} = {v!r}: ε ist eine Regelkonstante (AUFTRAG M2, M7) und bleibt {value:g}"
+            )
     try:
         params = preset_params(spec)
     except TypeError as exc:
@@ -100,7 +128,17 @@ def check_outline(outline: Any) -> None:
         return
     from shapely.validation import explain_validity
 
+    if isinstance(outline, Mapping) and "polygon" in outline:
+        n = len(outline["polygon"]) + sum(len(h) for h in outline.get("holes") or [])
+        if n > OUTLINE_MAX_POINTS:
+            raise ValueError(f"Querschnitt hat {n} Punkte, höchstens {OUTLINE_MAX_POINTS} sind erlaubt")
     geom = make_outline(outline)
+    if not geom.is_empty:
+        x0, y0, x1, y1 = geom.bounds
+        if max(x1 - x0, y1 - y0) > OUTLINE_MAX_EXTENT_MM:
+            raise ValueError(
+                f"Querschnitt zu groß: {max(x1 - x0, y1 - y0):g} mm, höchstens {OUTLINE_MAX_EXTENT_MM:g} mm"
+            )
     if geom.is_empty or geom.area <= 0:
         raise ValueError("Querschnitt ohne Fläche (Punkte auf einer Linie oder Selbstüberschneidung?)")
     if not geom.is_valid:
