@@ -30,7 +30,7 @@ Die erste Zeile setzt nur das Skript.
 | Testdrucke je Muster: 12 Testkörper, alle machbar, v2+v3 von fake_drcf akzeptiert (`docs/muster/testdrucke/`) | M5 | erledigt, gemergt | v2/muster-testdrucke | bf48e16 |
 | Katalog final mit Roboterkennzahlen (`docs/muster/MUSTERKATALOG.md`, 17 Muster × 4 Querschnitte) | M5 | erledigt, gemergt | v2/muster-katalog | a714579 |
 | Gegenprüfung und Härtung (Finder → Verifikation → Fixes) | M6 | läuft (wf_ec0731df-a69) | v2/muster-haertung | |
-| Backlog: Parameterstudie Fugenwand und Wellen | Backlog | läuft (wf_e4c5bf50-262) | v2/muster-studie | |
+| Backlog: Parameterstudie Fugenwand und Wellen (`docs/muster/PARAMETERSTUDIE.md`, 1064 Läufe) | Backlog | erledigt, gemergt | v2/muster-studie | 9e53fd4 |
 | Kernfehler `shells.shell_chain`/`clear_end` stürzt bei Inseln < ~4·w ab (auch Grundmuster) | M6 | offen | v2/muster-haertung | |
 | Abschluss: Morgenbericht, PROGRESS, Draft-PR | M7 | offen | v2/muster | |
 
@@ -183,3 +183,10 @@ Die erste Zeile setzt nur das Skript.
   (Runner: 15 Szenarien GRÜN), Vor- und Nachteile, Empfehlungsentwurf `fugenwand_raute`.
 - M6 läuft (wf_ec0731df-a69): vier Finder (Geometrie, Prüfer, Robustheit, Integration), Verifikation, Fixes.
 - Offen notiert: Provenienzzeile im DRL enthält den absoluten Pfad des Worktrees (Emitter in core).
+
+### 2026-10-21 02:25 Parameterstudie gemergt (Session start)
+- Rautenkette schlägt Gurt (Gurt +6 … +43 % Material, bei 200 mm Wand Mäander statt V). Rautenkette bei 200 mm
+  Wand warnungsfrei erst mit Feldlänge ≤ 250 mm (Ist 240 mm bei Modul 1200), Material 1,06 relativ zu Schalen.
+  Bei 250–365 mm Wand Feldlänge 300 mm. Die Feldlänge springt wegen ganzer Felder (Ziel = Modullänge/n).
+- Wellen: Zickzack λ ≈ 220–300 mm; mit 2 Schalen stützt das Infill die Außenhaut nicht (Außenstrecke = Modullänge).
+- Hinweis: Der Studien-Agent hat `matplotlib`/`pandas` in `/opt/fgc-venv` installiert (nur für das Skript).
