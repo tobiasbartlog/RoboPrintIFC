@@ -255,7 +255,8 @@ def test_preview_waves_below_100ms(shape):
     damit G8 nicht zufällig rot wird. Die Zielverfehlung steht im Morgenbericht."""
     data = {"pattern": shape, "params": {}}
     for size in ((600.0, 200.0), (1200.0, 200.0)):
-        pt.preview(data, size)  # Aufwärmen
+        for _ in range(2):  # Aufwärmen (Import, Caches)
+            pt.preview(data, size)
         ts = []
         for _ in range(5):
             t = time.perf_counter()
