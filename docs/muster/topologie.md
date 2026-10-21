@@ -59,6 +59,10 @@ Bei einer Randöffnung läuft das Feld als Spirale aus zwei Spuren bis zum Modul
 
 Dadurch liegt jede Pfeilerraupe **exakt** auf einer Raupe der Schicht darunter (Überhang 0 mm²),
 und der Schichtwechsel an der Brüstungsoberkante ist sogar senkrecht (Ende Brüstung = Start Pfeiler).
+Bei der Randöffnung bleibt die Inselzahl 1, der Wechsel muss also senkrecht sein (M4). Beginnt der
+Pfeiler in einer ungeraden Schicht (mit `alternate` umgekehrt gedruckt), läuft das ganze Teil
+umgekehrt (`meta.topology.reversed` an der Brüstung): Die letzte Brüstungsschicht endet dann am
+Pfeileranfang. Vorher war der Wechsel bei ungerader Brüstungsschichtzahl 163 mm diagonal.
 
 **Warum eine Fuge nötig ist (Beleg).** Lässt man die Brüstungsschalen durchlaufen, muss ein
 Steg die Laibungsschenkel des Pfeilers tragen. Überhang über der Laibungszone (x 200…300 mm,
@@ -177,6 +181,7 @@ w 25…40 mm, r 10…50 mm, Mittellauf 0…400 mm, Wand 90…400 mm).
 | Fenster (Standard, 2000 mm hoch, am Rand 152 mm, schmal 62 mm, Brüstung 1 Schicht, Wand 150/300/365) | ok, Überhang 0 mm², ein Strang je Insel, keine Kreuzung |
 | Randöffnung links/rechts, Pfeiler 160…1000 mm | ok, Überhang 0 mm² |
 | Tür bis zum Boden (zwei Inseln ab Schicht 0) | ok (prismatisch, allgemein) |
+| Querschnitt mit Loch (Schacht, z. B. 1200 × 365 mit 400 × 125) | ok (allgemein): Loch über einen Schlitz (0,1 mm) an der dünnsten Stelle mit dem Außenrand verbunden (`geometry.keyhole`), je Schale ein Ring durch den Schlitz um das Loch, die Raupen im Schlitz berühren sich (Fuge); bei 120 mm Steg 1 Schale (`shells_used`). Vorher Loch mit 340–373 mm langem Verbinder angehängt (M1/M2) |
 | Zwei Fenster (Mittelpfeiler) | nicht unterstützt: allgemein mit Hinweis, M3 18 161 mm² |
 | Sturz im Modul (Tür oder Fenster schließt oben) | M3 73 943 mm² (Brücke, physikalisch unvermeidbar; Zerlegung schneidet an der Sturzlinie) |
 | Randfeld 100 mm (Pfeiler 1100 von 1200 mm) | allgemein, M3 5171 mm² (Randfeld < 150 mm) |

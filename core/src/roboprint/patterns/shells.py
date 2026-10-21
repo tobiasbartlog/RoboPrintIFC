@@ -40,7 +40,9 @@ die exakte Umkehrung (plan.py). Ende L = Anfang L + 1, der Wechsel ist ein reine
 
 Zu schmale oder an Kerben zerfallende innere Schalen: `shell_chain` misst den Strang (M1, M2,
 M5, M6) und fällt auf die größte fehlerfreie Schalenzahl zurück (`meta.shells_dropped`).
-Löcher in einer Insel (Schacht im Querschnitt) und zerfallende Schalen (Hals schmaler als w)
+Löcher in einer Insel (Schacht im Querschnitt) verbindet `geometry.keyhole` über einen Schlitz an
+der dünnsten Stelle mit dem Außenrand; jede Schale ist dann ein Ring, der durch den Schlitz um das
+Loch läuft, die Raupen im Schlitz berühren sich (Fuge). Zerfallende Schalen (Hals schmaler als w)
 werden hier sonst nur angehängt (gerader Verbinder zum nächsten Punkt); M1/M2/M5 melden das. Die
 richtige Behandlung ist Aufgabe der Familie „Topologie“.
 """
@@ -60,6 +62,7 @@ from roboprint.patterns.geometry import (
     biarc_radius,
     centerline_band,
     densify,
+    keyhole,
     offset_region,
     offset_ring,
     resample_curve,
@@ -78,7 +81,9 @@ MIN_RING_W = math.pi
 
 
 def shell_lanes(region: Any, params: PatternParams) -> tuple[Lane, ...]:
-    """Schalenringe der Insel, Schale 0 zuerst; je Schale Außenkonturen vor Löchern."""
+    """Schalenringe der Insel, Schale 0 zuerst; je Schale Außenkonturen vor Löchern. Löcher werden
+    vorher über einen Schlitz mit dem Rand verbunden (`geometry.keyhole`): je Schale ein Ring."""
+    region = keyhole(region)
     out: list[Lane] = []
     for s in range(params.shells):
         rings = offset_ring(region, (s + 0.5) * params.w, params.corner_radius)
@@ -89,13 +94,13 @@ def shell_lanes(region: Any, params: PatternParams) -> tuple[Lane, ...]:
 
 
 def island_cavity(region: Any, params: PatternParams) -> Any:
-    """Hohlraum innerhalb der innersten Schale (Raupenkante)."""
-    return offset_region(region, params.shells * params.w, params.corner_radius)
+    """Hohlraum innerhalb der innersten Schale (Raupenkante), wie die Schalen mit Schlitz zum Loch."""
+    return offset_region(keyhole(region), params.shells * params.w, params.corner_radius)
 
 
 def island_band(region: Any, params: PatternParams) -> Any:
     """Fläche für Infill-Mittellinien, deren Raupe die innerste Schale gerade berührt."""
-    return centerline_band(region, params.shells, params.w)
+    return centerline_band(keyhole(region), params.shells, params.w)
 
 
 def _main_exterior(lanes: tuple[Lane, ...], shell: int) -> tuple[np.ndarray | None, list[np.ndarray]]:
@@ -340,10 +345,21 @@ def shell_chain(
     Schalenzahl; ist keine fehlerfrei (z. B. scharfe Ecken mit `corner_radius_mm = 0`, die jede
     Schalenzahl hat), bleibt es bei allen Schalen, und die Prüfung meldet die Fehler. Entfallen
     Schalen, steht das in `meta.shells_dropped` (Grund `regelfehler`, wie Restring und leerer
-    Ring). Ein Strang mit nur einer Schale wird nicht gemessen (kein Rückfall möglich)."""
+    Ring). Ein Strang mit nur einer Schale hat keinen Rückfall auf weniger Schalen; endet er offen
+    ins Infill (`close_single`) und hat er dann mehr Regelfehler als der geschlossene Ring (z. B.
+    M1 „Außenbahn ausgelassen“: die S-Kurve lässt bei Wanddicke ≈ 4·w mehr als max(2·w, ℓ₀) der
+    Außenbahn aus), steht der Grund in `meta.open_end_failed`; `build_island` lässt das Infill
+    dann mit Hinweis entfallen und schließt den Ring."""
     plan = _chain(ctx, ring0, ring0_kind, open_end, ctx.params.shells)
     n = int(plan.meta.get("shells", 0))
     if n <= 1:
+        if open_end and n == 1 and "open_end_failed" not in plan.meta:
+            errors = _chain_errors(ctx, plan)
+            if errors and _chain_errors(ctx, _chain(ctx, ring0, ring0_kind, False, 1)) < errors:
+                plan.meta["open_end_failed"] = (
+                    f"Einzelring: die S-Kurve ins Infill-Band hat {errors} Regelfehler (M1/M2/M5/M6, "
+                    "z. B. Außenbahn ausgelassen bei Wanddicke ≈ 4·w); Ring geschlossen, Infill entfällt"
+                )
         return plan
     errors = _chain_errors(ctx, plan)
     if not errors:

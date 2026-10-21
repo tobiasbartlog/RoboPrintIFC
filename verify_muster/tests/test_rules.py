@@ -236,6 +236,52 @@ def test_print_backwards_is_detected(tmp_path):
     assert _failed(p) == {"M6b"}, _failed(p)
 
 
+def _blocks(traj):
+    out: list[list[int]] = []
+    for k, s in enumerate(traj):
+        if out and (traj[out[-1][0]][1], traj[out[-1][0]][2]) == (s[1], s[2]):
+            out[-1].append(k)
+        else:
+            out.append([k])
+    return out
+
+
+def test_rings_in_wrong_order_with_pump_on_are_detected(tmp_path):
+    """Gegenpruefung M6 (Runde 3): Die Trajektorie druckt Ring 1 vor Ring 0 (Bloecke umsortiert:
+    approach, link(1), print(1), print(0), link(2), ...). Jeder Ring ist fuer sich vollstaendig
+    (M6b gruen), aber zwischen print(1) und print(0) liegt ein Sprung bei laufender Pumpe quer ueber
+    die Wand. check_run verwirft das; verify_muster muss es auch (M1)."""
+    rings = synth.stack(lambda L: [synth.two_shells()], N_LAYERS)
+
+    def reorder(traj):
+        b = _blocks(traj)
+        kinds = [(traj[x[0]][1], traj[x[0]][2]) for x in b[:7]]
+        assert kinds[3:6] == [("print", 0), ("link", 1), ("print", 1)], kinds
+        order = [0, 1, 2, 4, 5, 3] + list(range(6, len(b)))
+        return [traj[k] for j in order for k in b[j]]
+
+    code, p = _run(tmp_path / "ok", rings)
+    assert code == 0, _failed(p)
+    code, p = _run(tmp_path / "vertauscht", rings, traj_mutator=reorder)
+    assert "M1" in _failed(p), _failed(p)
+    assert "falscher Reihenfolge" in p["rules"]["M1"]["first"]["message"]
+
+
+def test_jump_between_rings_without_link_is_detected(tmp_path):
+    """print(Ring 0) -> print(Ring 1) ohne Verbinder, aber 60 mm auseinander: Sprung bei laufender
+    Pumpe (der Verbinder der Laenge 0 ist hoechstens w lang)."""
+    rings = synth.stack(lambda L: [synth.two_shells()], N_LAYERS)
+
+    def drop_link(traj):
+        pos = [k for k, s in enumerate(traj) if s[1] == "print" and s[2] == 1]
+        head = [k for k in pos if np.linalg.norm(traj[k][0][:2] - traj[pos[0]][0][:2]) < 60.0]
+        return [s for k, s in enumerate(traj) if not (s[1] == "link" and s[2] == 1) and k not in head]
+
+    code, p = _run(tmp_path, rings, traj_mutator=drop_link)
+    assert "M1" in _failed(p), _failed(p)
+    assert any("Sprung" in e["message"] for e in p["rules"]["M1"]["examples"])
+
+
 def test_closed_ring_printed_twice_is_detected(tmp_path):
     """Gegenpruefung M6 (Runde 2): Die Duese faehrt einen geschlossenen Ring auf derselben Hoehe zweimal
     ab (zweite Runde ueber die frische Raupe). Anfang = Ende, also kein Ruecksprung; die Abdeckung

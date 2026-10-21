@@ -113,7 +113,8 @@ Eine Familie anlegen (ohne Rückfrage, ohne Merge-Konflikt)
 Helfer für Familien
 ===================
 
-geometry.py: `polygons`, `offset_region`, `offset_ring`, `cavity`, `centerline_band`, `dedupe`,
+geometry.py: `polygons`, `keyhole` (Loch per Schlitz an den Rand), `offset_region`, `offset_ring`,
+`cavity`, `centerline_band`, `dedupe`,
 `arc_length`, `densify`, `resample_curve`, `curvature_radius`, `chord_error_estimate`, `Loop`
 (Ring mit Bogenlänge: point, points, tangent, project, sub, reversed), `arc_points`, `tangent_arc`,
 `biarc`, `biarc_radius` (nur der Radius, ohne Punkte), `fillet_polyline`. layout.py: `fit_to_length`,
@@ -153,6 +154,7 @@ from roboprint.patterns.geometry import (
     dedupe,
     densify,
     fillet_polyline,
+    keyhole,
     offset_region,
     offset_ring,
     polygons,
@@ -233,6 +235,7 @@ __all__ = [
     "make_outline",
     "measure",
     "names",
+    "keyhole",
     "offset_region",
     "offset_ring",
     "params_from_dict",

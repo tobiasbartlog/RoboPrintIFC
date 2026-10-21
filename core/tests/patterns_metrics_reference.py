@@ -325,7 +325,9 @@ def measure_path(
                     )
                 )
         ok = ~bad
-        contacts = _contact_zones(path, pts, arc, seg, i[ok], j[ok], d[ok], kinds, w)
+        contacts = canonical_contacts(path, pts, i[ok], j[ok], d[ok], w, _contact_zones, sample_path)
+        if contacts is None:
+            contacts = _contact_zones(path, pts, arc, seg, i[ok], j[ok], d[ok], kinds, w)
         contact_mid = (pts[i[ok]] + pts[j[ok]]) / 2
     if not LineString(path.polyline()).is_simple and not any(v.rule == "M2" for v in viol):
         viol.append(Violation("M2", "error", L, isl, tuple(path.start), 0.0, (1 - eps) * w, "Selbstschnitt"))
@@ -466,6 +468,43 @@ def measure_path(
         shell_coverage=coverage,
     )
     return met, viol
+
+
+def canonical_contacts(
+    path: LayerPath,
+    pts: np.ndarray,
+    i: np.ndarray,
+    j: np.ndarray,
+    d: np.ndarray,
+    w: float,
+    zones: Any,
+    sample: Any,
+) -> list[Contact] | None:
+    """Kontaktzonen in der kanonischen Druckrichtung (None: der Pfad läuft schon so).
+
+    Die Zonen (`zones` = `_contact_zones`) folgen der Druckreihenfolge (Lauf entlang der früher
+    gedruckten Seite, Segmentgruppen). Damit Schicht L + 1 (alternate, exakte Umkehrung) dieselben
+    Zonen meldet wie Schicht L, wird immer in einer festen Richtung gemessen: offen vom
+    lexikografisch kleineren Ende aus, geschlossen gegen den Uhrzeigersinn (Vorzeichen der Fläche).
+    Die Segmentindizes der Zonen werden auf den gegebenen Pfad zurückgerechnet."""
+    if path.closed:
+        x, y = pts[:, 0], pts[:, 1]
+        flip = float(np.dot(x[:-1], y[1:]) - np.dot(x[1:], y[:-1])) < -1e-6
+    else:
+        s, e = np.round(path.start, 6), np.round(path.end, 6)
+        flip = (float(s[0]), float(s[1])) > (float(e[0]), float(e[1]))
+    if not flip:
+        return None
+    rp = path.reversed(path.layer)
+    rpts, rarc, rseg = sample(rp)
+    if len(rpts) != len(pts) or not np.allclose(rpts, pts[::-1], atol=1e-9):
+        return None  # Abtastung nicht spiegelbildlich (kommt nicht vor): in Druckrichtung messen
+    n, m = len(pts), len(path.segments)
+    out = zones(rp, rpts, rarc, rseg, n - 1 - j, n - 1 - i, d, [s.kind for s in rp.segments], w)
+    return [
+        Contact(c.kind, c.at, c.length_mm, (m - 1 - c.segments[1], m - 1 - c.segments[0]), c.distance_mm)
+        for c in out
+    ]
 
 
 def _contact_zones(

@@ -128,6 +128,21 @@ def test_edge_opening(right):
         assert pt.face_clearance(e[None, :], box(0, 0, 1200, 200), (0, 0, 1200, 200), P.w)[0] > 0
 
 
+@pytest.mark.parametrize("right", [False, True])
+@pytest.mark.parametrize("n_sill", [1, 2, 3, 5, 6, 7])
+def test_edge_opening_vertical_change_for_any_sill_parity(n_sill, right):
+    """Gegenprüfung M6 (Runde 3): Bei ungerader Zahl voller Brüstungsschichten war der Wechsel auf
+    den Pfeiler 163 mm diagonal (M4, Inselzahl 1 → 1). Jetzt senkrecht, gleich welche Parität."""
+    sec = edge(n_sill=n_sill, right=right)
+    paths, rep = _ok(sec)
+    change = next(c for c in rep.layer_changes if c["from"] == n_sill - 1)
+    assert change["status"] != "diagonal"
+    a, b = next(q for q in paths if q.layer == n_sill - 1), next(q for q in paths if q.layer == n_sill)
+    assert np.linalg.norm(a.end - b.start) <= 0.5
+    small = edge(n_sill=n_sill, X=600.0, a=315.0, right=right)
+    _ok(small)
+
+
 def test_too_narrow_pier_falls_back_to_general():
     sec = window(z_sill=40.0, z_top=80.0, a=120.0, b=1080.0)
     paths = pt.plan_pattern(sec, P)

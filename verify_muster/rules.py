@@ -186,7 +186,7 @@ def check_m1(C: Ctx) -> Rule:
                    f"Strang unterbrochen: {kind[i]!r} (Ring {int(tr.ring[i])}) mitten in Schicht {L}, "
                    f"Insel {k}",
                    sample=i, island=k)
-        else:
+        elif _strand_order(R, C, L, k, a, kind[a : b + 1], seg_r):
             in_strand += 1
     # Verbinder (Pumpe an) von Ring r-1 nach r zwischen zwei Inseln derselben Schicht: Strang ueber die
     # Oeffnung, auch wenn der Abschnitt zwischen erstem und letztem print einer Gruppe sauber ist
@@ -203,6 +203,32 @@ def check_m1(C: Ctx) -> Rule:
     R.metrics["groups"] = len(groups)
     R.note = "Pumpe aus der Bewegungsart abgeleitet (an genau in print/link); DRL-Pumpenbefehle prueft G5"
     return R
+
+
+def _strand_order(R: Rule, C: Ctx, L: int, k: int, a: int, seg_k: np.ndarray, seg_r: np.ndarray) -> bool:
+    """Reihenfolge im Strang (Pumpe an): Die Ringe einer Gruppe kommen in Druckreihenfolge des
+    toolpath (Ringindex steigt, kein Ruecksprung auf einen schon verlassenen Ring), und ein Wechsel
+    print(Ring a) -> print(Ring b) ohne Verbinder ist hoechstens w lang (Verbinder der Laenge 0).
+    Sonst legt die Trajektorie bei laufender Pumpe eine Raupe quer ueber die Wand, die keine Regel
+    je Ring sieht (M6b prueft jeden Ring fuer sich)."""
+    tr = C.part.traj
+    back = np.flatnonzero(np.diff(seg_r) < 0)
+    if len(back):
+        i = a + int(back[0]) + 1
+        R.fail(L, int(seg_r[back[0] + 1]), tr.tcp[i, :2],
+               f"Ringe in falscher Reihenfolge: Ring {int(seg_r[back[0] + 1])} nach Ring "
+               f"{int(seg_r[back[0]])} bei laufender Pumpe (Schicht {L}, Insel {k})", sample=i, island=k)
+        return False
+    step = np.linalg.norm(np.diff(tr.tcp[a : a + len(seg_r), :3], axis=0), axis=1)
+    jump = (seg_r[1:] != seg_r[:-1]) & (seg_k[:-1] == "print") & (seg_k[1:] == "print") & (step > C.w)
+    if jump.any():
+        j = int(np.flatnonzero(jump)[0])
+        i = a + j + 1
+        R.fail(L, int(seg_r[j + 1]), tr.tcp[i, :2],
+               f"Sprung {step[j]:.1f} mm bei laufender Pumpe von Ring {int(seg_r[j])} nach Ring "
+               f"{int(seg_r[j + 1])} ohne Verbinder (> w)", sample=i, island=k)
+        return False
+    return True
 
 
 # ---------------------------------------------------------------- M2
