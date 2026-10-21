@@ -11,8 +11,8 @@ Querschnitt des Presets durch ein Rechteck. Exit-Code 0, wenn die Schicht ohne R
 from __future__ import annotations
 
 import argparse
-import math
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any

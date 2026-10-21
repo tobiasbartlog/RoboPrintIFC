@@ -131,3 +131,18 @@ def test_joint_and_node_contacts_and_unsupported_outer():
     joint = next(c for c in m.contacts if c.kind == "joint")
     assert np.allclose(joint.at, (0, -185), atol=2) and m.joint_x_mm == [joint.at[0]]
     assert m.longest_straight_outer_mm < 270  # Feld endet am Steg bzw. an der Fuge
+
+
+def test_section_change_with_same_island_count_is_no_m4_exception():
+    """AUFTRAG M4 nimmt nur Inselzahlwechsel aus (wie das Orakel): Ein diagonaler Wechsel bei
+    geändertem Querschnitt, aber gleicher Inselzahl, ist ein Fehler, auch mit `restart`."""
+    sec = {0: SEC, 1: box(-300, -200, 300, 180)}
+    pts = pt.densify(np.array([[-200.0, -100], [200, -100], [200, 100], [-200, 100]]), 20)
+    lp = pt.LayerPath(0, 0, [pt.Segment("inner", 1, pts)])
+    diag = pt.LayerPath(1, 0, [pt.Segment("inner", 1, pts[:-1].copy())], restart=True)
+    rep = pt.measure([lp, diag], sec, P)
+    assert rep.layer_changes[0]["status"] == "diagonal" and "M4" in {v.rule for v in rep.errors}
+    # Inselzahl ändert sich: dokumentierter Neubeginn, kein Fehler
+    two = {0: SEC, 1: box(-300, -200, -10, 200).union(box(10, -200, 300, 200))}
+    rep = pt.measure([lp, diag], two, P)
+    assert rep.layer_changes[0]["status"] == "restart" and "M4" not in {v.rule for v in rep.errors}

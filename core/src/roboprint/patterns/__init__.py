@@ -128,7 +128,7 @@ Ohne Muster (beide Plätze `none`, Preset `schalen`) gilt das Grundmuster „Sch
 (shells.py): alle Schalen einer Insel als ein Strang, Schalenwechsel als S-Kurve aus zwei Bögen
 mit Radius w ohne Doppelmaterial, Naht in der Mitte eines Eckbogens (layout.py). Mit
 `layer_order = 'alternate'` ist Schicht L + 1 die exakte Umkehrung von Schicht L, der Schicht-
-wechsel ein reiner Z-Hub (Ende L == Anfang L + 1). Bei geändertem Querschnitt: `restart` (plan.py).
+wechsel ein reiner Z-Hub (Ende L == Anfang L + 1). Bei geänderter Inselzahl: `restart` (plan.py).
 
 Metriken (metrics.py) messen M1–M7 wie dort beschrieben; Verstöße mit Schweregrad `error` machen
 ein Muster ungültig, `warn` sind Zielverfehlungen (z. B. Radius < w, Naht an einer Fläche).

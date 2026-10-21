@@ -117,7 +117,10 @@ hinter der IFC-Fläche zurück.
   (Freiabstand 8,8 mm), identisch mit dem Grundmuster.
 - **Fermat (Schräge):** Mitte des Eckbogens am Stirnende (8,8 mm Freiabstand); in den Schrägschichten
   am oberen Ende des Stirnschenkels (jedes freie Ende einer U-Form liegt an einer Fläche; die
-  Stoßfläche ist dem Sichtbereich vorzuziehen) → M4-Warnung.
+  Stoßfläche ist dem Sichtbereich vorzuziehen) → M4-Warnung. Der Schichtwechsel bleibt senkrecht
+  (die Inselzahl ändert sich nicht, AUFTRAG M4 nimmt das nicht aus): Weil die freien Enden mit der
+  Dicke sinken, wird Schicht L an der gemeinsamen Seite bis auf das Strangende von L + 1 gekürzt
+  (`_align_bevel_ends`); das nimmt nur Raupe weg, über der nichts mehr liegt.
 - **Öffnung:** Brüstung beginnt und endet innen auf Spur 1 der Pfeiler (frei von allen Flächen);
   Pfeiler beginnen innen und enden an der Laibungsecke auf der Außenfläche → M4-Warnung (die Bahn
   muss dort enden, weil sie in der Brüstung an genau dieser Stelle weiterläuft).

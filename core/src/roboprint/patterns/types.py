@@ -324,7 +324,7 @@ class LayerPath:
     Insel im Querschnitt der Schicht (Polygone sortiert nach (x_min, y_min) der Bounding-Box).
     `direction`: `out_in` (Schale 0 zuerst) oder `in_out` (Umkehrung). `contacts`: vom Muster
     deklarierte Kontakte (Absicht); gemessen werden sie in `metrics`. `restart`: Der Pfad setzt
-    nicht senkrecht an der Vorschicht an (Querschnitt oder Inselzahl geändert, M4-Ausnahme).
+    nicht senkrecht an der Vorschicht an, weil sich die Inselzahl ändert (M4-Ausnahme).
     `meta`: Zusatzinfo des Musters (z. B. Nahtlage), JSON-fähig.
     """
 

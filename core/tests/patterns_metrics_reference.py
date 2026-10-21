@@ -17,7 +17,8 @@ Messverfahren (alle Längen mm, w = Strangbreite, ε = params.eps):
 - **M3 Überhangfrei**: Raupenfläche (Mittellinie ⊕ w/2) von Schicht L + 1 minus (Raupenfläche von
   L ⊕ δ); Restfläche > 1 mm² ist ein Fehler.
 - **M4 Senkrechter Schichtwechsel**: waagrechter Abstand Ende L → Anfang L + 1 ≤ 0,5 mm. Ändert sich
-  der Querschnitt oder die Inselzahl (`restart`), ist es ein dokumentierter Neubeginn, kein Fehler.
+  die Inselzahl (`restart`), ist es ein dokumentierter Neubeginn, kein Fehler (Ausnahme laut
+  AUFTRAG M4, wie das Orakel); ein Querschnittswechsel bei gleicher Inselzahl ist keine Ausnahme.
   Liegt Anfang oder Ende eines Pfads so, dass die Raupe eine Außen- oder Stoßfläche berührt
   (layout.face_clearance ≤ 0), gibt es eine Warnung (Nahtlage).
 - **M5 Im Teil**: Raupenfläche minus (Querschnitt ⊕ 1 mm); Restfläche > 1 mm² ist ein Fehler.
@@ -615,7 +616,9 @@ def measure(
             )
         a, b = by_layer[La][-1], by_layer[Lb][0]
         dist = float(np.linalg.norm(b.start - a.end))
-        restart = b.restart
+        # Ausnahme nur, wo sich die Inselzahl ändert (AUFTRAG M4); ein Querschnittswechsel bei
+        # gleicher Inselzahl (z. B. Abschrägung) muss senkrecht bleiben
+        restart = len(polygons(sections.get(La))) != len(polygons(sections.get(Lb)))
         status = "vertical" if dist <= VERTICAL_TOL_MM else ("restart" if restart else "diagonal")
         changes.append({"from": La, "to": Lb, "distance_mm": round(dist, 3), "status": status})
         if status == "diagonal":

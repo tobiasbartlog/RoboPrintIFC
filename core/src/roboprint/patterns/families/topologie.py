@@ -236,17 +236,79 @@ def _corner(p: PatternParams) -> float:
     return max(p.corner_radius, p.w / 2.0)
 
 
+#: Toleranz (mm), mit der das Strangende der höheren Schicht auf der Bahn der tieferen liegen muss
+TRIM_TOL_MM = 0.05
+
+
+def _cut_end(pieces: list[Piece], point: np.ndarray, tol: float = TRIM_TOL_MM) -> list[Piece] | None:
+    """Bahn so kürzen, dass sie in `point` endet (der auf der Bahn liegen muss; gesucht wird vom
+    Ende her). None, wenn `point` nicht auf der Bahn liegt."""
+    for i in range(len(pieces) - 1, -1, -1):
+        q = pieces[i].pts
+        for j in range(len(q) - 2, -1, -1):
+            a, b = q[j], q[j + 1]
+            ab = b - a
+            den = float(ab @ ab)
+            u = 0.0 if den <= 0 else min(max(float((point - a) @ ab) / den, 0.0), 1.0)
+            if np.linalg.norm(a + u * ab - point) > tol:
+                continue
+            pts = np.vstack([q[: j + 1], point[None, :]])
+            pts = pts[np.r_[True, np.linalg.norm(np.diff(pts, axis=0), axis=1) > 1e-9]]
+            out = list(pieces[:i])
+            if len(pts) >= 2:
+                out.append(Piece(pieces[i].kind, pieces[i].shell, pts, pieces[i].label))
+            return out
+    return None
+
+
+def _align_bevel_ends(layers: dict[int, list[Piece]], order: str) -> dict[int, list[Piece]]:
+    """Senkrechter Schichtwechsel in der Abschrägung (M4, `alternate`).
+
+    Die freien Enden der U-Formen und der Wende sinken mit der Dicke; Ende L und Anfang L + 1
+    lägen dann bis 10 mm (eine Schicht Versatz) auseinander, bei gleicher Inselzahl. Weil jede
+    höhere Schicht nur Teile der Bahn der tieferen nutzt, liegt ihr Strangende auf der Bahn von L.
+    L wird deshalb an der gemeinsamen Seite (L gerade: Ende, L ungerade: Anfang der Bahn außen →
+    innen) bis genau dorthin gekürzt. Das nimmt L nur Raupe weg, über der in L + 1 nichts liegt
+    (M3 bleibt erfüllt); die andere Seite von L gehört zum Wechsel L − 1 → L und bleibt. Von oben
+    nach unten gerechnet, damit L + 1 schon fertig ist. Liegt das Ende nicht auf der Bahn, bleibt
+    die Schicht wie sie ist (M4 meldet den Wechsel)."""
+    if order != "alternate":
+        return layers
+    out = dict(layers)
+    for L in sorted(out, reverse=True):
+        nxt = out.get(L + 1)
+        cur = out[L]
+        if not nxt or not cur:
+            continue
+        if L % 2 == 0:  # L endet mit dem Ende seiner Bahn, L + 1 (umgekehrt) beginnt mit ihrem Ende
+            cut = _cut_end(cur, nxt[-1].pts[-1])
+        else:  # beide am Anfang ihrer Bahn
+            rev = _cut_end(reverse_pieces(cur), nxt[0].pts[0])
+            cut = None if rev is None else reverse_pieces(rev)
+        if cut:
+            out[L] = cut
+    return out
+
+
 def _plan_bevel(sections, rects, p: PatternParams, base: Rect, side: str, t: dict[int, float]) -> _PartPlan:
     w, rc, eps = p.w, _corner(p), p.eps
     T = base.y1 - base.y0
     frame = Frame(base.x0, base.y0, 1.0, 1.0) if side == "top" else Frame(base.x0, base.y1, 1.0, -1.0)
     yu = fermat_yu(T, w, rc, eps)
     plan = _PartPlan("abschraegung", note=f"Dicke {T:.1f} → {min(t.values()):.1f} mm ({side})")
-    done: dict[float, IslandPlan] = {}
-    for L, tl in t.items():
+    raw: dict[float, list[Piece]] = {}
+    for tl in t.values():
         key = round(tl, 3)
+        if key not in raw:
+            raw[key] = fermat_rect(base.width, T, tl, w, rc, eps, yu, p.delta_mm)
+    layers = _align_bevel_ends({L: raw[round(tl, 3)] for L, tl in t.items()}, p.layer_order)
+    done: dict[tuple, IslandPlan] = {}
+    for L, tl in t.items():
+        pieces = layers[L]
+        key = (round(tl, 3),) + tuple(
+            round(float(v), 3) for q in pieces[:1] + pieces[-1:] for v in (*q.pts[0], *q.pts[-1])
+        )
         if key not in done:
-            pieces = fermat_rect(base.width, T, tl, w, rc, eps, yu, p.delta_mm)
             meta = {"mode": "abschraegung", "side": side, "thickness_mm": round(tl, 2)}
             if not pieces:
                 meta["empty"] = "zu dünn für eine Raupe"

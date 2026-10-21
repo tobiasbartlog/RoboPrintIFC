@@ -416,3 +416,29 @@ def test_tiny_pier_islands_do_not_crash():
     # Inseln 96 × 104 mm: die innere Spur ist kürzer als 2·w (Kern `clear_end` brach ab)
     paths = pt.plan_pattern(edge(n_sill=3, n_top=3, X=545.0, T=104.0, a=96.0), P)
     assert paths and _mode(paths) == {"allgemein"}
+
+
+def _s2_head():
+    """Querschnitt wie die 45°-Schräge am Kopf der S2-Wände (900 mm, 3 volle Schichten)."""
+    s = {L: box(0, 0, 900, 200) for L in range(3)}
+    t, L = 195.7, 3
+    for _ in range(8):
+        s[L] = box(0, 0, 900, t)
+        t, L = t - 10, L + 1
+    return s
+
+
+@pytest.mark.parametrize(
+    "sec", [_s2_head(), bevel(side="top"), bevel(side="bottom"), bevel(X=900.0, T=166.0, n_full=2)]
+)
+def test_bevel_layer_changes_are_vertical(sec):
+    """Schräge bei gleicher Inselzahl: Jeder Schichtwechsel ist senkrecht (AUFTRAG M4 nimmt nur
+    Inselzahlwechsel aus). Vorher lagen Ende L und Anfang L + 1 bis 10 mm auseinander und galten
+    als `restart`, das Orakel meldete sie als nicht senkrecht."""
+    paths, rep = _ok(sec)
+    assert {c["status"] for c in rep.layer_changes} == {"vertical"}, [
+        c for c in rep.layer_changes if c["status"] != "vertical"
+    ]
+    for a, b in zip(paths[:-1], paths[1:], strict=True):
+        assert np.linalg.norm(a.end - b.start) <= 0.5
+        assert not b.restart
