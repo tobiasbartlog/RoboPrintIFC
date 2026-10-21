@@ -126,6 +126,63 @@ def offset_region(region: Any, offset_mm: float, corner_radius_mm: float = 0.0) 
     return base
 
 
+#: Breite des Schlitzes, der ein Loch mit dem Außenrand verbindet (`keyhole`): Die beiden Raupen
+#: am Schlitz liegen w + KEYHOLE_GAP_MM auseinander, also im Kontakt (≤ w + contact_tol)
+KEYHOLE_GAP_MM = 0.1
+
+
+def keyhole(region: Any, gap_mm: float = KEYHOLE_GAP_MM) -> Any:
+    """Insel ohne Löcher: Jedes Loch wird über den kürzesten Schlitz (Breite `gap_mm`) mit dem
+    Außenrand (bzw. einem schon verbundenen Loch) verbunden.
+
+    Für einen Strang je Insel (M1): Die Schalenringe der geschlitzten Fläche laufen am Außenrand,
+    durch den Schlitz hin, um das Loch herum und zurück, sind also je Schale ein Ring; die beiden
+    Raupen im Schlitz berühren sich (Abstand w + gap, Fuge wie bei der Fugenwand). Der Schlitz
+    liegt an der dünnsten Stelle zwischen Loch und Rand, in der Mitte des kürzesten Abschnitts.
+    Ohne Löcher kommt `region` unverändert zurück."""
+    import shapely
+    from shapely.geometry import LineString, Point
+
+    parts = polygons(region)
+    if not any(p.interiors for p in parts):
+        return region
+    out = []
+    for poly in parts:
+        cur = Polygon(poly.exterior)
+        holes = sorted((Polygon(h) for h in poly.interiors), key=lambda h: -h.area)
+        cur = cur.difference(MultiPolygon(holes)) if holes else cur
+        for _ in range(len(holes)):
+            cur_p = max(polygons(cur), key=lambda q: q.area)
+            if not cur_p.interiors:
+                break
+            ext = cur_p.exterior
+            best = None
+            for h in cur_p.interiors:
+                ring = np.asarray(h.coords, float)
+                pts = densify(ring, 1.0)
+                d = shapely.distance(shapely.points(pts), ext)
+                d0 = float(d.min())
+                if best is not None and d0 >= best[0]:
+                    continue
+                near = np.flatnonzero(d <= d0 + 0.5)
+                # längster zusammenhängender Lauf nahe am Minimum, davon die Mitte
+                runs = np.split(near, np.flatnonzero(np.diff(near) > 1) + 1)
+                run = max(runs, key=len)
+                best = (d0, pts[run[len(run) // 2]])
+            assert best is not None
+            a = best[1]
+            b = np.asarray(ext.interpolate(ext.project(Point(a))).coords[0], float)
+            v = b - a
+            n = float(np.linalg.norm(v))
+            if n < 1e-9:
+                break
+            v = v / n
+            line = LineString([a - 0.5 * v, b + 0.5 * v])
+            cur = cur.difference(line.buffer(gap_mm / 2.0, cap_style="flat"))
+        out.extend(polygons(cur))
+    return out[0] if len(out) == 1 else MultiPolygon(out)
+
+
 def offset_ring(region: Any, offset_mm: float, corner_radius_mm: float = 0.0) -> list[tuple[str, np.ndarray]]:
     """Ringe der Mittellinie im Abstand `offset_mm` innerhalb von `region`.
 

@@ -40,7 +40,9 @@ die exakte Umkehrung (plan.py). Ende L = Anfang L + 1, der Wechsel ist ein reine
 
 Zu schmale oder an Kerben zerfallende innere Schalen: `shell_chain` misst den Strang (M1, M2,
 M5, M6) und fällt auf die größte fehlerfreie Schalenzahl zurück (`meta.shells_dropped`).
-Löcher in einer Insel (Schacht im Querschnitt) und zerfallende Schalen (Hals schmaler als w)
+Löcher in einer Insel (Schacht im Querschnitt) verbindet `geometry.keyhole` über einen Schlitz an
+der dünnsten Stelle mit dem Außenrand; jede Schale ist dann ein Ring, der durch den Schlitz um das
+Loch läuft, die Raupen im Schlitz berühren sich (Fuge). Zerfallende Schalen (Hals schmaler als w)
 werden hier sonst nur angehängt (gerader Verbinder zum nächsten Punkt); M1/M2/M5 melden das. Die
 richtige Behandlung ist Aufgabe der Familie „Topologie“.
 """
@@ -60,6 +62,7 @@ from roboprint.patterns.geometry import (
     biarc_radius,
     centerline_band,
     densify,
+    keyhole,
     offset_region,
     offset_ring,
     resample_curve,
@@ -78,7 +81,9 @@ MIN_RING_W = math.pi
 
 
 def shell_lanes(region: Any, params: PatternParams) -> tuple[Lane, ...]:
-    """Schalenringe der Insel, Schale 0 zuerst; je Schale Außenkonturen vor Löchern."""
+    """Schalenringe der Insel, Schale 0 zuerst; je Schale Außenkonturen vor Löchern. Löcher werden
+    vorher über einen Schlitz mit dem Rand verbunden (`geometry.keyhole`): je Schale ein Ring."""
+    region = keyhole(region)
     out: list[Lane] = []
     for s in range(params.shells):
         rings = offset_ring(region, (s + 0.5) * params.w, params.corner_radius)
@@ -89,13 +94,13 @@ def shell_lanes(region: Any, params: PatternParams) -> tuple[Lane, ...]:
 
 
 def island_cavity(region: Any, params: PatternParams) -> Any:
-    """Hohlraum innerhalb der innersten Schale (Raupenkante)."""
-    return offset_region(region, params.shells * params.w, params.corner_radius)
+    """Hohlraum innerhalb der innersten Schale (Raupenkante), wie die Schalen mit Schlitz zum Loch."""
+    return offset_region(keyhole(region), params.shells * params.w, params.corner_radius)
 
 
 def island_band(region: Any, params: PatternParams) -> Any:
     """Fläche für Infill-Mittellinien, deren Raupe die innerste Schale gerade berührt."""
-    return centerline_band(region, params.shells, params.w)
+    return centerline_band(keyhole(region), params.shells, params.w)
 
 
 def _main_exterior(lanes: tuple[Lane, ...], shell: int) -> tuple[np.ndarray | None, list[np.ndarray]]:

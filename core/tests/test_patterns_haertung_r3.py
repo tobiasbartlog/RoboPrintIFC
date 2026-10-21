@@ -39,6 +39,43 @@ def test_corner_radius_does_not_pinch_neck_under_notch():
     assert len(bottom) == 0 or bottom[:, 1].max() < 15.5
 
 
+LOCH = {
+    "polygon": [[0, 0], [1200, 0], [1200, 365], [0, 365]],
+    "holes": [[[400, 120], [800, 120], [800, 245], [400, 245]]],
+}
+
+
+HOLE_PATTERNS = ["schalen", "topologie", "fugenwand", "aussenwelle", "fermat", "maeander"]
+
+
+@pytest.mark.parametrize("pattern", HOLE_PATTERNS)
+@pytest.mark.parametrize("shells", [2, 1])
+def test_section_with_hole_is_one_simple_strand(pattern, shells):
+    """Querschnitt mit Innenloch: Vorher hing jedes Muster das Loch mit einem 340–373 mm langen
+    Verbinder quer über die Schalen an (M1/M2, Pfad nicht einfach). Jetzt läuft jede Schale durch
+    einen Schlitz an der dünnsten Stelle um das Loch: ein einfacher, kreuzungsfreier Strang."""
+    d = pt.preview({"pattern": pattern, "params": {"shells": shells}, "outline": LOCH})
+    assert d["ok"], [(v["rule"], v["message"]) for v in d["violations"] if v["severity"] == "error"]
+    assert len(d["paths"]) == 1
+    pts = [q for seg in d["paths"][0]["segments"] for q in seg["points"]]
+    line = LineString(pts)
+    assert line.is_simple
+    hole = Polygon(LOCH["holes"][0])
+    assert line.distance(hole.exterior) < 30.0  # das Loch hat eine Schale
+    steps = [LineString([a, b]).length for a, b in zip(pts[:-1], pts[1:], strict=False)]
+    assert max(steps) <= 60.0
+
+
+def test_keyhole_slit_at_thinnest_place():
+    reg = Polygon(LOCH["polygon"], [LOCH["holes"][0]])
+    kh = pt.keyhole(reg)
+    assert not kh.interiors and abs(kh.area - reg.area) < 0.1 * 120 + 1
+    slit = reg.difference(kh)
+    x0, y0, x1, y1 = slit.bounds
+    assert abs((x0 + x1) / 2 - 600) < 1 and (y1 - y0) > 119  # Mitte des 400-mm-Stegs, 120 mm lang
+    assert pt.keyhole(Polygon(LOCH["polygon"])).equals(Polygon(LOCH["polygon"]))
+
+
 @pytest.mark.parametrize("pattern", ["sinus", "zickzack", "trapez", "maeander"])
 @pytest.mark.parametrize(("w", "t"), [(25.0, 100.0), (30.0, 120.0), (40.0, 160.0)])
 def test_single_ring_infill_never_skips_outer_lane(pattern, w, t):

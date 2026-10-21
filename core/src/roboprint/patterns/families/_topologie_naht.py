@@ -19,7 +19,7 @@ from typing import Any
 import numpy as np
 from shapely.geometry.polygon import orient
 
-from roboprint.patterns.geometry import QUAD_SEGS, Loop, densify, polygons, resample_curve
+from roboprint.patterns.geometry import QUAD_SEGS, Loop, densify, keyhole, polygons, resample_curve
 from roboprint.patterns.layout import face_clearance
 from roboprint.patterns.metrics import measure_path
 from roboprint.patterns.shells import clear_end, lane_change
@@ -97,6 +97,7 @@ def island_lanes(region: Any, params: PatternParams, shells: int) -> tuple[Lane,
     (r, ¾·r, w/2), der die Topologie erhält. Ecken mit w/2 sind druckbar (M6 hart), nur das Ziel
     r ≥ w wird verfehlt."""
     w, rc = params.w, params.corner_radius
+    region = keyhole(region)  # Löcher über einen Schlitz an den Rand (wie der Kern): je Schale ein Ring
     out: list[Lane] = []
     for s in range(shells):
         o = (s + 0.5) * w
